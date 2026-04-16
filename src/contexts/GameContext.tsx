@@ -5,6 +5,7 @@ import { loadGameState, saveGameState, clearGameState } from '../utils/storage';
 
 const DEFAULT_CONFIG: GameConfig = {
   stepsPerDie: 5000,
+  maxDice: 5,
 };
 
 function createInitialPlayer(): PlayerState {
@@ -51,7 +52,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         player: {
           ...state.player,
           totalStepsEntered: state.player.totalStepsEntered + action.steps,
-          availableDice: state.player.availableDice + newDice,
+          availableDice: Math.min(state.player.availableDice + newDice, state.config.maxDice),
           stepsTowardNextDie: remainder,
           lastUpdated: Date.now(),
         },
@@ -100,7 +101,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         player: {
           ...state.player,
           currentSquareIndex: newIndex,
-          availableDice: state.player.availableDice - 1 + capitalBonus,
+          availableDice: Math.min(state.player.availableDice - 1 + capitalBonus, state.config.maxDice),
           diceHistory: [...state.player.diceHistory, diceRoll],
           visitedCapitals: newVisited,
           completedLaps,

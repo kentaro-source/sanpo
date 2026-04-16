@@ -1,7 +1,7 @@
 import { useGame } from '../../hooks/useGame';
 
 export function Header() {
-  const { player, visitedCount, totalCapitals } = useGame();
+  const { player, config, visitedCount, totalCapitals } = useGame();
 
   return (
     <header className="header">
@@ -11,7 +11,7 @@ export function Header() {
       </div>
       <div className="header-dice">
         <span className="dice-icon">🎲</span>
-        <span className="dice-count">{player.availableDice}</span>
+        <span className="dice-count">{player.availableDice}/{config.maxDice}</span>
       </div>
     </header>
   );

@@ -58,6 +58,7 @@ export interface PlayerState {
 
 export interface GameConfig {
   stepsPerDie: number;
+  maxDice: number;
 }
 
 export interface GameState {
