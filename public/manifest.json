@@ -1,0 +1,9 @@
+{
+  "name": "Sanpo - 歩いて世界一周",
+  "short_name": "Sanpo",
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#1e293b",
+  "background_color": "#f8fafc",
+  "icons": []
+}
