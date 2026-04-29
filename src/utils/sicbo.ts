@@ -6,10 +6,10 @@ import type { SicBoBetType, BetSlot } from '../types';
  * Player advances `bet.amount × multiplier` squares when winning.
  */
 export const SICBO_PAYOUTS: Record<string, number> = {
-  big: 6,
-  small: 6,
-  odd: 6,
-  even: 6,
+  big: 4,
+  small: 4,
+  odd: 4,
+  even: 4,
   'total-4': 216,
   'total-5': 108,
   'total-6': 64,

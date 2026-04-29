@@ -12,7 +12,7 @@ import { loadGameState, saveGameState, clearGameState } from '../utils/storage';
 import { rollDice, isTriple, evaluateAllBets, totalBetAmount } from '../utils/sicbo';
 
 const DEFAULT_CONFIG: GameConfig = {
-  stepsPerDie: 7000,
+  stepsPerDie: 5000,
   maxDice: 5,
 };
 

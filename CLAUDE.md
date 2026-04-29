@@ -12,7 +12,8 @@
 - 2026-04-16: Phase 1 MVP実装、GitHub Pagesデプロイ、PWA化
 - 2026-04-17頃: カザフスタン旅行（手動歩数入力で運用開始）
 - 2026-04-29 (前半): Google Fit連携 (OAuth + 自動同期) 実装完了
-- 2026-04-29 (後半): Sic Boベット制（カジノ風）に変更、UI伝統マカオ風
+- 2026-04-29 (午後): Sic Boベット制（カジノ風）に変更、UI伝統マカオ風
+- 2026-04-29 (夕方): 都市データ追加（164都市）+ Google Maps切替着手（**作業途中**）
 
 ### デプロイ
 - **本番URL**: https://kentaro-source.github.io/sanpo/
@@ -146,25 +147,66 @@ npm run build
 git push
 ```
 
-## 今後やりたいこと（クライアント側）
+## 進行中タスク（次回再開時すぐ着手）
 
-### 次の優先タスク
-1. **首都以外の都市追加**（国ごとに恣意的に選定 + 上記宿泊都市ベース）
-   - 訪問都市を優先カバー
-   - マップに小さい都市マーカー表示
-   - 近接検出 → 初訪+1🎲ボーナス
-2. **サイコロ履歴表示**（過去10回のロール結果）
-3. ログインボーナス（毎日起動で+1🎲、連続日数ブースト）
-4. 歩数マイルストーンボーナス（10万歩、100万歩...）
+### Google Maps 切替（作業途中）
+**状態**:
+- ✅ Google Cloud Console: Maps JavaScript API 有効化 (My First Project にて)
+- ✅ APIキー作成: `AIzaSyAl8HkXqKTy1_PDDU7-XX4cLQNYfXwrwl8`
+- ✅ HTTP リファラ制限設定: `https://kentaro-source.github.io/*` + `http://localhost:5173/*`
+- ✅ `.env.local` に `VITE_GOOGLE_MAPS_API_KEY` 設定 (gitignored)
+- ✅ GitHub Actions Secret に `VITE_GOOGLE_MAPS_API_KEY` 登録 (ユーザー側で要確認)
+- ✅ デプロイワークフローに env injection 追加
+- ✅ `MapView.tsx` を Leaflet → Google Maps API (vanilla JS、@react-google-maps/api はReact19非対応のため不採用)
+- ✅ `@types/google.maps` 導入、型エラーなし
+- ⚠️ **動作確認未完了**: Maps API有効化が反映されたか、リファラ制限が効くか、要実機確認
+- ⚠️ ApiNotActivatedMapError がローカルで出ていたが、APIキー保護設定後はリロード未確認
 
-### 中期
+**次のアクション**:
+1. ローカルで `npm run dev` → 地図が表示されるか確認
+2. もしエラー出たら、コンソール確認（API有効化反映に数分かかる場合あり）
+3. デプロイして本番でも確認
+4. Leaflet 関連のコンポーネント (`SquareDots.tsx`, `RoutePolyline.tsx`, `CapitalMarkers.tsx`, `CityMarkers.tsx`, `CurrentPositionMarker.tsx`) は **MapView に統合済み**（個別ファイルは現在未使用）。削除して良い
+
+### 都市データ（実装済みデータ、UI連携も最低限完了）
+- `src/data/cities.ts`: 164都市 (User の訪問都市すべて含む)
+- `src/data/index.ts` から `cities` エクスポート済み
+- `MapView.tsx` 内で都市マーカー描画済み（タイプ別色: metropolis=青、historic=紫、tourist=緑、gourmet=黄）
+- ❌ **近接検出と初訪問+1🎲ボーナスはまだ実装されていない** (City型はあるがロジック未追加)
+
+### 大改修方針（次フェーズ）: 実在ルート化
+ユーザー要望:
+- 陸セグメント: 大きい道や鉄道を通る（Google Directions API使用）
+- 海セグメント: 実在の航路（神戸→上海フェリー、ドーバー海峡等）
+- ルート無い区間: ファンタジー（曲線・島伝い）
+
+**実装案**:
+1. 各セグメント (193本) の種別を分類（陸/海/混合）
+2. 陸: Directions API で polyline 取得 → ビルド時/初回起動時にキャッシュ
+3. 海: 手動キュレーションした waypoint 配列を使用
+4. fallback: 現状の great-circle 補間
+5. 結果の polyline に沿って `Square` を再生成
+
+**自動ストップ機能**: 新規首都・都市で必ず止まる仕様 → 飛ばし問題解決
+（ただし首都ボーナス +1/+2 のロジック齟齬注意）
+
+## 直近の改善メモ（次回検討）
+
+### Sic Bo
+- ✅ 大/小 巨大化、伝統マカオ風盤、ピップ視認性改善 (28%/48%, inset positioning)
+- ✅ 大/小 倍率: ×6 → ×4、stepsPerDie: 7000 → 5000 (バランス調整)
+- ❌ サイコロ履歴表示（過去10回）
+- ❌ 振り中アニメ更なる磨き込み
+- ❌ 外れベットの返金ルール
+
+### ボーナス拡張
+- ❌ ログインボーナス（毎日起動で+1🎲、連続日数ブースト）
+- ❌ 歩数マイルストーンボーナス（10万歩、100万歩...）
+- ❌ 都市初訪+1🎲
+
+### その他将来
 - マスイベント（エリア別ランダム表示）
 - 首都到着時の国情報表示（RestCountries API）
 - Travel Tracker連携（訪問済み国は思い出表示）
-- ストリートビュー連携
+- Google Maps Street View 連携（API キー流用可能）
 - 統計ダッシュボード
-- 外れたベットの一部返金ルール（要検討）
-
-### UI気になりポイント（メモ）
-- ダイス見栄え: ピップは更にリアル化したい余地あり、お椀から分離して felt テーブル風にレイアウト済み
-- 振り中アニメ: シェイカー（蓋付きお椀）で振る演出
