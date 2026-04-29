@@ -16,13 +16,17 @@ export function Die({ face, size = 28, variant = 'red' }: Props) {
   };
   const pips = PIPS[face] ?? [];
   // Center pip on face=1 is bigger/more prominent (traditional Asian style)
-  const basePipPercent = 24;
-  const onePipPercent = 42;
+  const basePipPercent = 28;
+  const onePipPercent = 48;
   const isOne = face === 1;
   const pipSize = Math.round((size * (isOne ? onePipPercent : basePipPercent)) / 100);
 
   const isRedFace = variant === 'red' && (face === 1 || face === 4);
   const radius = Math.max(4, Math.round(size * 0.14));
+
+  // Pip positions inset from edges so they don't get cut off.
+  // Grid index (0, 1, 2) → percent position from die origin
+  const POS = [22, 50, 78];
 
   return (
     <div
@@ -41,8 +45,8 @@ export function Die({ face, size = 28, variant = 'red' }: Props) {
             style={{
               width: pipSize,
               height: pipSize,
-              top: `${r * 50}%`,
-              left: `${c * 50}%`,
+              top: `${POS[r]}%`,
+              left: `${POS[c]}%`,
             }}
           />
         ))}

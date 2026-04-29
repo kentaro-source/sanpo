@@ -147,37 +147,29 @@ export function SicBoModal({ open, onClose }: Props) {
             </div>
 
             <div className="sicbo-board">
-              <div className="sicbo-row sicbo-bs-row">
-                <BetCellBig
-                  type="odd"
-                  label="単"
-                  count={betCount('odd')}
-                  onAdd={() => placeBet('odd')}
-                  onRemove={(e) => removeBet('odd', e)}
-                />
-                <BetCellBig
-                  type="big"
-                  label="大"
-                  count={betCount('big')}
-                  onAdd={() => placeBet('big')}
-                  onRemove={(e) => removeBet('big', e)}
-                />
-                <BetCellBig
-                  type="small"
-                  label="小"
-                  count={betCount('small')}
-                  onAdd={() => placeBet('small')}
-                  onRemove={(e) => removeBet('small', e)}
-                />
-                <BetCellBig
-                  type="even"
-                  label="双"
-                  count={betCount('even')}
-                  onAdd={() => placeBet('even')}
-                  onRemove={(e) => removeBet('even', e)}
+              {/* Triples row - specific 6 + any triple */}
+              <div className="sicbo-row sicbo-triples-row">
+                {[1, 2, 3, 4, 5, 6].map((n) => {
+                  const type = `triple-${n}` as SicBoBetType;
+                  return (
+                    <BetCellTriple
+                      key={type}
+                      face={n}
+                      mult={payoutFor(type)}
+                      count={betCount(type)}
+                      onAdd={() => placeBet(type)}
+                      onRemove={(e) => removeBet(type, e)}
+                    />
+                  );
+                })}
+                <BetCellAnyTriple
+                  count={betCount('any-triple')}
+                  onAdd={() => placeBet('any-triple')}
+                  onRemove={(e) => removeBet('any-triple', e)}
                 />
               </div>
 
+              {/* Specific totals - 4-10 (under SMALL) and 11-17 (under BIG) */}
               <div className="sicbo-row sicbo-totals-row">
                 {[4, 5, 6, 7, 8, 9, 10].map((n) => {
                   const type = `total-${n}` as SicBoBetType;
@@ -209,26 +201,39 @@ export function SicBoModal({ open, onClose }: Props) {
                 })}
               </div>
 
-              <div className="sicbo-row sicbo-triples-row">
-                {[1, 2, 3, 4, 5, 6].map((n) => {
-                  const type = `triple-${n}` as SicBoBetType;
-                  return (
-                    <BetCellTriple
-                      key={type}
-                      face={n}
-                      mult={payoutFor(type)}
-                      count={betCount(type)}
-                      onAdd={() => placeBet(type)}
-                      onRemove={(e) => removeBet(type, e)}
-                    />
-                  );
-                })}
+              {/* Big / Small - HUGE traditional characters */}
+              <div className="sicbo-row sicbo-mainbet-row">
+                <BetCellBig
+                  type="small"
+                  label="小"
+                  count={betCount('small')}
+                  onAdd={() => placeBet('small')}
+                  onRemove={(e) => removeBet('small', e)}
+                />
+                <BetCellBig
+                  type="big"
+                  label="大"
+                  count={betCount('big')}
+                  onAdd={() => placeBet('big')}
+                  onRemove={(e) => removeBet('big', e)}
+                />
               </div>
-              <div className="sicbo-row">
-                <BetCellAnyTriple
-                  count={betCount('any-triple')}
-                  onAdd={() => placeBet('any-triple')}
-                  onRemove={(e) => removeBet('any-triple', e)}
+
+              {/* Even / Odd */}
+              <div className="sicbo-row sicbo-bs-row">
+                <BetCellBig
+                  type="odd"
+                  label="単"
+                  count={betCount('odd')}
+                  onAdd={() => placeBet('odd')}
+                  onRemove={(e) => removeBet('odd', e)}
+                />
+                <BetCellBig
+                  type="even"
+                  label="双"
+                  count={betCount('even')}
+                  onAdd={() => placeBet('even')}
+                  onRemove={(e) => removeBet('even', e)}
                 />
               </div>
             </div>
@@ -239,14 +244,14 @@ export function SicBoModal({ open, onClose }: Props) {
                 onClick={clearAll}
                 disabled={totalTokens === 0}
               >
-                クリア
+                RESET
               </button>
               <button
                 className="sicbo-roll"
                 onClick={handleRoll}
                 disabled={totalTokens === 0}
               >
-                振る
+                ROLL
               </button>
             </div>
           </>
@@ -261,7 +266,7 @@ export function SicBoModal({ open, onClose }: Props) {
                 <div className="sicbo-shaker-knob" />
               </div>
             </div>
-            <div className="sicbo-stage-msg">振っています...</div>
+            <div className="sicbo-stage-msg">ROLLING...</div>
           </div>
         )}
 
@@ -271,7 +276,7 @@ export function SicBoModal({ open, onClose }: Props) {
             <div className="sicbo-table">
               {resultRoll.dice.map((face, i) => (
                 <div key={i} className="sicbo-table-die" style={{ animationDelay: `${i * 0.08}s` }}>
-                  <Die face={face} size={84} />
+                  <Die face={face} size={96} />
                 </div>
               ))}
             </div>
@@ -292,14 +297,14 @@ export function SicBoModal({ open, onClose }: Props) {
             </div>
             <div className="sicbo-actions">
               <button className="sicbo-close-btn" onClick={handleClose}>
-                閉じる
+                CLOSE
               </button>
               <button
                 className="sicbo-newround"
                 onClick={handleNewRound}
                 disabled={player.availableDice <= 0}
               >
-                もう一度
+                AGAIN
               </button>
             </div>
           </div>
@@ -366,9 +371,8 @@ function BetCellTriple({ face, mult, count, onAdd, onRemove }: TripleCellProps) 
     <div className={`bet-cell-v2 cell-triple ${count > 0 ? 'cell-active' : ''}`}>
       <button className="bet-cell-area" onClick={onAdd}>
         <div className="cell-triple-dice">
-          <Die face={face} size={20} />
-          <Die face={face} size={20} />
-          <Die face={face} size={20} />
+          <Die face={face} size={36} />
+          <span className="cell-triple-x3">×3</span>
         </div>
         <div className="cell-total-mult">×{mult}</div>
       </button>
@@ -381,13 +385,7 @@ function BetCellAnyTriple({ count, onAdd, onRemove }: { count: number; onAdd: ()
   return (
     <div className={`bet-cell-v2 cell-any-triple ${count > 0 ? 'cell-active' : ''}`}>
       <button className="bet-cell-area" onClick={onAdd}>
-        <div className="cell-any-dice">
-          <Die face={2} size={18} />
-          <Die face={4} size={18} />
-          <Die face={6} size={18} />
-          <span className="cell-any-equal">＝</span>
-          <span className="cell-any-mark">？？？</span>
-        </div>
+        <div className="cell-bs-label">囲</div>
         <div className="cell-total-mult">×{payoutFor('any-triple')}</div>
       </button>
       {count > 0 && <Chip count={count} onClick={onRemove} />}

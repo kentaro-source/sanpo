@@ -786,15 +786,14 @@
   pointer-events: none;
 }
 
-/* Die component (real-style with pips) */
+/* Die component - flat solid colors for max readability */
 .die {
   position: relative;
-  background:
-    radial-gradient(ellipse at 30% 20%, #ffffff 0%, #f5efe0 60%, #d6cdba 100%);
+  background: #ffffff;
+  border: 1px solid rgba(0,0,0,0.18);
   box-shadow:
-    0 4px 10px rgba(0,0,0,0.5),
-    inset 0 -3px 5px rgba(0,0,0,0.12),
-    inset 0 2px 3px rgba(255,255,255,0.6);
+    0 4px 8px rgba(0,0,0,0.45),
+    0 1px 2px rgba(0,0,0,0.3);
   transition: transform 0.15s;
 }
 
@@ -809,18 +808,21 @@
   position: absolute;
   border-radius: 50%;
   transform: translate(-50%, -50%);
-  box-shadow:
-    inset 0 2px 3px rgba(0,0,0,0.6),
-    inset 0 -1px 1px rgba(255,255,255,0.15),
-    0 0 1px rgba(0,0,0,0.4);
+  /* High contrast, flat solid colors */
 }
 
 .die-pip-black {
-  background: radial-gradient(circle at 35% 35%, #4a4a4a 0%, #1a1a1a 70%, #000 100%);
+  background: #000000;
+  box-shadow:
+    inset 0 1px 2px rgba(255,255,255,0.18),
+    0 0 0 1px rgba(0,0,0,0.05);
 }
 
 .die-pip-red {
-  background: radial-gradient(circle at 35% 35%, #ef4444 0%, #b91c1c 70%, #7f1d1d 100%);
+  background: #c1272d;
+  box-shadow:
+    inset 0 1px 2px rgba(255,255,255,0.2),
+    0 0 0 1px rgba(193, 39, 45, 0.3);
 }
 
 .sicbo-dice-tray.rolling {
@@ -848,40 +850,46 @@
   100% { transform: translate(-2px, 2px) rotate(-5deg) scale(1); }
 }
 
-/* Betting Board (Macau-style) */
+/* Betting Board (Macau-style traditional) - tight grid with shared borders */
 .sicbo-board {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 2px 0;
+  background: #fdf6e3;
+  border: 2px solid #2c1810;
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 4px 0;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
 }
 
 .sicbo-row {
   display: flex;
-  gap: 3px;
+  border-bottom: 1.5px solid #2c1810;
 }
 
-.sicbo-bs-row .bet-cell-v2 {
+.sicbo-row:last-child {
+  border-bottom: none;
+}
+
+.sicbo-bs-row .bet-cell-v2,
+.sicbo-totals-row .bet-cell-v2,
+.sicbo-triples-row .bet-cell-v2,
+.sicbo-mainbet-row .bet-cell-v2 {
   flex: 1;
 }
 
-.sicbo-totals-row .bet-cell-v2 {
-  flex: 1;
-}
-
-.sicbo-triples-row .bet-cell-v2 {
-  flex: 1;
-}
-
-/* Generic bet cell (Macau style) */
+/* Generic bet cell - shared borders via row gaps */
 .bet-cell-v2 {
   position: relative;
   background: #fffaf0;
-  border: 1.5px solid #2c1810;
-  border-radius: 4px;
+  border-right: 1.5px solid #2c1810;
   overflow: hidden;
-  min-height: 40px;
+  min-height: 36px;
   -webkit-tap-highlight-color: transparent;
+}
+
+.bet-cell-v2:last-child {
+  border-right: none;
 }
 
 .bet-cell-v2 .bet-cell-area {
@@ -901,13 +909,13 @@
 }
 
 .cell-active {
-  background: #fef9c3;
+  background: #fef9c3 !important;
   box-shadow: inset 0 0 0 2px #d4af37;
 }
 
-/* Big/Small (top row) */
-.cell-bs {
-  min-height: 64px;
+/* Big/Small main bets - HUGE characters */
+.sicbo-mainbet-row .bet-cell-v2 {
+  min-height: 96px;
 }
 
 .cell-big {
@@ -918,24 +926,32 @@
   background: linear-gradient(180deg, #f0f9ff 0%, #dbeafe 100%);
 }
 
+.sicbo-mainbet-row .cell-bs-label {
+  font-size: 64px;
+  font-weight: 900;
+  font-family: 'Hiragino Mincho ProN', 'YuMincho', 'Noto Serif JP', serif;
+  line-height: 1;
+  color: #8b1a1a;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.15);
+}
+
+/* Even/Odd - same style but smaller */
+.sicbo-bs-row .bet-cell-v2 {
+  min-height: 64px;
+}
+
 .cell-odd, .cell-even {
   background: linear-gradient(180deg, #fffaf0 0%, #fef3c7 100%);
 }
 
 .cell-bs-label {
-  font-size: 32px;
+  font-size: 36px;
   font-weight: 900;
-  font-family: 'Hiragino Mincho ProN', 'YuMincho', serif;
+  font-family: 'Hiragino Mincho ProN', 'YuMincho', 'Noto Serif JP', serif;
   line-height: 1;
 }
 
-.cell-big .cell-bs-label,
-.cell-small .cell-bs-label {
-  color: #8b1a1a;
-}
-
-.cell-odd .cell-bs-label,
-.cell-even .cell-bs-label {
+.sicbo-bs-row .cell-bs-label {
   color: #1e3a8a;
 }
 
@@ -960,25 +976,59 @@
 
 /* Triple cells */
 .cell-triple {
-  min-height: 44px;
+  min-height: 56px;
 }
 
 .cell-triple-dice {
   display: flex;
-  gap: 2px;
+  gap: 4px;
   align-items: center;
   justify-content: center;
 }
 
+.cell-triple-x3 {
+  font-size: 14px;
+  font-weight: 800;
+  color: #2c1810;
+  font-family: -apple-system, sans-serif;
+}
+
 .cell-any-triple {
   flex: 1;
-  min-height: 36px;
+  min-height: 56px;
+  background: linear-gradient(180deg, #fdf4ff 0%, #fae8ff 100%);
+}
+
+.cell-any-triple .cell-bs-label {
+  font-size: 28px;
+  color: #7c2d12;
 }
 
 .cell-any-label {
   font-size: 12px;
   font-weight: 700;
   color: #2c1810;
+}
+
+.cell-any-dice {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  flex-wrap: nowrap;
+}
+
+.cell-any-equal {
+  margin: 0 4px;
+  font-weight: 700;
+  color: #2c1810;
+}
+
+.cell-any-mark {
+  font-size: 14px;
+  font-weight: 700;
+  color: #8b1a1a;
+  letter-spacing: 1px;
 }
 
 /* Chip indicator */
