@@ -11,6 +11,20 @@ export interface Capital {
   region: Region;
 }
 
+export type CityType = 'metropolis' | 'historic' | 'tourist' | 'gourmet';
+
+export interface City {
+  id: string;          // unique id, e.g. "JP-OSAKA"
+  name: string;        // English
+  nameJa: string;      // Japanese
+  countryId: string;   // ISO 3166-1 alpha-2 of the country
+  countryJa: string;
+  lat: number;
+  lng: number;
+  type: CityType;
+  description: string; // 短い日本語紹介
+}
+
 export interface Square {
   index: number;
   lat: number;
@@ -54,6 +68,8 @@ export interface PlayerState {
   startDate: number;
   lastUpdated: number;
   completedLaps: number;
+  // Google Fit sync state
+  lastSyncTimestamp?: number; // unix ms - last time we successfully pulled from Google Fit
 }
 
 export interface GameConfig {

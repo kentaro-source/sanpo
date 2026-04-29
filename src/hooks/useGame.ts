@@ -57,6 +57,8 @@ export function useGame() {
   }, [player.currentSquareIndex, player.visitedCapitals.length]);
 
   const addSteps = (steps: number) => dispatch({ type: 'ADD_STEPS', steps });
+  const syncFromGoogleFit = (steps: number, syncTimestamp: number) =>
+    dispatch({ type: 'SYNC_FROM_GOOGLE_FIT', steps, syncTimestamp });
   const rollDie = () => dispatch({ type: 'ROLL_DIE' });
   const resetGame = () => dispatch({ type: 'RESET_GAME' });
 
@@ -66,6 +68,7 @@ export function useGame() {
     config: state.config,
     routeData,
     addSteps,
+    syncFromGoogleFit,
     rollDie,
     resetGame,
   };

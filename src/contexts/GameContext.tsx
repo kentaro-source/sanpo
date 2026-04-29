@@ -4,7 +4,7 @@ import { routeData } from '../data';
 import { loadGameState, saveGameState, clearGameState } from '../utils/storage';
 
 const DEFAULT_CONFIG: GameConfig = {
-  stepsPerDie: 5000,
+  stepsPerDie: 7000,
   maxDice: 5,
 };
 
@@ -37,6 +37,7 @@ function getInitialState(): GameState {
 // Actions
 type GameAction =
   | { type: 'ADD_STEPS'; steps: number }
+  | { type: 'SYNC_FROM_GOOGLE_FIT'; steps: number; syncTimestamp: number }
   | { type: 'ROLL_DIE' }
   | { type: 'UPDATE_CONFIG'; config: Partial<GameConfig> }
   | { type: 'RESET_GAME' };
@@ -54,6 +55,25 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           totalStepsEntered: state.player.totalStepsEntered + action.steps,
           availableDice: Math.min(state.player.availableDice + newDice, state.config.maxDice),
           stepsTowardNextDie: remainder,
+          lastUpdated: Date.now(),
+        },
+      };
+    }
+
+    case 'SYNC_FROM_GOOGLE_FIT': {
+      // Steps fetched from Google Fit between lastSyncTimestamp and now.
+      // Same logic as ADD_STEPS, plus update lastSyncTimestamp.
+      const totalSteps = state.player.stepsTowardNextDie + action.steps;
+      const newDice = Math.floor(totalSteps / state.config.stepsPerDie);
+      const remainder = totalSteps % state.config.stepsPerDie;
+      return {
+        ...state,
+        player: {
+          ...state.player,
+          totalStepsEntered: state.player.totalStepsEntered + action.steps,
+          availableDice: Math.min(state.player.availableDice + newDice, state.config.maxDice),
+          stepsTowardNextDie: remainder,
+          lastSyncTimestamp: action.syncTimestamp,
           lastUpdated: Date.now(),
         },
       };
