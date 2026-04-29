@@ -1,7 +1,15 @@
 import { createContext, useReducer, useEffect, type ReactNode } from 'react';
-import type { GameState, PlayerState, GameConfig, DiceRoll } from '../types';
+import type {
+  GameState,
+  PlayerState,
+  GameConfig,
+  DiceRoll,
+  BetSlot,
+  SicBoRoll,
+} from '../types';
 import { routeData } from '../data';
 import { loadGameState, saveGameState, clearGameState } from '../utils/storage';
+import { rollDice, isTriple, evaluateAllBets, totalBetAmount } from '../utils/sicbo';
 
 const DEFAULT_CONFIG: GameConfig = {
   stepsPerDie: 7000,
@@ -34,11 +42,62 @@ function getInitialState(): GameState {
   return loadGameState() ?? createInitialState();
 }
 
+/**
+ * Apply N-square advance to player state. Handles:
+ * - Lap wrapping
+ * - Capital pass-through (first time only): +1 token
+ * - Capital exact landing (first time only): +2 tokens (overrides the +1)
+ *   (i.e., if it's both passed AND landed on a new capital, gets +2 not +3)
+ *
+ * Returns updated indices, visited list, completedLaps, and bonus tokens earned.
+ */
+function applyAdvance(state: GameState, advance: number) {
+  const fromSquare = state.player.currentSquareIndex;
+  let completedLaps = state.player.completedLaps;
+  const newVisited = [...state.player.visitedCapitals];
+  let bonusTokens = 0;
+
+  if (advance <= 0) {
+    return {
+      toIndex: fromSquare,
+      newVisited,
+      completedLaps,
+      bonusTokens: 0,
+    };
+  }
+
+  // Walk each square between fromSquare+1 and fromSquare+advance.
+  // The final square (fromSquare+advance) is the landing square.
+  for (let i = fromSquare + 1; i <= fromSquare + advance; i++) {
+    const idx = i % routeData.totalSquares;
+    const square = routeData.squares[idx];
+    if (square.isCapital && square.capitalId) {
+      const isNew = !newVisited.includes(square.capitalId);
+      const isLanding = i === fromSquare + advance;
+      if (isNew) {
+        // +2 if exact landing on new capital, otherwise +1 for pass-through
+        bonusTokens += isLanding ? 2 : 1;
+        newVisited.push(square.capitalId);
+      }
+    }
+  }
+
+  // Lap completion
+  let toIndex = fromSquare + advance;
+  while (toIndex >= routeData.totalSquares) {
+    toIndex -= routeData.totalSquares;
+    completedLaps++;
+  }
+
+  return { toIndex, newVisited, completedLaps, bonusTokens };
+}
+
 // Actions
 type GameAction =
   | { type: 'ADD_STEPS'; steps: number }
   | { type: 'SYNC_FROM_GOOGLE_FIT'; steps: number; syncTimestamp: number }
-  | { type: 'ROLL_DIE' }
+  | { type: 'ROLL_DIE' } // legacy single-die roll (kept for now)
+  | { type: 'ROLL_SICBO'; bets: BetSlot[]; dice?: [number, number, number] }
   | { type: 'UPDATE_CONFIG'; config: Partial<GameConfig> }
   | { type: 'RESET_GAME' };
 
@@ -84,47 +143,73 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
       const roll = Math.floor(Math.random() * 6) + 1;
       const fromSquare = state.player.currentSquareIndex;
-      let newIndex = fromSquare + roll;
-      let completedLaps = state.player.completedLaps;
-
-      // Handle lap completion
-      if (newIndex >= routeData.totalSquares) {
-        newIndex = newIndex % routeData.totalSquares;
-        completedLaps++;
-      }
-
-      // Check for capitals passed or landed on
-      const newVisited = [...state.player.visitedCapitals];
-      const start = fromSquare + 1;
-      const end = fromSquare + roll;
-      for (let i = start; i <= end; i++) {
-        const idx = i % routeData.totalSquares;
-        const square = routeData.squares[idx];
-        if (square.isCapital && square.capitalId && !newVisited.includes(square.capitalId)) {
-          newVisited.push(square.capitalId);
-        }
-      }
-
-      // Bonus: landing exactly on a capital gives +1 die
-      const landedSquare = routeData.squares[newIndex];
-      const capitalBonus = landedSquare.isCapital && landedSquare.capitalId !== routeData.capitals[0].id ? 1 : 0;
+      const advance = roll;
+      const advanced = applyAdvance(state, advance);
 
       const diceRoll: DiceRoll = {
         roll,
         timestamp: Date.now(),
         fromSquare,
-        toSquare: newIndex,
+        toSquare: advanced.toIndex,
       };
 
       return {
         ...state,
         player: {
           ...state.player,
-          currentSquareIndex: newIndex,
-          availableDice: Math.min(state.player.availableDice - 1 + capitalBonus, state.config.maxDice),
+          currentSquareIndex: advanced.toIndex,
+          availableDice: Math.min(
+            state.player.availableDice - 1 + advanced.bonusTokens,
+            state.config.maxDice,
+          ),
           diceHistory: [...state.player.diceHistory, diceRoll],
-          visitedCapitals: newVisited,
-          completedLaps,
+          visitedCapitals: advanced.newVisited,
+          completedLaps: advanced.completedLaps,
+          lastUpdated: Date.now(),
+        },
+      };
+    }
+
+    case 'ROLL_SICBO': {
+      const bets = action.bets;
+      const totalBet = totalBetAmount(bets);
+      if (totalBet <= 0) return state;
+      if (totalBet > state.player.availableDice) return state;
+
+      const dice = action.dice ?? rollDice();
+      const sum = dice[0] + dice[1] + dice[2];
+      const triple = isTriple(dice);
+      const tripleValue = triple ? dice[0] : undefined;
+
+      const { total: totalAdvance } = evaluateAllBets(bets, dice);
+
+      const fromSquare = state.player.currentSquareIndex;
+      const advanced = applyAdvance(state, totalAdvance);
+
+      const sicBoRoll: SicBoRoll = {
+        dice,
+        sum,
+        isTriple: triple,
+        tripleValue,
+        timestamp: Date.now(),
+        bets,
+        totalAdvance,
+        fromSquare,
+        toSquare: advanced.toIndex,
+      };
+
+      const tokensAfter =
+        state.player.availableDice - totalBet + advanced.bonusTokens;
+
+      return {
+        ...state,
+        player: {
+          ...state.player,
+          currentSquareIndex: advanced.toIndex,
+          availableDice: Math.max(0, Math.min(tokensAfter, state.config.maxDice)),
+          sicBoHistory: [...(state.player.sicBoHistory ?? []), sicBoRoll],
+          visitedCapitals: advanced.newVisited,
+          completedLaps: advanced.completedLaps,
           lastUpdated: Date.now(),
         },
       };

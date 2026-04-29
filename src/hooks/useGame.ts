@@ -1,6 +1,7 @@
 import { useContext, useMemo } from 'react';
 import { GameContext } from '../contexts/GameContext';
 import { routeData } from '../data';
+import type { BetSlot } from '../types';
 
 export function useGame() {
   const ctx = useContext(GameContext);
@@ -60,6 +61,8 @@ export function useGame() {
   const syncFromGoogleFit = (steps: number, syncTimestamp: number) =>
     dispatch({ type: 'SYNC_FROM_GOOGLE_FIT', steps, syncTimestamp });
   const rollDie = () => dispatch({ type: 'ROLL_DIE' });
+  const rollSicBo = (bets: BetSlot[], dice?: [number, number, number]) =>
+    dispatch({ type: 'ROLL_SICBO', bets, dice });
   const resetGame = () => dispatch({ type: 'RESET_GAME' });
 
   return {
@@ -70,6 +73,7 @@ export function useGame() {
     addSteps,
     syncFromGoogleFit,
     rollDie,
+    rollSicBo,
     resetGame,
   };
 }

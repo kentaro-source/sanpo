@@ -1,45 +1,44 @@
 import { useState } from 'react';
 import { useGame } from '../../hooks/useGame';
-import { DiceResult } from './DiceResult';
+import { SicBoModal } from '../sicbo/SicBoModal';
+import { unlockAudio } from '../../services/sound';
 
 export function DiceButton() {
-  const { player, rollDie, routeData } = useGame();
-  const [rolling, setRolling] = useState(false);
+  const { player } = useGame();
+  const [open, setOpen] = useState(false);
 
-  const handleRoll = () => {
-    if (player.availableDice <= 0 || rolling) return;
-
-    setRolling(true);
-
-    setTimeout(() => {
-      rollDie();
-      setRolling(false);
-    }, 600);
+  const handleOpen = () => {
+    if (player.availableDice <= 0) return;
+    unlockAudio();
+    setOpen(true);
   };
 
-  const latestRoll = player.diceHistory.length > 0
-    ? player.diceHistory[player.diceHistory.length - 1]
-    : null;
-
-  const landedOnCapital = latestRoll
-    ? routeData.squares[latestRoll.toSquare]?.isCapital
-      ? routeData.capitals.find(c => c.id === routeData.squares[latestRoll.toSquare].capitalId)
-      : null
+  const lastSicBo = player.sicBoHistory && player.sicBoHistory.length > 0
+    ? player.sicBoHistory[player.sicBoHistory.length - 1]
     : null;
 
   return (
     <div className="dice-section">
       <button
-        className={`dice-button ${rolling ? 'rolling' : ''} ${player.availableDice <= 0 ? 'disabled' : ''}`}
-        onClick={handleRoll}
-        disabled={player.availableDice <= 0 || rolling}
+        className={`dice-button ${player.availableDice <= 0 ? 'disabled' : ''}`}
+        onClick={handleOpen}
+        disabled={player.availableDice <= 0}
       >
         <span className="dice-emoji">🎲</span>
         <span className="dice-label">
-          {player.availableDice <= 0 ? 'サイコロがない' : 'サイコロを振る！'}
+          {player.availableDice <= 0 ? '🎲がない（歩いて貯める）' : 'カジノでプレイ！'}
         </span>
       </button>
-      <DiceResult roll={latestRoll} landedCapital={landedOnCapital} />
+      {lastSicBo && (
+        <div className="last-roll">
+          前回: {lastSicBo.dice[0]}+{lastSicBo.dice[1]}+{lastSicBo.dice[2]}
+          {' = '}{lastSicBo.sum}
+          {lastSicBo.totalAdvance > 0
+            ? ` → +${lastSicBo.totalAdvance}マス`
+            : ' → ハズレ'}
+        </div>
+      )}
+      <SicBoModal open={open} onClose={() => setOpen(false)} />
     </div>
   );
 }

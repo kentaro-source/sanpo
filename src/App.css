@@ -310,11 +310,52 @@
   animation: fadeIn 0.5s;
 }
 
+.last-roll {
+  font-size: 11px;
+  color: #94a3b8;
+  text-align: center;
+}
+
 /* Google Fit */
 .gfit-section {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.gfit-section-connected {
+  margin: 0;
+  gap: 0;
+}
+
+.gfit-status-mini {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #475569;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 6px;
+  padding: 4px 8px;
+}
+
+.gfit-status-mini > span:first-child {
+  flex: 1;
+}
+
+.gfit-mini-btn {
+  background: none;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 11px;
+  cursor: pointer;
+  color: #475569;
+}
+
+.gfit-mini-btn:disabled {
+  opacity: 0.4;
 }
 
 .gfit-button {
@@ -355,12 +396,35 @@
 }
 
 .gfit-status {
+  font-size: 12px;
+  color: #475569;
+  padding: 6px 8px;
+  background: #f0fdf4;
+  border-radius: 6px;
+  border: 1px solid #bbf7d0;
+}
+
+.gfit-row {
   display: flex;
-  justify-content: space-between;
+  gap: 8px;
   align-items: center;
-  font-size: 11px;
-  color: #94a3b8;
-  padding: 0 2px;
+}
+
+.gfit-resync {
+  flex: 1;
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.gfit-resync:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .gfit-disconnect {
@@ -392,4 +456,689 @@
   padding: 4px 8px;
   border-radius: 4px;
   font-weight: 600;
+}
+
+/* Sic Bo Modal - Macau-style traditional board */
+.sicbo-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.85);
+  z-index: 2000;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  animation: fadeIn 0.2s;
+}
+
+.sicbo-content {
+  width: 100%;
+  max-width: 480px;
+  background: #f5e6c8; /* parchment cream */
+  color: #2c1810;
+  display: flex;
+  flex-direction: column;
+  padding: env(safe-area-inset-top) 8px env(safe-area-inset-bottom);
+  overflow-y: auto;
+  font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Mincho ProN', 'YuMincho', serif;
+}
+
+.sicbo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 4px;
+  border-bottom: 2px solid #8b4513;
+  margin-bottom: 4px;
+}
+
+.sicbo-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #8b1a1a;
+  letter-spacing: 4px;
+}
+
+.sicbo-close {
+  background: none;
+  border: 1px solid #8b4513;
+  border-radius: 4px;
+  color: #2c1810;
+  font-size: 16px;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.sicbo-token-bar {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 4px;
+  font-size: 13px;
+  color: #2c1810;
+  border-bottom: 1px solid #8b4513;
+  margin-bottom: 6px;
+}
+
+.sicbo-token-bar strong {
+  color: #8b1a1a;
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0 2px;
+}
+
+.sicbo-section-title {
+  font-size: 11px;
+  color: #8b4513;
+  margin: 6px 2px 2px;
+  letter-spacing: 1px;
+}
+
+/* Stage (rolling/result full-screen) */
+.sicbo-stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 8px;
+  animation: fadeIn 0.3s;
+}
+
+.sicbo-stage-msg {
+  font-size: 18px;
+  color: #8b1a1a;
+  font-weight: 700;
+  letter-spacing: 4px;
+}
+
+.sicbo-stage-sum {
+  font-size: 16px;
+  color: #6b5e3a;
+  margin-top: 8px;
+}
+
+/* Bowl - the "お椀" (covered shaker) */
+.sicbo-bowl {
+  position: relative;
+  width: 280px;
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sicbo-bowl-inside {
+  position: relative;
+  display: flex;
+  gap: 12px;
+  padding: 28px 24px;
+  background:
+    radial-gradient(ellipse at center bottom, #5c1a0e 0%, #2a0908 80%);
+  border-radius: 50% / 35%;
+  border: 4px solid #d4af37;
+  box-shadow:
+    inset 0 12px 28px rgba(0,0,0,0.7),
+    inset 0 -6px 16px rgba(212, 175, 55, 0.25),
+    0 6px 20px rgba(0,0,0,0.5);
+  min-width: 240px;
+  min-height: 120px;
+  align-items: center;
+  justify-content: center;
+}
+
+.sicbo-bowl-inside::before {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border-radius: 50% / 35%;
+  background: radial-gradient(ellipse at top, rgba(255,255,255,0.1), transparent 65%);
+  pointer-events: none;
+}
+
+/* Lid (covers dice during rolling) */
+.sicbo-bowl-lid {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at center 30%, #fef9c3 0%, #d4af37 50%, #8b4513 100%);
+  border-radius: 50% / 50%;
+  border: 4px solid #d4af37;
+  box-shadow:
+    inset 0 -8px 16px rgba(0,0,0,0.4),
+    inset 0 4px 12px rgba(255,255,255,0.4),
+    0 6px 20px rgba(0,0,0,0.4);
+  pointer-events: none;
+}
+
+.sicbo-bowl-lid::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  background: radial-gradient(circle, #8b4513, #2c1810);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.sicbo-bowl.rolling {
+  animation: bowlShake 0.18s linear infinite;
+}
+
+.sicbo-bowl.rolling .sicbo-bowl-inside {
+  filter: blur(0.5px);
+}
+
+.sicbo-bowl.rolling .die {
+  animation: dieShake 0.08s linear infinite;
+}
+
+.sicbo-bowl.revealed {
+  animation: bowlReveal 0.5s ease-out;
+}
+
+.sicbo-bowl.revealed .die {
+  animation: dieLand 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Shaker (closed bowl during rolling) */
+.sicbo-shaker {
+  position: relative;
+  width: 220px;
+  height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sicbo-shaker-base {
+  position: absolute;
+  bottom: 0;
+  left: 10%;
+  right: 10%;
+  height: 60%;
+  background:
+    radial-gradient(ellipse at center bottom, #5c1a0e 0%, #2a0908 80%);
+  border: 4px solid #d4af37;
+  border-bottom-left-radius: 50% 80%;
+  border-bottom-right-radius: 50% 80%;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  box-shadow:
+    inset 0 -8px 16px rgba(0,0,0,0.5),
+    0 6px 16px rgba(0,0,0,0.5);
+}
+
+.sicbo-shaker-lid {
+  position: absolute;
+  top: 5%;
+  left: 5%;
+  right: 5%;
+  height: 55%;
+  background:
+    radial-gradient(ellipse at 50% 30%, #fef9c3 0%, #d4af37 50%, #8b4513 100%);
+  border: 4px solid #d4af37;
+  border-top-left-radius: 50% 100%;
+  border-top-right-radius: 50% 100%;
+  border-bottom-left-radius: 6px;
+  border-bottom-right-radius: 6px;
+  box-shadow:
+    inset 0 -6px 12px rgba(0,0,0,0.4),
+    inset 0 4px 8px rgba(255,255,255,0.4),
+    0 4px 12px rgba(0,0,0,0.4);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 8%;
+}
+
+.sicbo-shaker-knob {
+  width: 24px;
+  height: 24px;
+  background: radial-gradient(circle at 30% 30%, #d4af37, #5c2c08);
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+}
+
+.sicbo-shaker.rolling {
+  animation: shakerShake 0.12s linear infinite;
+}
+
+.sicbo-shaker.rolling .sicbo-shaker-lid {
+  animation: lidJiggle 0.18s ease-in-out infinite alternate;
+}
+
+@keyframes shakerShake {
+  0% { transform: translate(0, 0) rotate(-3deg); }
+  20% { transform: translate(-4px, -2px) rotate(2deg); }
+  40% { transform: translate(3px, -3px) rotate(-2deg); }
+  60% { transform: translate(-3px, 2px) rotate(3deg); }
+  80% { transform: translate(4px, 1px) rotate(-1deg); }
+  100% { transform: translate(0, -1px) rotate(2deg); }
+}
+
+@keyframes lidJiggle {
+  0% { transform: translateY(0) rotate(0deg); }
+  100% { transform: translateY(-3px) rotate(2deg); }
+}
+
+/* Result table (felt surface where dice land) */
+.sicbo-table {
+  display: flex;
+  gap: 16px;
+  padding: 24px 24px 28px;
+  background:
+    radial-gradient(ellipse at center, #1d4a2c 0%, #0f2a18 100%);
+  border: 3px solid #d4af37;
+  border-radius: 16px;
+  box-shadow:
+    inset 0 4px 12px rgba(0,0,0,0.5),
+    0 6px 18px rgba(0,0,0,0.4);
+  align-items: center;
+  justify-content: center;
+  margin: 8px 0;
+}
+
+.sicbo-table-die {
+  animation: dieLand 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+@keyframes bowlReveal {
+  0% { transform: scale(0.8); opacity: 0; }
+  60% { transform: scale(1.05); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes dieLand {
+  0% { transform: translateY(-30px) rotate(360deg) scale(0.6); opacity: 0; }
+  60% { transform: translateY(4px) rotate(-12deg) scale(1.15); opacity: 1; }
+  100% { transform: translateY(0) rotate(0deg) scale(1); }
+}
+
+/* Legacy dice tray (kept for fallback) */
+.sicbo-dice-tray {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  padding: 20px 16px;
+  margin: 6px 0;
+  background:
+    radial-gradient(ellipse at center bottom, #5c1a0e 0%, #2a0908 80%);
+  border-radius: 50% / 28%;
+  border: 3px solid #d4af37;
+  box-shadow:
+    inset 0 8px 24px rgba(0,0,0,0.7),
+    inset 0 -4px 12px rgba(212, 175, 55, 0.2),
+    0 4px 12px rgba(0,0,0,0.4);
+  min-height: 100px;
+  overflow: hidden;
+}
+
+.sicbo-dice-tray::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 50% / 28%;
+  background: radial-gradient(ellipse at top, rgba(255,255,255,0.08), transparent 70%);
+  pointer-events: none;
+}
+
+/* Die component (real-style with pips) */
+.die {
+  position: relative;
+  background:
+    radial-gradient(ellipse at 30% 20%, #ffffff 0%, #f5efe0 60%, #d6cdba 100%);
+  box-shadow:
+    0 4px 10px rgba(0,0,0,0.5),
+    inset 0 -3px 5px rgba(0,0,0,0.12),
+    inset 0 2px 3px rgba(255,255,255,0.6);
+  transition: transform 0.15s;
+}
+
+.die-face {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.die-pip {
+  position: absolute;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow:
+    inset 0 2px 3px rgba(0,0,0,0.6),
+    inset 0 -1px 1px rgba(255,255,255,0.15),
+    0 0 1px rgba(0,0,0,0.4);
+}
+
+.die-pip-black {
+  background: radial-gradient(circle at 35% 35%, #4a4a4a 0%, #1a1a1a 70%, #000 100%);
+}
+
+.die-pip-red {
+  background: radial-gradient(circle at 35% 35%, #ef4444 0%, #b91c1c 70%, #7f1d1d 100%);
+}
+
+.sicbo-dice-tray.rolling {
+  animation: bowlShake 0.18s linear infinite;
+}
+
+.sicbo-dice-tray.rolling .die {
+  animation: dieShake 0.08s linear infinite;
+}
+
+@keyframes bowlShake {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  25% { transform: translate(-2px, -1px) rotate(-1deg); }
+  50% { transform: translate(2px, 2px) rotate(1deg); }
+  75% { transform: translate(-1px, 2px) rotate(-0.5deg); }
+  100% { transform: translate(1px, -2px) rotate(1deg); }
+}
+
+@keyframes dieShake {
+  0% { transform: translate(0, 0) rotate(0deg) scale(1); }
+  20% { transform: translate(-3px, -4px) rotate(-12deg) scale(1.02); }
+  40% { transform: translate(4px, 3px) rotate(15deg) scale(0.98); }
+  60% { transform: translate(-4px, 4px) rotate(-8deg) scale(1.04); }
+  80% { transform: translate(3px, -3px) rotate(20deg) scale(0.96); }
+  100% { transform: translate(-2px, 2px) rotate(-5deg) scale(1); }
+}
+
+/* Betting Board (Macau-style) */
+.sicbo-board {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px 0;
+}
+
+.sicbo-row {
+  display: flex;
+  gap: 3px;
+}
+
+.sicbo-bs-row .bet-cell-v2 {
+  flex: 1;
+}
+
+.sicbo-totals-row .bet-cell-v2 {
+  flex: 1;
+}
+
+.sicbo-triples-row .bet-cell-v2 {
+  flex: 1;
+}
+
+/* Generic bet cell (Macau style) */
+.bet-cell-v2 {
+  position: relative;
+  background: #fffaf0;
+  border: 1.5px solid #2c1810;
+  border-radius: 4px;
+  overflow: hidden;
+  min-height: 40px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bet-cell-v2 .bet-cell-area {
+  width: 100%;
+  height: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 2px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  color: #2c1810;
+  font-family: inherit;
+}
+
+.cell-active {
+  background: #fef9c3;
+  box-shadow: inset 0 0 0 2px #d4af37;
+}
+
+/* Big/Small (top row) */
+.cell-bs {
+  min-height: 64px;
+}
+
+.cell-big {
+  background: linear-gradient(180deg, #fff5f5 0%, #fee2e2 100%);
+}
+
+.cell-small {
+  background: linear-gradient(180deg, #f0f9ff 0%, #dbeafe 100%);
+}
+
+.cell-odd, .cell-even {
+  background: linear-gradient(180deg, #fffaf0 0%, #fef3c7 100%);
+}
+
+.cell-bs-label {
+  font-size: 32px;
+  font-weight: 900;
+  font-family: 'Hiragino Mincho ProN', 'YuMincho', serif;
+  line-height: 1;
+}
+
+.cell-big .cell-bs-label,
+.cell-small .cell-bs-label {
+  color: #8b1a1a;
+}
+
+.cell-odd .cell-bs-label,
+.cell-even .cell-bs-label {
+  color: #1e3a8a;
+}
+
+
+/* Total cells */
+.cell-total {
+  min-height: 40px;
+}
+
+.cell-total-num {
+  font-size: 16px;
+  font-weight: 700;
+  color: #2c1810;
+  line-height: 1;
+}
+
+.cell-total-mult {
+  font-size: 9px;
+  color: #8b1a1a;
+  font-weight: 600;
+}
+
+/* Triple cells */
+.cell-triple {
+  min-height: 44px;
+}
+
+.cell-triple-dice {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  justify-content: center;
+}
+
+.cell-any-triple {
+  flex: 1;
+  min-height: 36px;
+}
+
+.cell-any-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #2c1810;
+}
+
+/* Chip indicator */
+.bet-chip {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  background: radial-gradient(circle, #d4af37 30%, #b8860b 70%);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.4);
+  border: 1.5px solid #fff;
+  font-family: -apple-system, sans-serif;
+}
+
+/* Actions */
+.sicbo-actions {
+  display: flex;
+  gap: 8px;
+  padding: 10px 0;
+}
+
+.sicbo-clear {
+  flex: 1;
+  background: #fffaf0;
+  color: #2c1810;
+  border: 1.5px solid #2c1810;
+  border-radius: 4px;
+  padding: 10px;
+  font-size: 14px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.sicbo-clear:disabled {
+  opacity: 0.4;
+}
+
+.sicbo-roll {
+  flex: 2;
+  background: linear-gradient(180deg, #c1272d 0%, #8b1a1a 100%);
+  color: #fef9c3;
+  border: 1.5px solid #2c1810;
+  border-radius: 4px;
+  padding: 12px;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: 6px;
+  cursor: pointer;
+  font-family: 'Hiragino Mincho ProN', 'YuMincho', serif;
+}
+
+.sicbo-roll:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.sicbo-roll:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.sicbo-rolling-msg {
+  text-align: center;
+  font-size: 16px;
+  padding: 24px;
+  color: #8b1a1a;
+  font-weight: 700;
+}
+
+/* Result */
+.sicbo-result {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 0;
+  animation: fadeIn 0.4s;
+}
+
+.sicbo-sum {
+  text-align: center;
+  font-size: 16px;
+  color: #6b5e3a;
+}
+
+.sicbo-advance {
+  text-align: center;
+  font-size: 28px;
+  font-weight: 900;
+  padding: 12px;
+  border-radius: 4px;
+  border: 1.5px solid #2c1810;
+  font-family: 'Hiragino Mincho ProN', 'YuMincho', serif;
+}
+
+.sicbo-advance.win {
+  color: #8b1a1a;
+  background: linear-gradient(180deg, #fef3c7 0%, #fcd34d 100%);
+}
+
+.sicbo-advance.lose {
+  color: #6b5e3a;
+  background: #f5e6c8;
+}
+
+.sicbo-bet-results {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: #fffaf0;
+  border: 1px solid #8b4513;
+  padding: 6px 8px;
+  border-radius: 4px;
+}
+
+.sicbo-bet-result {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  padding: 2px 4px;
+}
+
+.sicbo-bet-result.win {
+  color: #8b1a1a;
+  font-weight: 700;
+}
+
+.sicbo-bet-result.lose {
+  color: #6b5e3a;
+}
+
+.sicbo-close-btn,
+.sicbo-newround {
+  flex: 1;
+  border: 1.5px solid #2c1810;
+  border-radius: 4px;
+  padding: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.sicbo-close-btn {
+  background: #fffaf0;
+  color: #2c1810;
+}
+
+.sicbo-newround {
+  background: linear-gradient(180deg, #c1272d 0%, #8b1a1a 100%);
+  color: #fef9c3;
+}
+
+.sicbo-newround:disabled {
+  opacity: 0.4;
 }

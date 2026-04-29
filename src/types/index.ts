@@ -58,12 +58,41 @@ export interface DiceRoll {
   toSquare: number;
 }
 
+// === Sic Bo (大小) ===
+
+export type SicBoBetType =
+  | 'big'        // 大: sum 11-17 (no triples)
+  | 'small'      // 小: sum 4-10 (no triples)
+  | 'odd'        // 奇: sum is odd
+  | 'even'       // 偶: sum is even
+  | `total-${number}`   // total-4, total-5, ..., total-17
+  | 'any-triple'        // 任意ゾロ目
+  | `triple-${number}`; // triple-1, triple-2, ..., triple-6
+
+export interface BetSlot {
+  type: SicBoBetType;
+  amount: number; // tokens placed
+}
+
+export interface SicBoRoll {
+  dice: [number, number, number];
+  sum: number;
+  isTriple: boolean;
+  tripleValue?: number;
+  timestamp: number;
+  bets: BetSlot[];
+  totalAdvance: number;
+  fromSquare: number;
+  toSquare: number;
+}
+
 export interface PlayerState {
   currentSquareIndex: number;
   availableDice: number;
   totalStepsEntered: number;
   stepsTowardNextDie: number;
   diceHistory: DiceRoll[];
+  sicBoHistory?: SicBoRoll[];
   visitedCapitals: string[];
   startDate: number;
   lastUpdated: number;
