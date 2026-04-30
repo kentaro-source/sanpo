@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useGame } from '../../hooks/useGame';
 import { useGoogleFitConnection } from '../../hooks/useGoogleFitConnection';
-import { silentSignIn, fetchStepsBetween } from '../../services/googleFit';
+import { fetchStepsBetween } from '../../services/googleFit';
 
 function startOfTodayMs(): number {
   const d = new Date();
@@ -13,7 +13,7 @@ const AUTO_SYNC_MIN_INTERVAL_MS = 60_000;
 
 export function GoogleFitButton() {
   const { player, syncFromGoogleFit } = useGame();
-  const { connected, signIn, signOut, setConnected } = useGoogleFitConnection();
+  const { connected, signIn, signOut } = useGoogleFitConnection();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<string | null>(null);
@@ -35,19 +35,7 @@ export function GoogleFitButton() {
         if (!auto) setLastResult('同期する歩数がありません');
         return;
       }
-      let steps: number;
-      try {
-        steps = await fetchStepsBetween(startMs, now);
-      } catch (e) {
-        const m = e instanceof Error ? e.message : '';
-        if (m.includes('Authentication') || m.includes('Not signed in')) {
-          const fresh = await silentSignIn();
-          if (!fresh) throw e;
-          steps = await fetchStepsBetween(startMs, now);
-        } else {
-          throw e;
-        }
-      }
+      const steps = await fetchStepsBetween(startMs, now);
       syncFromGoogleFit(steps, now);
       if (steps > 0) {
         setLastResult(`+${steps.toLocaleString()} 歩 同期`);
@@ -56,9 +44,12 @@ export function GoogleFitButton() {
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : '同期に失敗しました';
-      setError(msg);
-      if (msg.includes('Authentication') || msg.includes('Not signed in')) {
-        setConnected(false);
+      // Stay connected (button hidden) even if token expired; user can manually
+      // re-auth from the small "再連携" link shown on auth errors only.
+      if (auto && (msg.includes('Authentication') || msg.includes('Not signed in'))) {
+        // Silent fail for auto-sync; UI stays clean.
+      } else {
+        setError(msg);
       }
     } finally {
       setBusy(false);

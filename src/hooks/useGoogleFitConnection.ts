@@ -1,13 +1,37 @@
 import { useEffect, useState } from 'react';
 import {
   signIn as gfSignIn,
-  silentSignIn,
   signOut as gfSignOut,
   isSignedIn,
 } from '../services/googleFit';
 
-let initialized = false;
-let connectedGlobal = isSignedIn();
+const EVER_CONSENTED_KEY = 'sanpo-google-fit-ever-consented';
+
+function hasEverConsented(): boolean {
+  try {
+    return localStorage.getItem(EVER_CONSENTED_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+function setEverConsented(): void {
+  try {
+    localStorage.setItem(EVER_CONSENTED_KEY, '1');
+  } catch {
+    // ignore
+  }
+}
+
+function clearEverConsented(): void {
+  try {
+    localStorage.removeItem(EVER_CONSENTED_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+let connectedGlobal = isSignedIn() || hasEverConsented();
 const listeners = new Set<(v: boolean) => void>();
 
 function setConnectedGlobal(v: boolean) {
@@ -16,21 +40,12 @@ function setConnectedGlobal(v: boolean) {
   listeners.forEach((l) => l(v));
 }
 
-async function initOnce() {
-  if (initialized) return;
-  initialized = true;
-  if (connectedGlobal) return;
-  const token = await silentSignIn();
-  if (token) setConnectedGlobal(true);
-}
-
 export function useGoogleFitConnection() {
   const [connected, setConnected] = useState(connectedGlobal);
 
   useEffect(() => {
     listeners.add(setConnected);
     setConnected(connectedGlobal);
-    initOnce();
     return () => {
       listeners.delete(setConnected);
     };
@@ -38,12 +53,16 @@ export function useGoogleFitConnection() {
 
   return {
     connected,
+    /** True if user has actually got a fresh token right now (not just ever-consented). */
+    hasFreshToken: () => isSignedIn(),
     signIn: async () => {
       await gfSignIn();
+      setEverConsented();
       setConnectedGlobal(true);
     },
     signOut: () => {
       gfSignOut();
+      clearEverConsented();
       setConnectedGlobal(false);
     },
     setConnected: setConnectedGlobal,

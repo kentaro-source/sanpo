@@ -43,6 +43,7 @@ export function MapView() {
   const realRoutePolylinesRef = useRef<google.maps.Polyline[]>([]);
   const capitalMarkersRef = useRef<google.maps.Marker[]>([]);
   const cityMarkersRef = useRef<google.maps.Marker[]>([]);
+  const squareMarkersRef = useRef<google.maps.Marker[]>([]);
   const currentMarkerRef = useRef<google.maps.Marker | null>(null);
   const prevSquareIndex = useRef(currentSquare.index);
   const [loaded, setLoaded] = useState(false);
@@ -169,12 +170,34 @@ export function MapView() {
         let path: google.maps.LatLngLiteral[];
 
         if (seg.routeType === 'land') {
-          // Try Directions API for road following
+          // Try Directions API for road following across all waypoints in one call
           const roadPath = await getRoadPolyline(origin, destination, waypoints);
           if (cancelled) return;
           path = roadPath ?? [origin, ...waypoints, destination];
+        } else if (seg.routeType === 'mixed') {
+          // Render pair-by-pair: sea sub-segments straight, land sub-segments via Directions API
+          const points = [origin, ...waypoints, destination];
+          const seaSet = new Set(
+            (seg.seaSegments ?? []).map(([a, b]) => `${a}-${b}`),
+          );
+          const built: google.maps.LatLngLiteral[] = [];
+          for (let i = 0; i < points.length - 1; i++) {
+            if (cancelled) return;
+            const isSea = seaSet.has(`${i}-${i + 1}`);
+            let segPath: google.maps.LatLngLiteral[];
+            if (isSea) {
+              segPath = [points[i], points[i + 1]];
+            } else {
+              const road = await getRoadPolyline(points[i], points[i + 1]);
+              if (cancelled) return;
+              segPath = road ?? [points[i], points[i + 1]];
+            }
+            if (i === 0) built.push(...segPath);
+            else built.push(...segPath.slice(1));
+          }
+          path = built;
         } else {
-          // sea / mixed / fantasy: use straight lines through waypoints
+          // sea / fantasy: straight lines through waypoints
           path = [origin, ...waypoints, destination];
         }
 
@@ -253,6 +276,49 @@ export function MapView() {
       cityMarkersRef.current.push(m);
     }
   }, [loaded]);
+
+  // Render square dots (one tiny circle per non-capital square).
+  // Created once after load; only color/opacity is updated when position changes.
+  useEffect(() => {
+    if (!loaded || !mapRef.current) return;
+    if (squareMarkersRef.current.length > 0) return; // already created
+
+    for (let i = 0; i < routeData.squares.length; i++) {
+      const sq = routeData.squares[i];
+      if (sq.isCapital) continue;
+      const m = new google.maps.Marker({
+        position: { lat: sq.lat, lng: sq.lng },
+        map: mapRef.current,
+        clickable: false,
+        zIndex: 2,
+        icon: {
+          path: google.maps.SymbolPath.CIRCLE,
+          scale: 1.6,
+          fillColor: '#94a3b8',
+          fillOpacity: 0.55,
+          strokeWeight: 0,
+        },
+      });
+      (m as unknown as { _idx: number })._idx = i;
+      squareMarkersRef.current.push(m);
+    }
+  }, [loaded, routeData]);
+
+  // Update square dot colors when current position changes (passed = green, upcoming = gray).
+  useEffect(() => {
+    const currentIdx = player.currentSquareIndex;
+    for (const m of squareMarkersRef.current) {
+      const i = (m as unknown as { _idx: number })._idx;
+      const passed = i <= currentIdx;
+      m.setIcon({
+        path: google.maps.SymbolPath.CIRCLE,
+        scale: passed ? 2 : 1.6,
+        fillColor: passed ? '#10b981' : '#94a3b8',
+        fillOpacity: passed ? 0.9 : 0.5,
+        strokeWeight: 0,
+      });
+    }
+  }, [player.currentSquareIndex]);
 
   // Render / move current position marker
   useEffect(() => {

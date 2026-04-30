@@ -10,6 +10,13 @@ import type { SegmentMeta } from '../types';
 export interface SegmentClassification extends SegmentMeta {
   /** City IDs (in order) to route through. Capital IDs auto-included as endpoints. */
   waypointCityIds?: string[];
+  /**
+   * Index pairs of straight-line (sea/ferry) sub-segments within a 'mixed' route.
+   * Indices reference the full point list: [origin, ...waypoints, destination].
+   * Anything not listed here is rendered as a road-following sub-path via
+   * Directions API. Only meaningful when routeType is 'mixed'.
+   */
+  seaSegments?: [number, number][];
 }
 
 export const segmentClassifications: SegmentClassification[] = [
@@ -25,6 +32,9 @@ export const segmentClassifications: SegmentClassification[] = [
       'KR-BUSAN',
       'KR-CHEONGJU',
     ],
+    // [origin=Tokyo, MIYAZAKI=1, NAGASAKI=2, FUKUOKA=3, BUSAN=4, CHEONGJU=5, dest=Seoul]
+    // Only Fukuoka→Busan (3→4) is a sea ferry crossing.
+    seaSegments: [[3, 4]],
     notes: '東京発（Japan capital）→ 関西通過 → 宮崎(故郷) → 長崎 → 福岡 →[関釜フェリー]→ プサン → 清州 → ソウル',
   },
   {
