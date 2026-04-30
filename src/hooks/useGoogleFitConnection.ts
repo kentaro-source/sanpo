@@ -9,7 +9,14 @@ const EVER_CONSENTED_KEY = 'sanpo-google-fit-ever-consented';
 
 function hasEverConsented(): boolean {
   try {
-    return localStorage.getItem(EVER_CONSENTED_KEY) === '1';
+    if (localStorage.getItem(EVER_CONSENTED_KEY) === '1') return true;
+    // Backfill: any token data (even expired) means user already consented
+    // on this device in a prior session before this flag existed.
+    if (localStorage.getItem('sanpo-google-fit-token')) {
+      localStorage.setItem(EVER_CONSENTED_KEY, '1');
+      return true;
+    }
+    return false;
   } catch {
     return false;
   }
