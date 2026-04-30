@@ -34,7 +34,7 @@ function createInitialState(): GameState {
   return {
     player: createInitialPlayer(),
     config: DEFAULT_CONFIG,
-    version: 2,
+    version: 3,
   };
 }
 

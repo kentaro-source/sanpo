@@ -4,11 +4,8 @@ import type { SegmentMeta } from '../types';
  * Per-segment route classification + waypoint cities.
  * IDs reference capitals.ts (countryId 2 letters) or cities.ts (e.g., JP-OSAKA).
  *
- * Status: Batch 1 (segments 1-15: Asia first half) classified.
- * Remaining segments fall back to default great-circle interpolation.
- *
- * Note: After capitals.ts reorder (v2), segment order is:
- *   JP→KR→KP→CN→MN→VN→LA→KH→TH→MM→MY→SG→ID→TL→PH→BN→BD→BT→NP→IN→LK→MV→PK→AF→TJ→KG→KZ→UZ→TM→IR→...
+ * After v3 reorder, Asia capitals order is:
+ *   JP→KR→KP→CN→MN→PH→BN→ID→TL→SG→MY→TH→KH→VN→LA→MM→BD→BT→NP→IN→LK→MV→PK→AF→TJ→KG→KZ→UZ→TM→IR→...
  */
 export interface SegmentClassification extends SegmentMeta {
   /** City IDs (in order) to route through. Capital IDs auto-included as endpoints. */
@@ -16,20 +13,19 @@ export interface SegmentClassification extends SegmentMeta {
 }
 
 export const segmentClassifications: SegmentClassification[] = [
-  // ===== Batch 1: Asia 1-16 (after reorder) =====
+  // ===== Batch 1+2: Asia 1-31 =====
   {
     fromCapitalId: 'JP',
     toCapitalId: 'KR',
     routeType: 'mixed',
     waypointCityIds: [
-      'JP-MIYAZAKI', // 出発地（ホーム）
+      'JP-MIYAZAKI',
       'JP-NAGASAKI',
       'JP-FUKUOKA',
-      // [関釜フェリー]
       'KR-BUSAN',
       'KR-CHEONGJU',
     ],
-    notes: '宮崎発、九州西回り→関釜フェリー→韓国南部経由ソウル。関東関西は省略',
+    notes: '宮崎発、九州西回り→関釜フェリー→韓国南部経由ソウル',
   },
   {
     fromCapitalId: 'KR',
@@ -50,9 +46,10 @@ export const segmentClassifications: SegmentClassification[] = [
     routeType: 'land',
     notes: '北京→ウランバートル直行',
   },
+  // === User's preferred Pacific island chain (CN→Taiwan→PH) ===
   {
     fromCapitalId: 'MN',
-    toCapitalId: 'VN',
+    toCapitalId: 'PH',
     routeType: 'mixed',
     waypointCityIds: [
       'CN-XIAN',
@@ -64,63 +61,9 @@ export const segmentClassifications: SegmentClassification[] = [
       'TW-TAICHUNG',
       'TW-TAINAN',
       'TW-KAOHSIUNG',
+      // Then Luzon Strait → Manila
     ],
-    notes: '中国東岸→珠海→台湾海峡→台湾縦断→南シナ海横断→ハノイ',
-  },
-  {
-    fromCapitalId: 'VN',
-    toCapitalId: 'LA',
-    routeType: 'land',
-    waypointCityIds: ['VN-HOIAN'],
-  },
-  {
-    fromCapitalId: 'LA',
-    toCapitalId: 'KH',
-    routeType: 'land',
-  },
-  {
-    fromCapitalId: 'KH',
-    toCapitalId: 'TH',
-    routeType: 'land',
-    waypointCityIds: ['KH-SIEMREAP'],
-  },
-  {
-    fromCapitalId: 'TH',
-    toCapitalId: 'MM',
-    routeType: 'land',
-  },
-  // === Maritime SE Asia (after MM, new positions) ===
-  {
-    fromCapitalId: 'MM',
-    toCapitalId: 'MY',
-    routeType: 'land',
-    waypointCityIds: ['MM-YANGON'],
-    notes: 'ミャンマー縦断→タイ南下→マレー半島',
-  },
-  {
-    fromCapitalId: 'MY',
-    toCapitalId: 'SG',
-    routeType: 'land',
-    waypointCityIds: ['MY-MALACCA'],
-    notes: 'マラッカ経由でジョホール→シンガポール',
-  },
-  {
-    fromCapitalId: 'SG',
-    toCapitalId: 'ID',
-    routeType: 'sea',
-    notes: 'シンガポール→ジャワ海',
-  },
-  {
-    fromCapitalId: 'ID',
-    toCapitalId: 'TL',
-    routeType: 'mixed',
-    notes: 'バリ→ヌサトゥンガラ列島→東ティモール',
-  },
-  {
-    fromCapitalId: 'TL',
-    toCapitalId: 'PH',
-    routeType: 'sea',
-    notes: '東ティモール→セレベス海→マニラ',
+    notes: 'UB→中国東岸→台湾海峡→台湾縦断→ルソン海峡→マニラ',
   },
   {
     fromCapitalId: 'PH',
@@ -129,12 +72,161 @@ export const segmentClassifications: SegmentClassification[] = [
     waypointCityIds: ['PH-CEBU'],
     notes: 'マニラ→セブ→スールー海→ボルネオ北部',
   },
-  // === South Asia ===
   {
     fromCapitalId: 'BN',
-    toCapitalId: 'BD',
+    toCapitalId: 'ID',
     routeType: 'sea',
-    notes: 'ボルネオ→マラッカ海峡→ベンガル湾→ダッカ',
+    notes: 'ボルネオ→ジャワ海→ジャカルタ',
+  },
+  {
+    fromCapitalId: 'ID',
+    toCapitalId: 'TL',
+    routeType: 'mixed',
+    notes: 'ジャワ→バリ→ヌサトゥンガラ列島→東ティモール',
+  },
+  {
+    fromCapitalId: 'TL',
+    toCapitalId: 'SG',
+    routeType: 'sea',
+    notes: 'ジャワ海西進、ヌサトゥンガラ→マレー半島先端',
+  },
+  {
+    fromCapitalId: 'SG',
+    toCapitalId: 'MY',
+    routeType: 'land',
+    notes: 'ジョホール海峡→クアラルンプール',
+  },
+  // === Mainland SE Asia ===
+  {
+    fromCapitalId: 'MY',
+    toCapitalId: 'TH',
+    routeType: 'land',
+    waypointCityIds: ['MY-MALACCA'],
+    notes: 'マラッカ→ペナン→タイ南部→バンコク',
+  },
+  {
+    fromCapitalId: 'TH',
+    toCapitalId: 'KH',
+    routeType: 'land',
+    waypointCityIds: ['KH-SIEMREAP'],
+    notes: 'バンコク→アンコールワット経由→プノンペン',
+  },
+  {
+    fromCapitalId: 'KH',
+    toCapitalId: 'VN',
+    routeType: 'land',
+    notes: 'メコン川流域',
+  },
+  {
+    fromCapitalId: 'VN',
+    toCapitalId: 'LA',
+    routeType: 'land',
+    waypointCityIds: ['VN-HOIAN'],
+    notes: 'ハノイ南下→ホイアン→ラオス内陸',
+  },
+  {
+    fromCapitalId: 'LA',
+    toCapitalId: 'MM',
+    routeType: 'land',
+    notes: 'ラオス→タイ北部→ミャンマー（短い国境）',
+  },
+  {
+    fromCapitalId: 'MM',
+    toCapitalId: 'BD',
+    routeType: 'land',
+    waypointCityIds: ['MM-YANGON'],
+    notes: 'ヤンゴン経由でミャンマー縦断→バングラ国境',
+  },
+  // === South Asia ===
+  {
+    fromCapitalId: 'BD',
+    toCapitalId: 'BT',
+    routeType: 'land',
+    waypointCityIds: ['IN-KOLKATA'],
+    notes: 'コルカタ南下経由→インド北上→ブータン',
+  },
+  {
+    fromCapitalId: 'BT',
+    toCapitalId: 'NP',
+    routeType: 'land',
+  },
+  {
+    fromCapitalId: 'NP',
+    toCapitalId: 'IN',
+    routeType: 'land',
+  },
+  {
+    fromCapitalId: 'IN',
+    toCapitalId: 'LK',
+    routeType: 'mixed',
+    waypointCityIds: ['IN-MUMBAI', 'IN-CHENNAI'],
+    notes: 'ムンバイ→チェンナイ→ポーク海峡フェリー',
+  },
+  {
+    fromCapitalId: 'LK',
+    toCapitalId: 'MV',
+    routeType: 'sea',
+    notes: 'インド洋',
+  },
+  {
+    fromCapitalId: 'MV',
+    toCapitalId: 'PK',
+    routeType: 'mixed',
+    notes: 'アラビア海→カラチ→ラホール→イスラマバード',
+  },
+  // === Central Asia ===
+  {
+    fromCapitalId: 'PK',
+    toCapitalId: 'AF',
+    routeType: 'land',
+    notes: 'ペシャワール経由',
+  },
+  {
+    fromCapitalId: 'AF',
+    toCapitalId: 'TJ',
+    routeType: 'land',
+  },
+  {
+    fromCapitalId: 'TJ',
+    toCapitalId: 'KG',
+    routeType: 'land',
+  },
+  {
+    fromCapitalId: 'KG',
+    toCapitalId: 'KZ',
+    routeType: 'land',
+    waypointCityIds: ['KZ-ALMATY'],
+    notes: 'ビシュケク→アルマトイ→アスタナ',
+  },
+  {
+    fromCapitalId: 'KZ',
+    toCapitalId: 'UZ',
+    routeType: 'land',
+  },
+  {
+    fromCapitalId: 'UZ',
+    toCapitalId: 'TM',
+    routeType: 'land',
+    notes: 'サマルカンド→ブハラ',
+  },
+  // === Middle East ===
+  {
+    fromCapitalId: 'TM',
+    toCapitalId: 'IR',
+    routeType: 'land',
+    notes: '隣接、自然な国境越え',
+  },
+  {
+    fromCapitalId: 'IR',
+    toCapitalId: 'IQ',
+    routeType: 'land',
+    notes: 'テヘラン→バグダード',
+  },
+  {
+    fromCapitalId: 'IQ',
+    toCapitalId: 'KW',
+    routeType: 'land',
+    notes: 'バスラ経由',
   },
 ];
 
