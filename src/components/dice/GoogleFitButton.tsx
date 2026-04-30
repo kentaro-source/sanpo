@@ -44,11 +44,11 @@ export function GoogleFitButton() {
       }
     } catch (e) {
       const msg = e instanceof Error ? e.message : '同期に失敗しました';
-      // Stay connected (button hidden) even if token expired; user can manually
-      // re-auth from the small "再連携" link shown on auth errors only.
-      if (auto && (msg.includes('Authentication') || msg.includes('Not signed in'))) {
-        // Silent fail for auto-sync; UI stays clean.
-      } else {
+      // Stay "connected" (big button hidden) but surface a small reconnect
+      // affordance so the user knows why steps stopped flowing.
+      if (msg.includes('Authentication') || msg.includes('Not signed in')) {
+        setError('再連携が必要です');
+      } else if (!auto) {
         setError(msg);
       }
     } finally {
@@ -115,13 +115,20 @@ export function GoogleFitButton() {
       );
     }
     if (error) {
+      const needsReauth = error.includes('再連携');
       return (
         <div className="gfit-section gfit-section-connected">
           <div className="gfit-error">
             {error}{' '}
-            <button className="gfit-disconnect" onClick={handleDisconnect}>
-              解除
-            </button>
+            {needsReauth ? (
+              <button className="gfit-reconnect" onClick={handleConnect} disabled={busy}>
+                再連携
+              </button>
+            ) : (
+              <button className="gfit-disconnect" onClick={handleDisconnect}>
+                解除
+              </button>
+            )}
           </div>
         </div>
       );

@@ -298,6 +298,21 @@
   100% { transform: rotate(720deg) scale(1); }
 }
 
+.gfit-reconnect {
+  background: #2563eb;
+  color: white;
+  border: 0;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  margin-left: 6px;
+}
+
+.gfit-reconnect:disabled {
+  opacity: 0.5;
+}
+
 .dice-emoji {
   font-size: 18px;
 }
