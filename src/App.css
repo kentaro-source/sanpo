@@ -89,7 +89,8 @@
   height: 100%;
 }
 
-/* Bottom Panel — natural-size row in the grid, always visible at the bottom */
+/* Bottom Panel — natural-size row in the grid, always visible at the bottom.
+   No max-height/overflow so the dice button can never be scroll-clipped. */
 .bottom-panel {
   background: white;
   border-top: 1px solid #e2e8f0;
@@ -99,11 +100,6 @@
   flex-direction: column;
   gap: 6px;
   z-index: 1000;
-  max-height: 55vh;
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
-  touch-action: pan-y;
 }
 
 /* Progress Info — compact one-line layout */
