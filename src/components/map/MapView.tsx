@@ -328,6 +328,7 @@ export function MapView() {
   // whose passed/upcoming status actually flipped, not all of them).
   const prevPassedIndexRef = useRef(-1);
   useEffect(() => {
+    if (!loaded || squareMarkersRef.current.length === 0) return;
     const currentIdx = player.currentSquareIndex;
     const prev = prevPassedIndexRef.current;
     prevPassedIndexRef.current = currentIdx;
