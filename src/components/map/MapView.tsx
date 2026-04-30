@@ -24,7 +24,7 @@ function loadGoogleMapsScript(apiKey: string): Promise<void> {
 
   scriptLoadingPromise = new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&v=quarterly&loading=async&libraries=marker`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&v=quarterly&libraries=marker`;
     script.async = true;
     script.defer = true;
     script.onload = () => resolve();
