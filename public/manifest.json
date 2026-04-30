@@ -1,6 +1,6 @@
 {
-  "name": "Sanpo - 歩いて世界一周",
-  "short_name": "Sanpo",
+  "name": "せかいさんぽ",
+  "short_name": "せかいさんぽ",
   "description": "歩数でサイコロを振って世界193カ国の首都を巡る",
   "start_url": "/sanpo/",
   "scope": "/sanpo/",
