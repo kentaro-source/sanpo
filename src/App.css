@@ -1,7 +1,7 @@
-/* App Layout */
+/* App Layout: grid guarantees the bottom panel is always visible */
 .app-layout {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
   height: 100dvh;
   overflow: hidden;
   background: #f8fafc;
@@ -79,9 +79,9 @@
 
 /* Map Container — fills space remaining after the natural-size panel */
 .map-container {
-  flex: 1 1 auto;
   position: relative;
   min-height: 0;
+  overflow: hidden;
 }
 
 .leaflet-map {
@@ -89,9 +89,8 @@
   height: 100%;
 }
 
-/* Bottom Panel — natural-size, capped to half the screen if content is huge */
+/* Bottom Panel — natural-size row in the grid, always visible at the bottom */
 .bottom-panel {
-  flex: 0 0 auto;
   background: white;
   border-top: 1px solid #e2e8f0;
   padding: 8px 14px;
