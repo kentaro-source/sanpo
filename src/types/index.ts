@@ -51,6 +51,25 @@ export interface RouteData {
   totalDistanceKm: number;
 }
 
+/**
+ * Real-world route classification for each segment.
+ * - 'land': drivable land route (use Directions API)
+ * - 'sea': pure sea crossing (manual waypoints for actual shipping/ferry routes)
+ * - 'mixed': part land, part sea (e.g., island hops via ferries)
+ * - 'fantasy': no realistic route exists (e.g., trans-Pacific)
+ */
+export type SegmentRouteType = 'land' | 'sea' | 'mixed' | 'fantasy';
+
+export interface SegmentMeta {
+  fromCapitalId: string;
+  toCapitalId: string;
+  routeType: SegmentRouteType;
+  /** Optional manual waypoints [lat, lng] for sea/mixed/fantasy curation. */
+  manualWaypoints?: [number, number][];
+  /** Optional notes (ferry name, geographic note, etc.) */
+  notes?: string;
+}
+
 export interface DiceRoll {
   roll: number;
   timestamp: number;

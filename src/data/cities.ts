@@ -47,6 +47,28 @@ export const cities: City[] = [
     description: '九州の玄関口、屋台とラーメン',
   },
   {
+    id: 'JP-NAGASAKI',
+    name: 'Nagasaki',
+    nameJa: '長崎',
+    countryId: 'JP',
+    countryJa: '日本',
+    lat: 32.7503,
+    lng: 129.8779,
+    type: 'historic',
+    description: '異国情緒漂う港町、坂道の街',
+  },
+  {
+    id: 'JP-MIYAZAKI',
+    name: 'Miyazaki',
+    nameJa: '宮崎',
+    countryId: 'JP',
+    countryJa: '日本',
+    lat: 31.9077,
+    lng: 131.4202,
+    type: 'tourist',
+    description: '南国気候のリゾート地',
+  },
+  {
     id: 'JP-SAPPORO',
     name: 'Sapporo',
     nameJa: '札幌',
@@ -194,6 +216,17 @@ export const cities: City[] = [
     description: '東洋と西洋が交わる国際都市',
   },
   {
+    id: 'MO-MACAU',
+    name: 'Macau',
+    nameJa: 'マカオ',
+    countryId: 'MO',
+    countryJa: 'マカオ',
+    lat: 22.1987,
+    lng: 113.5439,
+    type: 'historic',
+    description: 'ポルトガル文化が残るカジノ都市',
+  },
+  {
     id: 'CN-GUANGZHOU',
     name: 'Guangzhou',
     nameJa: '広州',
@@ -284,6 +317,17 @@ export const cities: City[] = [
 
   // === 台湾 (Taiwan) - capitals.ts未収録の場合のため。仕様にあるためTW想定 ===
   // 台湾はISOコード TW。capitals.ts に台北が無い可能性もあるが指定通り掲載。
+  {
+    id: 'TW-TAIPEI',
+    name: 'Taipei',
+    nameJa: '台北',
+    countryId: 'TW',
+    countryJa: '台湾',
+    lat: 25.0330,
+    lng: 121.5654,
+    type: 'metropolis',
+    description: '台湾の首都、夜市と故宮博物院',
+  },
   {
     id: 'TW-TAINAN',
     name: 'Tainan',

@@ -1,7 +1,7 @@
 /// <reference types="google.maps" />
 import { useEffect, useRef, useState } from 'react';
 import { useGame } from '../../hooks/useGame';
-import { cities } from '../../data';
+import { cities, segmentClassifications } from '../../data';
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
 
@@ -39,6 +39,7 @@ export function MapView() {
   const mapRef = useRef<google.maps.Map | null>(null);
   const passedPolylineRef = useRef<google.maps.Polyline | null>(null);
   const upcomingPolylineRef = useRef<google.maps.Polyline | null>(null);
+  const realRoutePolylinesRef = useRef<google.maps.Polyline[]>([]);
   const capitalMarkersRef = useRef<google.maps.Marker[]>([]);
   const cityMarkersRef = useRef<google.maps.Marker[]>([]);
   const currentMarkerRef = useRef<google.maps.Marker | null>(null);
@@ -131,6 +132,51 @@ export function MapView() {
       });
     }
   }, [loaded, player.currentSquareIndex, routeData]);
+
+  // Render real route polylines from segmentClassifications (Batch N waypoint cities)
+  useEffect(() => {
+    if (!mapRef.current || !loaded) return;
+
+    realRoutePolylinesRef.current.forEach((p) => p.setMap(null));
+    realRoutePolylinesRef.current = [];
+
+    const ROUTE_COLORS: Record<string, string> = {
+      land: '#dc2626',
+      sea: '#0ea5e9',
+      mixed: '#a855f7',
+      fantasy: '#f59e0b',
+    };
+
+    try {
+      for (const seg of segmentClassifications) {
+        const fromCap = routeData.capitals.find((c) => c.id === seg.fromCapitalId);
+        const toCap = routeData.capitals.find((c) => c.id === seg.toCapitalId);
+        if (!fromCap || !toCap) continue;
+
+        const path: google.maps.LatLngLiteral[] = [
+          { lat: fromCap.lat, lng: fromCap.lng },
+        ];
+        for (const cityId of seg.waypointCityIds ?? []) {
+          const city = cities.find((c) => c.id === cityId);
+          if (city) path.push({ lat: city.lat, lng: city.lng });
+        }
+        path.push({ lat: toCap.lat, lng: toCap.lng });
+
+        const color = ROUTE_COLORS[seg.routeType] ?? '#dc2626';
+        const polyline = new google.maps.Polyline({
+          path,
+          strokeColor: color,
+          strokeOpacity: 0.9,
+          strokeWeight: 4,
+          zIndex: 5,
+          map: mapRef.current,
+        });
+        realRoutePolylinesRef.current.push(polyline);
+      }
+    } catch (e) {
+      console.error('Real route polyline error:', e);
+    }
+  }, [loaded]);
 
   // Render capital markers (once after load + visited update)
   useEffect(() => {
