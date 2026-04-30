@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useGame } from '../../hooks/useGame';
-import { signIn, signOut, fetchStepsBetween, isSignedIn } from '../../services/googleFit';
+import { signIn, silentSignIn, signOut, fetchStepsBetween, isSignedIn } from '../../services/googleFit';
 
 function startOfTodayMs(): number {
   const d = new Date();
@@ -26,7 +26,19 @@ export function GoogleFitButton() {
   }, [player.lastSyncTimestamp]);
 
   useEffect(() => {
-    setConnected(isSignedIn());
+    let cancelled = false;
+    (async () => {
+      if (isSignedIn()) {
+        setConnected(true);
+        return;
+      }
+      const token = await silentSignIn();
+      if (cancelled) return;
+      if (token) setConnected(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const doSync = async (auto = false) => {
@@ -40,7 +52,19 @@ export function GoogleFitButton() {
         if (!auto) setLastResult('同期する歩数がありません');
         return;
       }
-      const steps = await fetchStepsBetween(startMs, now);
+      let steps: number;
+      try {
+        steps = await fetchStepsBetween(startMs, now);
+      } catch (e) {
+        const m = e instanceof Error ? e.message : '';
+        if (m.includes('Authentication') || m.includes('Not signed in')) {
+          const fresh = await silentSignIn();
+          if (!fresh) throw e;
+          steps = await fetchStepsBetween(startMs, now);
+        } else {
+          throw e;
+        }
+      }
       syncFromGoogleFit(steps, now);
       if (steps > 0) {
         setLastResult(`+${steps.toLocaleString()} 歩 同期`);

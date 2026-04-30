@@ -101,16 +101,32 @@ function ensureTokenClient(google: NonNullable<Window['google']>): TokenClient {
   return tokenClient;
 }
 
-/** Trigger interactive sign-in. User clicks button -> popup -> consent. */
-export async function signIn(): Promise<string> {
+async function requestToken(prompt: 'consent' | 'none' | ''): Promise<string> {
   const google = await waitForGoogle();
   const client = ensureTokenClient(google);
-
   return new Promise<string>((resolve, reject) => {
     pendingResolve = resolve;
     pendingReject = reject;
-    client.requestAccessToken({ prompt: 'consent' });
+    client.requestAccessToken(prompt ? { prompt } : {});
   });
+}
+
+/** Trigger interactive sign-in. User clicks button -> popup -> consent. */
+export async function signIn(): Promise<string> {
+  return requestToken('consent');
+}
+
+/**
+ * Silently fetch a token if the user previously consented and is still
+ * signed in to Google in this browser. Returns null on any failure.
+ * Used to keep the connection alive across token expiry without UI.
+ */
+export async function silentSignIn(): Promise<string | null> {
+  try {
+    return await requestToken('none');
+  } catch {
+    return null;
+  }
 }
 
 /** Get a valid access token: cached if fresh, otherwise re-prompt silently. */
