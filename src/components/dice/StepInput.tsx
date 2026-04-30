@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { useGame } from '../../hooks/useGame';
+import { useGoogleFitConnection } from '../../hooks/useGoogleFitConnection';
 
 export function StepInput() {
   const { addSteps, player, config } = useGame();
+  const { connected } = useGoogleFitConnection();
   const [value, setValue] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -19,20 +21,22 @@ export function StepInput() {
 
   return (
     <div className="step-input">
-      <form onSubmit={handleSubmit} className="step-input-form">
-        <input
-          type="number"
-          inputMode="numeric"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder="歩数を入力"
-          className="step-input-field"
-          min="0"
-        />
-        <button type="submit" className="step-input-btn" disabled={!value || parseInt(value) <= 0}>
-          追加
-        </button>
-      </form>
+      {!connected && (
+        <form onSubmit={handleSubmit} className="step-input-form">
+          <input
+            type="number"
+            inputMode="numeric"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="歩数を入力"
+            className="step-input-field"
+            min="0"
+          />
+          <button type="submit" className="step-input-btn" disabled={!value || parseInt(value) <= 0}>
+            追加
+          </button>
+        </form>
+      )}
       <div className="step-progress">
         <div className="step-progress-bar">
           <div className="step-progress-fill" style={{ width: `${progressPercent}%` }} />

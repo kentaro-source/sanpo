@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useGame } from '../../hooks/useGame';
-import { signIn, silentSignIn, signOut, fetchStepsBetween, isSignedIn } from '../../services/googleFit';
+import { useGoogleFitConnection } from '../../hooks/useGoogleFitConnection';
+import { silentSignIn, fetchStepsBetween } from '../../services/googleFit';
 
 function startOfTodayMs(): number {
   const d = new Date();
@@ -8,38 +9,20 @@ function startOfTodayMs(): number {
   return d.getTime();
 }
 
-
-const AUTO_SYNC_MIN_INTERVAL_MS = 60_000; // skip auto-sync if last sync < 60s ago
+const AUTO_SYNC_MIN_INTERVAL_MS = 60_000;
 
 export function GoogleFitButton() {
   const { player, syncFromGoogleFit } = useGame();
-  const [connected, setConnected] = useState(false);
+  const { connected, signIn, signOut, setConnected } = useGoogleFitConnection();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastResult, setLastResult] = useState<string | null>(null);
   const autoSyncedRef = useRef(false);
   const lastSyncTimestampRef = useRef(player.lastSyncTimestamp);
 
-  // Keep ref fresh so the auto-sync effect uses the latest sync time
   useEffect(() => {
     lastSyncTimestampRef.current = player.lastSyncTimestamp;
   }, [player.lastSyncTimestamp]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (isSignedIn()) {
-        setConnected(true);
-        return;
-      }
-      const token = await silentSignIn();
-      if (cancelled) return;
-      if (token) setConnected(true);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const doSync = async (auto = false) => {
     setBusy(true);
@@ -82,20 +65,18 @@ export function GoogleFitButton() {
     }
   };
 
-  // Auto-sync on app load if connected
   useEffect(() => {
     if (!connected || autoSyncedRef.current) return;
     autoSyncedRef.current = true;
 
     const last = lastSyncTimestampRef.current;
     if (last && Date.now() - last < AUTO_SYNC_MIN_INTERVAL_MS) {
-      return; // synced very recently
+      return;
     }
     doSync(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connected]);
 
-  // Re-sync when window regains focus (after walking around with phone)
   useEffect(() => {
     if (!connected) return;
 
@@ -120,8 +101,6 @@ export function GoogleFitButton() {
     setError(null);
     try {
       await signIn();
-      setConnected(true);
-      // Trigger first sync immediately after consent
       autoSyncedRef.current = false;
     } catch (e) {
       setError(e instanceof Error ? e.message : 'サインインに失敗しました');
@@ -132,13 +111,10 @@ export function GoogleFitButton() {
 
   const handleDisconnect = () => {
     signOut();
-    setConnected(false);
     setLastResult(null);
     setError(null);
   };
 
-  // Connected state: hidden (auto-sync runs in background).
-  // Show only transient sync result toast briefly.
   if (connected) {
     if (lastResult && !error) {
       return (
@@ -162,7 +138,6 @@ export function GoogleFitButton() {
     return null;
   }
 
-  // Not connected: prominent connect button
   return (
     <div className="gfit-section">
       <button
