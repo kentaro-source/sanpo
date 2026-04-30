@@ -296,10 +296,11 @@ export function MapView() {
         zIndex: 2,
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
-          scale: 1.6,
-          fillColor: '#94a3b8',
-          fillOpacity: 0.55,
-          strokeWeight: 0,
+          scale: 2,
+          fillColor: '#cbd5e1',
+          fillOpacity: 0.85,
+          strokeColor: '#475569',
+          strokeWeight: 0.5,
         },
       });
       (m as unknown as { _idx: number })._idx = i;
@@ -315,10 +316,11 @@ export function MapView() {
       const passed = i <= currentIdx;
       m.setIcon({
         path: google.maps.SymbolPath.CIRCLE,
-        scale: passed ? 2 : 1.6,
-        fillColor: passed ? '#10b981' : '#94a3b8',
-        fillOpacity: passed ? 0.9 : 0.5,
-        strokeWeight: 0,
+        scale: passed ? 4 : 2,
+        fillColor: passed ? '#16a34a' : '#cbd5e1',
+        fillOpacity: passed ? 1 : 0.85,
+        strokeColor: passed ? '#14532d' : '#475569',
+        strokeWeight: passed ? 1.5 : 0.5,
       });
     }
   }, [player.currentSquareIndex]);

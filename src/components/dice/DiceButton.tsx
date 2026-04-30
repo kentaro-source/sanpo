@@ -26,7 +26,7 @@ export function DiceButton() {
       >
         <span className="dice-emoji">🎲</span>
         <span className="dice-label">
-          {player.availableDice <= 0 ? '🎲がない（歩いて貯める）' : 'カジノでプレイ！'}
+          {player.availableDice <= 0 ? '歩いて🎲を貯める' : 'カジノでプレイ'}
         </span>
       </button>
       {lastSicBo && (
