@@ -77,9 +77,9 @@
   background: #475569;
 }
 
-/* Map Container */
+/* Map Container — fills space remaining after the natural-size panel */
 .map-container {
-  flex: 0 0 55vh;
+  flex: 1 1 auto;
   position: relative;
   min-height: 0;
 }
@@ -89,9 +89,9 @@
   height: 100%;
 }
 
-/* Bottom Panel: takes everything below the 45vh map */
+/* Bottom Panel — natural-size, capped to half the screen if content is huge */
 .bottom-panel {
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   background: white;
   border-top: 1px solid #e2e8f0;
   padding: 8px 14px;
@@ -100,7 +100,7 @@
   flex-direction: column;
   gap: 6px;
   z-index: 1000;
-  min-height: 0;
+  max-height: 55vh;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
