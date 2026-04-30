@@ -79,7 +79,7 @@
 
 /* Map Container */
 .map-container {
-  flex: 0 0 45vh;
+  flex: 0 0 55vh;
   position: relative;
   min-height: 0;
 }
@@ -107,47 +107,51 @@
   touch-action: pan-y;
 }
 
-/* Progress Info */
+/* Progress Info — compact one-line layout */
 .progress-info {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .progress-next {
   display: flex;
   align-items: baseline;
-  gap: 6px;
-  flex-wrap: wrap;
+  gap: 4px;
+  flex-wrap: nowrap;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .progress-label {
-  font-size: 12px;
+  font-size: 11px;
   color: #64748b;
 }
 
 .progress-capital {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   color: #1e293b;
 }
 
 .progress-country {
-  font-size: 12px;
+  font-size: 11px;
   color: #94a3b8;
-  margin-left: 2px;
+  margin-left: 0;
 }
 
 .progress-remaining {
-  font-size: 13px;
+  font-size: 12px;
   color: #2563eb;
   font-weight: 500;
+  margin-left: auto;
 }
 
 .progress-bar-container {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 1px;
 }
 
 .progress-bar {
