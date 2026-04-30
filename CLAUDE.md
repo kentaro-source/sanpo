@@ -13,7 +13,8 @@
 - 2026-04-17頃: カザフスタン旅行（手動歩数入力で運用開始）
 - 2026-04-29 (前半): Google Fit連携 (OAuth + 自動同期) 実装完了
 - 2026-04-29 (午後): Sic Boベット制（カジノ風）に変更、UI伝統マカオ風
-- 2026-04-29 (夕方): 都市データ追加（164都市）+ Google Maps切替着手（**作業途中**）
+- 2026-04-29 (夕方): 都市データ追加（164都市）+ Google Maps切替完了
+- 2026-04-29 (夜): 実在ルート化開始 - capitals.ts再構成 (v3) + セグメント分類 (バッチ1-3, 1/193～46/193)
 
 ### デプロイ
 - **本番URL**: https://kentaro-source.github.io/sanpo/
@@ -149,46 +150,48 @@ git push
 
 ## 進行中タスク（次回再開時すぐ着手）
 
-### Google Maps 切替（作業途中）
-**状態**:
-- ✅ Google Cloud Console: Maps JavaScript API 有効化 (My First Project にて)
-- ✅ APIキー作成: `AIzaSyAl8HkXqKTy1_PDDU7-XX4cLQNYfXwrwl8`
-- ✅ HTTP リファラ制限設定: `https://kentaro-source.github.io/*` + `http://localhost:5173/*`
-- ✅ `.env.local` に `VITE_GOOGLE_MAPS_API_KEY` 設定 (gitignored)
-- ✅ GitHub Actions Secret に `VITE_GOOGLE_MAPS_API_KEY` 登録 (ユーザー側で要確認)
-- ✅ デプロイワークフローに env injection 追加
-- ✅ `MapView.tsx` を Leaflet → Google Maps API (vanilla JS、@react-google-maps/api はReact19非対応のため不採用)
-- ✅ `@types/google.maps` 導入、型エラーなし
-- ⚠️ **動作確認未完了**: Maps API有効化が反映されたか、リファラ制限が効くか、要実機確認
-- ⚠️ ApiNotActivatedMapError がローカルで出ていたが、APIキー保護設定後はリロード未確認
+### 実在ルート化 - セグメント分類 (進行中: 46/193 完了)
 
-**次のアクション**:
-1. ローカルで `npm run dev` → 地図が表示されるか確認
-2. もしエラー出たら、コンソール確認（API有効化反映に数分かかる場合あり）
-3. デプロイして本番でも確認
-4. Leaflet 関連のコンポーネント (`SquareDots.tsx`, `RoutePolyline.tsx`, `CapitalMarkers.tsx`, `CityMarkers.tsx`, `CurrentPositionMarker.tsx`) は **MapView に統合済み**（個別ファイルは現在未使用）。削除して良い
+**完了済み:**
+- ✅ Google Maps切替 (動作確認済み、APIキー保護済み)
+- ✅ capitals.ts v3 再構成: 香港→台湾→フィリピンの自然な太平洋島嶼ルート
+  - 新Asia順: JP→KR→KP→CN→MN→**PH**→BN→ID→TL→SG→MY→TH→KH→VN→LA→MM→BD→...
+  - 海洋SE Asia (PH/BN/ID/TL/SG/MY) を 大陸SE Asia (TH/KH/VN/LA/MM) より先に
+  - インド洋諸島 (MU/SC) を MG (Madagascar) の隣に
+  - storage version → 3 (古いセーブ自動リセット)
+- ✅ `src/data/segmentMeta.ts`: 46/193 セグメント分類済み
+  - バッチ1+2 (1-31): アジア+中東前半 完了
+  - バッチ3 (32-46): 中東後半 完了
+- ✅ MapView.tsx で段階的に色分けポリライン表示
+  - red=land / blue=sea / purple=mixed / orange=fantasy
 
-### 都市データ（実装済みデータ、UI連携も最低限完了）
-- `src/data/cities.ts`: 164都市 (User の訪問都市すべて含む)
-- `src/data/index.ts` から `cities` エクスポート済み
-- `MapView.tsx` 内で都市マーカー描画済み（タイプ別色: metropolis=青、historic=紫、tourist=緑、gourmet=黄）
-- ❌ **近接検出と初訪問+1🎲ボーナスはまだ実装されていない** (City型はあるがロジック未追加)
+**次回再開: バッチ4 から**
+- バッチ4 (47-65): ロシア→北欧→東欧→バルカン（**未承認、未実装**）
+- バッチ5 (66-?): 中央欧州→西欧→南欧
+- バッチ6: 北アフリカ→西アフリカ
+- バッチ7: 中央・東・南アフリカ
+- バッチ8-10: 南北アメリカ
+- バッチ11: オセアニア+太平洋諸島
 
-### 大改修方針（次フェーズ）: 実在ルート化
-ユーザー要望:
-- 陸セグメント: 大きい道や鉄道を通る（Google Directions API使用）
-- 海セグメント: 実在の航路（神戸→上海フェリー、ドーバー海峡等）
-- ルート無い区間: ファンタジー（曲線・島伝い）
+### Google Maps APIキー
+- `AIzaSyAl8HkXqKTy1_PDDU7-XX4cLQNYfXwrwl8`
+- 「My First Project」配下（Fitness APIは「sampo」配下、別プロジェクト）
+- HTTP リファラ制限: `https://kentaro-source.github.io/*` + `http://localhost:5173/*`
+- `.env.local` 設定済み (gitignored)
+- GitHub Actions Secret `VITE_GOOGLE_MAPS_API_KEY` 要確認
 
-**実装案**:
-1. 各セグメント (193本) の種別を分類（陸/海/混合）
-2. 陸: Directions API で polyline 取得 → ビルド時/初回起動時にキャッシュ
-3. 海: 手動キュレーションした waypoint 配列を使用
-4. fallback: 現状の great-circle 補間
-5. 結果の polyline に沿って `Square` を再生成
+### 都市データ (164都市)
+- `src/data/cities.ts`: 164都市（追加: TW-TAIPEI, MO-MACAU, JP-MIYAZAKI, JP-NAGASAKI）
+- 全ユーザー訪問都市カバー済み
+- Mapに表示済み（type別色分け）
+- ❌ 近接検出と初訪+1🎲ボーナスは未実装
 
-**自動ストップ機能**: 新規首都・都市で必ず止まる仕様 → 飛ばし問題解決
-（ただし首都ボーナス +1/+2 のロジック齟齬注意）
+### 次のフェーズ実装 (まだ未着手)
+1. **Directions API ラッパー**: 陸セグメントの polyline をビルド時取得・キャッシュ
+2. **海ルート手動キュレーション**: 重要な海峡・フェリー waypoint
+3. **ルート再生成**: polyline 沿いに Square 再分配
+4. **自動ストップ機能**: 新規首都・都市で必ず止まる
+5. **都市マーカー近接検出**: 半径200km以内で訪問判定→トークンボーナス
 
 ## 直近の改善メモ（次回検討）
 

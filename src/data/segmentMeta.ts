@@ -228,6 +228,91 @@ export const segmentClassifications: SegmentClassification[] = [
     routeType: 'land',
     notes: 'バスラ経由',
   },
+  // ===== Batch 3: Middle East second half (32-46) =====
+  {
+    fromCapitalId: 'KW',
+    toCapitalId: 'BH',
+    routeType: 'sea',
+    notes: 'ペルシャ湾',
+  },
+  {
+    fromCapitalId: 'BH',
+    toCapitalId: 'QA',
+    routeType: 'mixed',
+    notes: 'キングファハドコーズウェイ→ドーハ',
+  },
+  {
+    fromCapitalId: 'QA',
+    toCapitalId: 'AE',
+    routeType: 'land',
+    notes: 'ドーハ→ドバイ→アブダビ',
+  },
+  {
+    fromCapitalId: 'AE',
+    toCapitalId: 'OM',
+    routeType: 'land',
+    notes: 'アラブ首長国→オマーン',
+  },
+  {
+    fromCapitalId: 'OM',
+    toCapitalId: 'YE',
+    routeType: 'land',
+    notes: 'アラビア半島南部',
+  },
+  {
+    fromCapitalId: 'YE',
+    toCapitalId: 'SA',
+    routeType: 'land',
+    notes: 'サナア→メッカ→リヤド',
+  },
+  {
+    fromCapitalId: 'SA',
+    toCapitalId: 'JO',
+    routeType: 'land',
+  },
+  {
+    fromCapitalId: 'JO',
+    toCapitalId: 'IL',
+    routeType: 'land',
+    notes: 'エルサレム経由',
+  },
+  {
+    fromCapitalId: 'IL',
+    toCapitalId: 'LB',
+    routeType: 'land',
+  },
+  {
+    fromCapitalId: 'LB',
+    toCapitalId: 'SY',
+    routeType: 'land',
+  },
+  {
+    fromCapitalId: 'SY',
+    toCapitalId: 'TR',
+    routeType: 'land',
+  },
+  {
+    fromCapitalId: 'TR',
+    toCapitalId: 'CY',
+    routeType: 'sea',
+    notes: '地中海フェリー',
+  },
+  {
+    fromCapitalId: 'CY',
+    toCapitalId: 'GE',
+    routeType: 'mixed',
+    notes: '地中海→トルコ東岸→黒海→トビリシ',
+  },
+  {
+    fromCapitalId: 'GE',
+    toCapitalId: 'AM',
+    routeType: 'land',
+  },
+  {
+    fromCapitalId: 'AM',
+    toCapitalId: 'AZ',
+    routeType: 'land',
+  },
 ];
 
 export function findSegmentClassification(
