@@ -163,15 +163,11 @@ export function signOut(): void {
 export async function fetchStepsBetween(startMs: number, endMs: number): Promise<number> {
   const token = await getAccessToken(false);
 
+  // Aggregate from any available source (modern Android may route through
+  // Health Connect rather than the legacy 'estimated_steps' dataSourceId).
   const body = {
-    aggregateBy: [
-      {
-        dataTypeName: 'com.google.step_count.delta',
-        dataSourceId:
-          'derived:com.google.step_count.delta:com.google.android.gms:estimated_steps',
-      },
-    ],
-    bucketByTime: { durationMillis: endMs - startMs },
+    aggregateBy: [{ dataTypeName: 'com.google.step_count.delta' }],
+    bucketByTime: { durationMillis: Math.max(60_000, endMs - startMs) },
     startTimeMillis: startMs,
     endTimeMillis: endMs,
   };
