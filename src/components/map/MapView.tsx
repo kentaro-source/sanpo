@@ -210,6 +210,9 @@ export function MapView() {
           strokeOpacity: 0.9,
           strokeWeight: 4,
           zIndex: 5,
+          // Curve along the great-circle so straight 2-point sea/fantasy
+          // segments don't render as a Mercator straight line.
+          geodesic: true,
           map: mapRef.current,
         });
         realRoutePolylinesRef.current.push(polyline);
