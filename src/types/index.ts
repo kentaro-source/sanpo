@@ -23,6 +23,8 @@ export interface City {
   lng: number;
   type: CityType;
   description: string; // 短い日本語紹介
+  /** 実生活で訪問した都市は思い出ボーナス対象 */
+  visitedInRealLife?: boolean;
 }
 
 export interface Square {

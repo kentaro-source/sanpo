@@ -142,8 +142,8 @@ export function SicBoModal({ open, onClose }: Props) {
         {phase === 'betting' && (
           <>
             <div className="sicbo-token-bar">
-              <span>残り <strong>{remaining}</strong>/{player.availableDice}</span>
-              <span>ベット <strong>{totalTokens}</strong></span>
+              <span>🎲 <strong>{remaining}</strong>/{player.availableDice}</span>
+              <span>BET <strong>{totalTokens}</strong></span>
             </div>
 
             <div className="sicbo-board">
@@ -314,6 +314,12 @@ export function SicBoModal({ open, onClose }: Props) {
   );
 }
 
+// Cell label: shows "+N" (potential advance based on current chip count, no Japanese)
+function massLabel(count: number, mult: number): string {
+  const tokens = count > 0 ? count : 1;
+  return `+${tokens * mult}`;
+}
+
 interface BigCellProps {
   type: SicBoBetType;
   label: string;
@@ -327,11 +333,13 @@ function BetCellBig({ type, label, count, onAdd, onRemove }: BigCellProps) {
     type === 'big' ? 'cell-big' :
     type === 'small' ? 'cell-small' :
     type === 'odd' ? 'cell-odd' : 'cell-even';
+  const mult = payoutFor(type);
 
   return (
     <div className={`bet-cell-v2 cell-bs ${colorClass} ${count > 0 ? 'cell-active' : ''}`}>
       <button className="bet-cell-area" onClick={onAdd}>
         <div className="cell-bs-label">{label}</div>
+        <div className="cell-mass-hint">{massLabel(count, mult)}</div>
       </button>
       {count > 0 && <Chip count={count} onClick={onRemove} />}
     </div>
@@ -351,7 +359,7 @@ function BetCellTotal({ number, mult, count, onAdd, onRemove }: TotalCellProps) 
     <div className={`bet-cell-v2 cell-total ${count > 0 ? 'cell-active' : ''}`}>
       <button className="bet-cell-area" onClick={onAdd}>
         <div className="cell-total-num">{number}</div>
-        <div className="cell-total-mult">×{mult}</div>
+        <div className="cell-total-mult">{massLabel(count, mult)}</div>
       </button>
       {count > 0 && <Chip count={count} onClick={onRemove} />}
     </div>
@@ -374,7 +382,7 @@ function BetCellTriple({ face, mult, count, onAdd, onRemove }: TripleCellProps) 
           <Die face={face} size={36} />
           <span className="cell-triple-x3">×3</span>
         </div>
-        <div className="cell-total-mult">×{mult}</div>
+        <div className="cell-total-mult">{massLabel(count, mult)}</div>
       </button>
       {count > 0 && <Chip count={count} onClick={onRemove} />}
     </div>
@@ -382,11 +390,12 @@ function BetCellTriple({ face, mult, count, onAdd, onRemove }: TripleCellProps) 
 }
 
 function BetCellAnyTriple({ count, onAdd, onRemove }: { count: number; onAdd: () => void; onRemove: (e: React.MouseEvent) => void }) {
+  const mult = payoutFor('any-triple');
   return (
     <div className={`bet-cell-v2 cell-any-triple ${count > 0 ? 'cell-active' : ''}`}>
       <button className="bet-cell-area" onClick={onAdd}>
         <div className="cell-bs-label">囲</div>
-        <div className="cell-total-mult">×{payoutFor('any-triple')}</div>
+        <div className="cell-total-mult">{massLabel(count, mult)}</div>
       </button>
       {count > 0 && <Chip count={count} onClick={onRemove} />}
     </div>

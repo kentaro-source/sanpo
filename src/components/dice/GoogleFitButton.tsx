@@ -8,15 +8,6 @@ function startOfTodayMs(): number {
   return d.getTime();
 }
 
-function formatTime(ms: number): string {
-  const d = new Date(ms);
-  return d.toLocaleString('ja-JP', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
-}
 
 const AUTO_SYNC_MIN_INTERVAL_MS = 60_000; // skip auto-sync if last sync < 60s ago
 
@@ -115,11 +106,6 @@ export function GoogleFitButton() {
     }
   };
 
-  const handleManualSync = () => {
-    if (busy) return;
-    doSync(false);
-  };
-
   const handleDisconnect = () => {
     signOut();
     setConnected(false);
@@ -127,41 +113,29 @@ export function GoogleFitButton() {
     setError(null);
   };
 
-  // Connected state: minimal status row only.
+  // Connected state: hidden (auto-sync runs in background).
+  // Show only transient sync result toast briefly.
   if (connected) {
-    return (
-      <div className="gfit-section gfit-section-connected">
-        <div className="gfit-status-mini">
-          {busy ? (
-            <span>🔄 Google Fit 同期中...</span>
-          ) : (
-            <span>
-              ✅ Google Fit 連携中
-              {player.lastSyncTimestamp && (
-                <> （最終 {formatTime(player.lastSyncTimestamp)}）</>
-              )}
-            </span>
-          )}
-          <button
-            className="gfit-mini-btn"
-            onClick={handleManualSync}
-            disabled={busy}
-            title="今すぐ同期"
-          >
-            🔄
-          </button>
-          <button
-            className="gfit-disconnect"
-            onClick={handleDisconnect}
-            title="連携解除"
-          >
-            解除
-          </button>
+    if (lastResult && !error) {
+      return (
+        <div className="gfit-section gfit-section-connected">
+          <div className="gfit-result-mini">{lastResult}</div>
         </div>
-        {error && <div className="gfit-error">{error}</div>}
-        {lastResult && !error && <div className="gfit-result">{lastResult}</div>}
-      </div>
-    );
+      );
+    }
+    if (error) {
+      return (
+        <div className="gfit-section gfit-section-connected">
+          <div className="gfit-error">
+            {error}{' '}
+            <button className="gfit-disconnect" onClick={handleDisconnect}>
+              解除
+            </button>
+          </div>
+        </div>
+      );
+    }
+    return null;
   }
 
   // Not connected: prominent connect button

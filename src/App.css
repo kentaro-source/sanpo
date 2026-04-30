@@ -458,6 +458,17 @@
   font-weight: 600;
 }
 
+.gfit-result-mini {
+  font-size: 11px;
+  color: #059669;
+  background: #ecfdf5;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: 600;
+  text-align: center;
+  animation: fadeIn 0.3s;
+}
+
 /* Sic Bo Modal - Macau-style traditional board */
 .sicbo-modal {
   position: fixed;
@@ -972,6 +983,13 @@
   font-size: 9px;
   color: #8b1a1a;
   font-weight: 600;
+}
+
+.cell-mass-hint {
+  font-size: 10px;
+  color: #8b1a1a;
+  font-weight: 600;
+  margin-top: 2px;
 }
 
 /* Triple cells */

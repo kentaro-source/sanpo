@@ -25,7 +25,7 @@ export const segmentClassifications: SegmentClassification[] = [
       'KR-BUSAN',
       'KR-CHEONGJU',
     ],
-    notes: '宮崎発、九州西回り→関釜フェリー→韓国南部経由ソウル',
+    notes: '東京発（Japan capital）→ 関西通過 → 宮崎(故郷) → 長崎 → 福岡 →[関釜フェリー]→ プサン → 清州 → ソウル',
   },
   {
     fromCapitalId: 'KR',
