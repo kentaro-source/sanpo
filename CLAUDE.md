@@ -14,7 +14,7 @@
 - 2026-04-29 (前半): Google Fit連携 (OAuth + 自動同期) 実装完了
 - 2026-04-29 (午後): Sic Boベット制（カジノ風）に変更、UI伝統マカオ風
 - 2026-04-29 (夕方): 都市データ追加（164都市）+ Google Maps切替完了
-- 2026-04-29 (夜): 実在ルート化開始 - capitals.ts再構成 (v3) + セグメント分類 (バッチ1-3, 1/193～46/193)
+- 2026-04-29 (夜): 実在ルート化開始 - capitals.ts再構成 (v3) + セグメント分類 (バッチ1-3, 46/193) + Directions API実装
 
 ### デプロイ
 - **本番URL**: https://kentaro-source.github.io/sanpo/
@@ -164,14 +164,38 @@ git push
   - バッチ3 (32-46): 中東後半 完了
 - ✅ MapView.tsx で段階的に色分けポリライン表示
   - red=land / blue=sea / purple=mixed / orange=fantasy
+- ✅ **Directions API実装** (`src/services/directions.ts`)
+  - landセグメントはGoogle Directions APIで実道路に沿った polyline
+  - localStorage キャッシュ (TTL 30日)
+  - 動作確認: 30セグメント分のキャッシュ生成済み
+  - sea/mixed/fantasy は引き続き直線
+- ✅ Sic Bo盤UX改善
+  - 各セルに「+N」（潜在進行マス）動的表示、チップ数で更新
+  - ベット盤から日本語完全排除（×N → +N）
+  - status barも 🎲/BET アイコン化
+- ✅ Google Fit UI整理
+  - 連携後は完全非表示（自動同期がbackground実行）
+  - 同期成功時のみ短いトースト
+- ✅ 実生活訪問データ整備（`src/data/realLifeVisited.ts`）
+  - 訪問都市・首都の Set 公開
+  - 思い出ボーナス（+2🎲）の判定基盤完成
+  - **gameplay logic未実装**（Reducer連携が次回タスク）
 
-**次回再開: バッチ4 から**
-- バッチ4 (47-65): ロシア→北欧→東欧→バルカン（**未承認、未実装**）
-- バッチ5 (66-?): 中央欧州→西欧→南欧
-- バッチ6: 北アフリカ→西アフリカ
-- バッチ7: 中央・東・南アフリカ
-- バッチ8-10: 南北アメリカ
-- バッチ11: オセアニア+太平洋諸島
+**次回再開: 残作業**
+1. **マイルストーン・都市訪問ボーナス実装**
+   - PlayerState 拡張: `visitedCities`, `claimedMilestones`
+   - Reducer: ROLL_SICBO 時に着地マス周辺の都市検出（200km以内）→ +1🎲 (or +2🎲 思い出)
+   - Reducer: ADD_STEPS/SYNC_FROM_GOOGLE_FIT 時にマイルストーン判定
+   - UI通知: ポップアップ・トースト
+2. **セグメント分類バッチ4-11** (ロシア・欧州・アフリカ・米州・オセアニア)
+3. その他: ログインボーナスは**不要**で確定（純粋に歩数連動）
+
+### 確定したルール設計
+- **Sic Bo返金**: 案3（返金なし、現状）
+- **トークン上限**: 5維持、ボーナス上限超えは没収を許容
+- **マイルストーン**: 1万=+1, 10万=+2, 100万=+3, 1000万=+5, 1億=+5+特別演出
+- **都市訪問ボーナス**: 「停止時のみ」（半径200km以内）、未訪問+1, 実生活訪問+2
+- **ログインボーナス**: 不要
 
 ### Google Maps APIキー
 - `AIzaSyAl8HkXqKTy1_PDDU7-XX4cLQNYfXwrwl8`
