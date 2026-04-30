@@ -24,10 +24,8 @@ export function Header() {
 
   return (
     <header className="header">
-      <div className="header-left">
-        <h1 className="header-title">せかいさんぽ</h1>
-        <span className="header-subtitle">{visitedCount}/{totalCapitals} capitals</span>
-      </div>
+      <h1 className="header-title">せかいさんぽ</h1>
+      <div className="header-meta">{visitedCount}/{totalCapitals}</div>
       <div className="header-dice">
         <span className="dice-icon">🎲</span>
         <span className="dice-count">{player.availableDice}/{config.maxDice}</span>

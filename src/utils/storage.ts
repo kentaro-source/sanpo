@@ -1,9 +1,9 @@
 import type { GameState } from '../types';
 
 const STORAGE_KEY = 'sanpo-game-state';
-// Version 3: capitals.ts further reordered (PH after MN via Taiwan/Philippines flow).
-// Square indices changed, so old saves are incompatible.
-const CURRENT_VERSION = 3;
+// Version 4: square counts now use waypoint-aware path length, so total
+// square count and per-segment indices change. Old saves are incompatible.
+const CURRENT_VERSION = 4;
 
 export function loadGameState(): GameState | null {
   try {
