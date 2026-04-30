@@ -1,4 +1,5 @@
-const CACHE_NAME = 'sanpo-v1';
+const BUILD_ID = '__BUILD_ID__';
+const CACHE_NAME = `sanpo-${BUILD_ID}`;
 const PRECACHE_URLS = [
   './',
   './index.html',
@@ -15,18 +16,31 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
       Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-    )
+    ).then(() => self.clients.claim())
   );
-  self.clients.claim();
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('fetch', (event) => {
   const { request } = event;
 
-  // Network first for navigation and API calls
+  // Network first for navigation and API calls; refresh cache on success
   if (request.mode === 'navigate' || request.url.includes('/api/')) {
     event.respondWith(
-      fetch(request).catch(() => caches.match('./index.html'))
+      fetch(request)
+        .then((response) => {
+          if (request.mode === 'navigate' && response.ok) {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put('./index.html', clone));
+          }
+          return response;
+        })
+        .catch(() => caches.match('./index.html'))
     );
     return;
   }
@@ -36,7 +50,6 @@ self.addEventListener('fetch', (event) => {
     caches.match(request).then((cached) => {
       if (cached) return cached;
       return fetch(request).then((response) => {
-        // Cache map tiles and static assets
         if (response.ok && (request.url.includes('tile.openstreetmap') || request.url.match(/\.(js|css|woff2?)$/))) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
