@@ -1,10 +1,11 @@
-/* App Layout: grid guarantees the bottom panel is always visible */
+/* App Layout: header + map fill viewport; panel is position:fixed at bottom. */
 .app-layout {
-  display: grid;
-  grid-template-rows: auto 1fr auto;
+  display: flex;
+  flex-direction: column;
   height: 100dvh;
   overflow: hidden;
   background: #f8fafc;
+  position: relative;
 }
 
 /* Header */
@@ -77,8 +78,9 @@
   background: #475569;
 }
 
-/* Map Container — fills space remaining after the natural-size panel */
+/* Map Container — fills space between header and the fixed panel at bottom */
 .map-container {
+  flex: 1 1 auto;
   position: relative;
   min-height: 0;
   overflow: hidden;
@@ -89,9 +91,13 @@
   height: 100%;
 }
 
-/* Bottom Panel — natural-size row in the grid, always visible at the bottom.
-   No max-height/overflow so the dice button can never be scroll-clipped. */
+/* Bottom Panel — fixed at the viewport bottom so the dice button is
+   guaranteed visible regardless of any height calculation quirk. */
 .bottom-panel {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
   background: white;
   border-top: 1px solid #e2e8f0;
   padding: 8px 14px;
