@@ -280,8 +280,12 @@ export function MapView() {
     }
   }, [loaded]);
 
-  // Render square dots (one tiny circle per non-capital square).
-  // Created once after load; only color/opacity is updated when position changes.
+  // Render square dots — sample every Nth square to keep marker count
+  // manageable on phones, plus auto-hide when zoomed out (dots cluster
+  // unreadably anyway). Only color/opacity updates on position change.
+  const SQUARE_SAMPLE = 3; // render 1 in N non-capital squares
+  const SQUARE_MIN_ZOOM = 4;
+
   useEffect(() => {
     if (!loaded || !mapRef.current) return;
     if (squareMarkersRef.current.length > 0) return; // already created
@@ -289,6 +293,7 @@ export function MapView() {
     for (let i = 0; i < routeData.squares.length; i++) {
       const sq = routeData.squares[i];
       if (sq.isCapital) continue;
+      if (i % SQUARE_SAMPLE !== 0) continue;
       const m = new google.maps.Marker({
         position: { lat: sq.lat, lng: sq.lng },
         map: mapRef.current,
@@ -306,22 +311,59 @@ export function MapView() {
       (m as unknown as { _idx: number })._idx = i;
       squareMarkersRef.current.push(m);
     }
+
+    // Hide markers when zoomed out so panning is smooth.
+    const updateVisibility = () => {
+      const zoom = mapRef.current?.getZoom() ?? 4;
+      const visible = zoom >= SQUARE_MIN_ZOOM;
+      for (const m of squareMarkersRef.current) {
+        m.setVisible(visible);
+      }
+    };
+    mapRef.current.addListener('zoom_changed', updateVisibility);
+    updateVisibility();
   }, [loaded, routeData]);
 
-  // Update square dot colors when current position changes (passed = green, upcoming = gray).
+  // Update square dot colors when current position changes (only the markers
+  // whose passed/upcoming status actually flipped, not all of them).
+  const prevPassedIndexRef = useRef(-1);
   useEffect(() => {
     const currentIdx = player.currentSquareIndex;
+    const prev = prevPassedIndexRef.current;
+    prevPassedIndexRef.current = currentIdx;
+
+    const passedIcon = {
+      path: google.maps.SymbolPath.CIRCLE,
+      scale: 4,
+      fillColor: '#16a34a',
+      fillOpacity: 1,
+      strokeColor: '#14532d',
+      strokeWeight: 1.5,
+    };
+    const upcomingIcon = {
+      path: google.maps.SymbolPath.CIRCLE,
+      scale: 2,
+      fillColor: '#cbd5e1',
+      fillOpacity: 0.85,
+      strokeColor: '#475569',
+      strokeWeight: 0.5,
+    };
+
+    if (prev === -1) {
+      // First run: paint everything once
+      for (const m of squareMarkersRef.current) {
+        const i = (m as unknown as { _idx: number })._idx;
+        m.setIcon(i <= currentIdx ? passedIcon : upcomingIcon);
+      }
+      return;
+    }
+    // Only repaint markers whose state actually flipped
+    const lo = Math.min(prev, currentIdx);
+    const hi = Math.max(prev, currentIdx);
     for (const m of squareMarkersRef.current) {
       const i = (m as unknown as { _idx: number })._idx;
-      const passed = i <= currentIdx;
-      m.setIcon({
-        path: google.maps.SymbolPath.CIRCLE,
-        scale: passed ? 4 : 2,
-        fillColor: passed ? '#16a34a' : '#cbd5e1',
-        fillOpacity: passed ? 1 : 0.85,
-        strokeColor: passed ? '#14532d' : '#475569',
-        strokeWeight: passed ? 1.5 : 0.5,
-      });
+      if (i < lo || i > hi) continue;
+      m.setIcon(i <= currentIdx ? passedIcon : upcomingIcon);
     }
   }, [player.currentSquareIndex]);
 
