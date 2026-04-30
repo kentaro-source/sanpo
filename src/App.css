@@ -79,7 +79,7 @@
 
 /* Map Container */
 .map-container {
-  flex: 1;
+  flex: 0 0 45vh;
   position: relative;
   min-height: 0;
 }
@@ -89,9 +89,9 @@
   height: 100%;
 }
 
-/* Bottom Panel */
+/* Bottom Panel: takes everything below the 45vh map */
 .bottom-panel {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
   background: white;
   border-top: 1px solid #e2e8f0;
   padding: 8px 14px;
@@ -100,7 +100,7 @@
   flex-direction: column;
   gap: 6px;
   z-index: 1000;
-  max-height: 55vh;
+  min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
