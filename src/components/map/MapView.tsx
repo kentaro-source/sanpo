@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useGame } from '../../hooks/useGame';
 import { cities, segmentClassifications } from '../../data';
+import { getRoadPolyline } from '../../services/directions';
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
 
@@ -134,11 +135,10 @@ export function MapView() {
   }, [loaded, player.currentSquareIndex, routeData]);
 
   // Render real route polylines from segmentClassifications (Batch N waypoint cities)
+  // Uses Directions API for land segments to follow real roads.
   useEffect(() => {
     if (!mapRef.current || !loaded) return;
-
-    realRoutePolylinesRef.current.forEach((p) => p.setMap(null));
-    realRoutePolylinesRef.current = [];
+    let cancelled = false;
 
     const ROUTE_COLORS: Record<string, string> = {
       land: '#dc2626',
@@ -147,20 +147,38 @@ export function MapView() {
       fantasy: '#f59e0b',
     };
 
-    try {
+    // Clear existing
+    realRoutePolylinesRef.current.forEach((p) => p.setMap(null));
+    realRoutePolylinesRef.current = [];
+
+    async function renderSegments() {
       for (const seg of segmentClassifications) {
+        if (cancelled) return;
         const fromCap = routeData.capitals.find((c) => c.id === seg.fromCapitalId);
         const toCap = routeData.capitals.find((c) => c.id === seg.toCapitalId);
         if (!fromCap || !toCap) continue;
 
-        const path: google.maps.LatLngLiteral[] = [
-          { lat: fromCap.lat, lng: fromCap.lng },
-        ];
+        const origin = { lat: fromCap.lat, lng: fromCap.lng };
+        const destination = { lat: toCap.lat, lng: toCap.lng };
+        const waypoints: google.maps.LatLngLiteral[] = [];
         for (const cityId of seg.waypointCityIds ?? []) {
           const city = cities.find((c) => c.id === cityId);
-          if (city) path.push({ lat: city.lat, lng: city.lng });
+          if (city) waypoints.push({ lat: city.lat, lng: city.lng });
         }
-        path.push({ lat: toCap.lat, lng: toCap.lng });
+
+        let path: google.maps.LatLngLiteral[];
+
+        if (seg.routeType === 'land') {
+          // Try Directions API for road following
+          const roadPath = await getRoadPolyline(origin, destination, waypoints);
+          if (cancelled) return;
+          path = roadPath ?? [origin, ...waypoints, destination];
+        } else {
+          // sea / mixed / fantasy: use straight lines through waypoints
+          path = [origin, ...waypoints, destination];
+        }
+
+        if (cancelled || !mapRef.current) return;
 
         const color = ROUTE_COLORS[seg.routeType] ?? '#dc2626';
         const polyline = new google.maps.Polyline({
@@ -173,9 +191,15 @@ export function MapView() {
         });
         realRoutePolylinesRef.current.push(polyline);
       }
-    } catch (e) {
-      console.error('Real route polyline error:', e);
     }
+
+    renderSegments().catch((e) => {
+      console.error('Real route polyline error:', e);
+    });
+
+    return () => {
+      cancelled = true;
+    };
   }, [loaded]);
 
   // Render capital markers (once after load + visited update)
