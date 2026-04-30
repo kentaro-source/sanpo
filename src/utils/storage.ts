@@ -1,7 +1,9 @@
 import type { GameState } from '../types';
 
 const STORAGE_KEY = 'sanpo-game-state';
-const CURRENT_VERSION = 1;
+// Version 2: capitals.ts reordered (Maritime SE Asia & Indian Ocean islands repositioned).
+// Square indices changed, so old saves are incompatible.
+const CURRENT_VERSION = 2;
 
 export function loadGameState(): GameState | null {
   try {
