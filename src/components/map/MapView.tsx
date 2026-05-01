@@ -225,14 +225,30 @@ export function MapView() {
     };
   }, [loaded]);
 
-  // Render capital markers (once after load + visited update)
+  // Render capital markers — only those near the current position to keep
+  // marker count tiny. Re-renders when player advances.
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!mapRef.current || !loaded) return;
 
     capitalMarkersRef.current.forEach((m) => m.setMap(null));
     capitalMarkersRef.current = [];
 
-    for (const capital of routeData.capitals) {
+    // Pick: previous N capitals (passed) + next M capitals (upcoming).
+    // Find current capital index via the current square's segment.
+    const currentSegIdx = currentSquare.segmentIndex;
+    const PASSED_BEHIND = 3;
+    const UPCOMING_AHEAD = 5;
+    const totalCaps = routeData.capitals.length;
+
+    const visibleIndices = new Set<number>();
+    for (let i = -PASSED_BEHIND; i <= UPCOMING_AHEAD; i++) {
+      const idx = (currentSegIdx + i + totalCaps) % totalCaps;
+      visibleIndices.add(idx);
+    }
+
+    for (let i = 0; i < routeData.capitals.length; i++) {
+      if (!visibleIndices.has(i)) continue;
+      const capital = routeData.capitals[i];
       const visited = player.visitedCapitals.includes(capital.id);
       const m = new google.maps.Marker({
         position: { lat: capital.lat, lng: capital.lng },
@@ -249,7 +265,7 @@ export function MapView() {
       });
       capitalMarkersRef.current.push(m);
     }
-  }, [loaded, player.visitedCapitals, routeData]);
+  }, [loaded, player.visitedCapitals, currentSquare.segmentIndex]);
 
   // City markers: only created when zooming in close enough to actually see them.
   // Lazy-create on first qualifying zoom to keep initial load fast.
