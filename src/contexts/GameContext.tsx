@@ -45,29 +45,33 @@ function stepsToKm(
   player: PlayerState,
   now: number,
 ): { km: number; remainingMultiplierUntil: number; remainingMultiplier: number } {
+  // Defensive defaults: any of these could be undefined/null/NaN if state
+  // got corrupted (e.g. JSON.stringify(NaN)→"null" during a save). Without
+  // these defaults, arithmetic propagates NaN and distanceKm permanently
+  // sticks at zero.
+  const multiplier =
+    Number.isFinite(player.currentMultiplier) ? player.currentMultiplier : 1.0;
+  const multiplierUntil =
+    Number.isFinite(player.multiplierUntil) ? player.multiplierUntil : 0;
+
   if (steps <= 0) {
     return {
       km: 0,
-      remainingMultiplierUntil: player.multiplierUntil,
-      remainingMultiplier: player.currentMultiplier,
+      remainingMultiplierUntil: multiplierUntil,
+      remainingMultiplier: multiplier,
     };
   }
-  // If multiplier already expired, no bonus.
-  if (player.multiplierUntil <= now) {
+  if (multiplierUntil <= now) {
     return {
       km: steps * KM_PER_STEP,
       remainingMultiplierUntil: 0,
       remainingMultiplier: 1.0,
     };
   }
-  // Multiplier is active for the entire batch. We don't sub-divide steps
-  // proportionally to wall-clock time within the sync window — practically
-  // the user walks all the steps "now" and they all benefit from the
-  // active multiplier.
   return {
-    km: steps * KM_PER_STEP * player.currentMultiplier,
-    remainingMultiplierUntil: player.multiplierUntil,
-    remainingMultiplier: player.currentMultiplier,
+    km: steps * KM_PER_STEP * multiplier,
+    remainingMultiplierUntil: multiplierUntil,
+    remainingMultiplier: multiplier,
   };
 }
 
