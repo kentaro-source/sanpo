@@ -6,7 +6,10 @@ import type { BetSlot } from '../types';
 
 export interface UpcomingStop {
   squareIndex: number;
+  /** Squares from current position to this stop. */
   squaresAway: number;
+  /** Squares from the previous stop (or from current pos for the first). */
+  squaresFromPrev: number;
   kind: 'capital' | 'city';
   nameJa: string;
   countryJa?: string;
@@ -56,9 +59,11 @@ export function useGame() {
     const totalCapitals = routeData.capitals.length;
 
     // Walk forward and collect the next few "stops" (capitals + waypoint cities).
-    // Used to show "次: 宮崎(3) → 長崎(5) → 福岡(7) → ソウル(11)".
+    // squaresFromPrev tracks segment distances so 宮崎→長崎 (2 squares) reads
+    // very differently from Tokyo→宮崎 (8 squares) — matches geography.
     const upcomingStops: UpcomingStop[] = [];
     const MAX_STOPS = 6;
+    let prevStep = 0;
     for (
       let step = 1;
       step <= routeData.totalSquares && upcomingStops.length < MAX_STOPS;
@@ -72,10 +77,12 @@ export function useGame() {
           upcomingStops.push({
             squareIndex: idx,
             squaresAway: step,
+            squaresFromPrev: step - prevStep,
             kind: 'capital',
             nameJa: cap.nameJa,
             countryJa: cap.countryJa,
           });
+          prevStep = step;
           // Stop after the next capital — beyond that is "the next chapter".
           break;
         }
@@ -85,11 +92,13 @@ export function useGame() {
           upcomingStops.push({
             squareIndex: idx,
             squaresAway: step,
+            squaresFromPrev: step - prevStep,
             kind: 'city',
             nameJa: city.nameJa,
             countryJa: city.countryJa,
             visitedInRealLife: city.visitedInRealLife,
           });
+          prevStep = step;
         }
       }
     }

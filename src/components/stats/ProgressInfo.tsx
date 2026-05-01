@@ -31,7 +31,10 @@ export function ProgressInfo() {
                       <span className="progress-country">({stop.countryJa})</span>
                     )}
                   </span>
-                  <span className="progress-stop-dist">{stop.squaresAway}マス</span>
+                  <span className="progress-stop-dist">
+                    {stop.squaresFromPrev}マス
+                    <span className="progress-stop-total">/ 計{stop.squaresAway}</span>
+                  </span>
                 </li>
               ))}
             </ol>
