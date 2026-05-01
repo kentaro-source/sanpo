@@ -138,18 +138,16 @@ export function MapView() {
       return rdp(path, 0.02);
     };
 
-    const ROUTE_COLORS: Record<string, string> = {
-      land: '#dc2626',
-      sea: '#0ea5e9',
-      mixed: '#a855f7',
-      fantasy: '#f59e0b',
-    };
-
     // Clear existing
     realRoutePolylinesRef.current.forEach((p) => p.setMap(null));
     realRoutePolylinesRef.current = [];
 
-    async function renderSegments() {
+    // Build ONE big combined path across all segments and render as a single
+    // Polyline. SVG renders a single path much faster than 46 separate paths,
+    // especially during pan/zoom on mobile.
+    async function renderCombinedRoute() {
+      const allPoints: google.maps.LatLngLiteral[] = [];
+
       for (const seg of segmentClassifications) {
         if (cancelled) return;
         const fromCap = routeData.capitals.find((c) => c.id === seg.fromCapitalId);
@@ -164,15 +162,13 @@ export function MapView() {
           if (city) waypoints.push({ lat: city.lat, lng: city.lng });
         }
 
-        let path: google.maps.LatLngLiteral[];
+        let segPath: google.maps.LatLngLiteral[];
 
         if (seg.routeType === 'land') {
-          // Try Directions API for road following across all waypoints in one call
           const roadPath = await getRoadPolyline(origin, destination, waypoints);
           if (cancelled) return;
-          path = roadPath ?? [origin, ...waypoints, destination];
+          segPath = simplifyPath(roadPath ?? [origin, ...waypoints, destination]);
         } else if (seg.routeType === 'mixed') {
-          // Render pair-by-pair: sea sub-segments straight, land sub-segments via Directions API
           const points = [origin, ...waypoints, destination];
           const seaSet = new Set(
             (seg.seaSegments ?? []).map(([a, b]) => `${a}-${b}`),
@@ -181,41 +177,47 @@ export function MapView() {
           for (let i = 0; i < points.length - 1; i++) {
             if (cancelled) return;
             const isSea = seaSet.has(`${i}-${i + 1}`);
-            let segPath: google.maps.LatLngLiteral[];
+            let pathSeg: google.maps.LatLngLiteral[];
             if (isSea) {
-              segPath = [points[i], points[i + 1]];
+              pathSeg = [points[i], points[i + 1]];
             } else {
               const road = await getRoadPolyline(points[i], points[i + 1]);
               if (cancelled) return;
-              segPath = road ?? [points[i], points[i + 1]];
+              pathSeg = road ?? [points[i], points[i + 1]];
             }
-            if (i === 0) built.push(...segPath);
-            else built.push(...segPath.slice(1));
+            if (i === 0) built.push(...pathSeg);
+            else built.push(...pathSeg.slice(1));
           }
-          path = built;
+          segPath = simplifyPath(built);
         } else {
           // sea / fantasy: straight lines through waypoints
-          path = [origin, ...waypoints, destination];
+          segPath = [origin, ...waypoints, destination];
         }
 
-        if (cancelled || !mapRef.current) return;
-
-        const color = ROUTE_COLORS[seg.routeType] ?? '#dc2626';
-        const polyline = new google.maps.Polyline({
-          path: simplifyPath(path),
-          strokeColor: color,
-          strokeOpacity: 0.9,
-          strokeWeight: 4,
-          zIndex: 5,
-          geodesic: true,
-          map: mapRef.current,
-        });
-        realRoutePolylinesRef.current.push(polyline);
+        // Append to combined path, skipping duplicate boundary point
+        if (allPoints.length === 0) {
+          allPoints.push(...segPath);
+        } else {
+          allPoints.push(...segPath.slice(1));
+        }
       }
+
+      if (cancelled || !mapRef.current) return;
+
+      const polyline = new google.maps.Polyline({
+        path: allPoints,
+        strokeColor: '#2563eb',
+        strokeOpacity: 0.85,
+        strokeWeight: 3,
+        zIndex: 5,
+        geodesic: true,
+        map: mapRef.current,
+      });
+      realRoutePolylinesRef.current.push(polyline);
     }
 
-    renderSegments().catch((e) => {
-      console.error('Real route polyline error:', e);
+    renderCombinedRoute().catch((e) => {
+      console.error('Combined route polyline error:', e);
     });
 
     return () => {
