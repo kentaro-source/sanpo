@@ -85,6 +85,14 @@ export function GoogleFitButton() {
 
   useEffect(() => {
     if (!connected) return;
+    const onForce = () => doSync(false);
+    window.addEventListener('sanpo-force-sync', onForce);
+    return () => window.removeEventListener('sanpo-force-sync', onForce);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected]);
+
+  useEffect(() => {
+    if (!connected) return;
 
     const onVisible = () => {
       if (document.visibilityState !== 'visible') return;

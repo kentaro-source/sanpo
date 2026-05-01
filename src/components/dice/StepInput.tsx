@@ -53,7 +53,15 @@ export function StepInput() {
           {progress.toLocaleString()} / {config.stepsPerDie.toLocaleString()} 歩
         </span>
       </div>
-      {fitInfo && <div className="step-fit-info">{fitInfo}</div>}
+      {fitInfo && (
+        <div
+          className="step-fit-info"
+          onClick={() => window.dispatchEvent(new CustomEvent('sanpo-force-sync'))}
+          title="タップで手動同期"
+        >
+          {fitInfo} 🔄
+        </div>
+      )}
     </div>
   );
 }
