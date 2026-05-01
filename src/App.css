@@ -177,6 +177,59 @@
   flex-shrink: 0;
 }
 
+/* Bonus toasts (milestones, city visits, capital arrivals) */
+.bonus-toast-container {
+  position: absolute;
+  top: 60px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 1000;
+  pointer-events: none;
+  max-width: calc(100vw - 24px);
+}
+
+.bonus-toast {
+  background: rgba(15, 23, 42, 0.92);
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  animation: toast-in 0.25s ease-out;
+}
+
+.bonus-toast-milestone {
+  background: linear-gradient(135deg, #d97706, #f59e0b);
+}
+
+.bonus-toast-city-irl {
+  background: linear-gradient(135deg, #be185d, #ec4899);
+}
+
+.bonus-toast-capital-landing {
+  background: linear-gradient(135deg, #047857, #10b981);
+}
+
+.bonus-toast-label {
+  flex: 1;
+  font-weight: 500;
+}
+
+.bonus-toast-amount {
+  font-weight: 700;
+  font-size: 14px;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
 .progress-label {
   font-size: 11px;
   color: #64748b;

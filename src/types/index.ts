@@ -127,6 +127,22 @@ export interface PlayerState {
   todayStepsBaseline?: number;
   // start-of-day ms for the day todayStepsBaseline applies to
   todayBaselineDayStart?: number;
+  // Step-count milestones already claimed (10k/100k/1M/10M/100M etc.).
+  claimedMilestones?: number[];
+  // City IDs the player has visited via stopping within range. For the
+  // city-visit bonus and 思い出 highlighting on the map.
+  visitedCities?: string[];
+  // Recent bonus events for transient toast display. Newest first.
+  recentBonuses?: BonusEvent[];
+}
+
+export type BonusEventKind = 'milestone' | 'city' | 'city-irl' | 'capital' | 'capital-landing';
+
+export interface BonusEvent {
+  kind: BonusEventKind;
+  amount: number;       // tokens awarded
+  label: string;        // human readable, e.g. "10万歩達成"
+  timestamp: number;
 }
 
 export interface GameConfig {

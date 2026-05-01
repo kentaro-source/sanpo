@@ -6,10 +6,58 @@ import type {
   DiceRoll,
   BetSlot,
   SicBoRoll,
+  BonusEvent,
 } from '../types';
 import { routeData } from '../data';
+import { cities } from '../data/cities';
+import { haversineDistance } from '../utils/geo';
 import { loadGameState, saveGameState, clearGameState } from '../utils/storage';
 import { rollDice, isTriple, evaluateAllBets, totalBetAmount } from '../utils/sicbo';
+
+// Step-count milestones: { threshold, bonus tokens, label }.
+// Sorted ascending so we can pick the largest crossed threshold easily.
+const MILESTONES: Array<{ steps: number; tokens: number; label: string }> = [
+  { steps: 10_000, tokens: 1, label: '1万歩達成' },
+  { steps: 100_000, tokens: 2, label: '10万歩達成' },
+  { steps: 1_000_000, tokens: 3, label: '100万歩達成' },
+  { steps: 10_000_000, tokens: 5, label: '1000万歩達成' },
+  { steps: 100_000_000, tokens: 5, label: '1億歩達成 — 特別演出！' },
+];
+
+// City visit bonus: stopping within this radius of an unvisited city
+// counts as a visit. 200km is generous on purpose — at the world scale
+// of the route, ~1 square ≈ 150km, so this means "you stopped basically
+// near it".
+const CITY_VISIT_RADIUS_KM = 200;
+
+const MAX_RECENT_BONUSES = 8;
+
+/** Compute milestone bonuses crossed by going from oldTotal → newTotal. */
+function checkMilestones(
+  oldTotal: number,
+  newTotal: number,
+  alreadyClaimed: number[],
+  now: number,
+): { tokens: number; events: BonusEvent[]; newClaimed: number[] } {
+  const claimed = new Set(alreadyClaimed);
+  let tokens = 0;
+  const events: BonusEvent[] = [];
+  for (const m of MILESTONES) {
+    if (claimed.has(m.steps)) continue;
+    // Crossed milestone if newTotal hit it but oldTotal hadn't.
+    if (newTotal >= m.steps && oldTotal < m.steps) {
+      tokens += m.tokens;
+      claimed.add(m.steps);
+      events.push({
+        kind: 'milestone',
+        amount: m.tokens,
+        label: m.label,
+        timestamp: now,
+      });
+    }
+  }
+  return { tokens, events, newClaimed: Array.from(claimed) };
+}
 
 const DEFAULT_CONFIG: GameConfig = {
   stepsPerDie: 5000,
@@ -24,6 +72,9 @@ function createInitialPlayer(): PlayerState {
     stepsTowardNextDie: 0,
     diceHistory: [],
     visitedCapitals: [routeData.capitals[0].id], // start at Tokyo
+    visitedCities: [],
+    claimedMilestones: [],
+    recentBonuses: [],
     startDate: Date.now(),
     lastUpdated: Date.now(),
     completedLaps: 0,
@@ -107,14 +158,30 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const totalSteps = state.player.stepsTowardNextDie + action.steps;
       const newDice = Math.floor(totalSteps / state.config.stepsPerDie);
       const remainder = totalSteps % state.config.stepsPerDie;
+      const oldTotal = state.player.totalStepsEntered;
+      const newTotal = oldTotal + action.steps;
+      const now = Date.now();
+      const ms = checkMilestones(
+        oldTotal,
+        newTotal,
+        state.player.claimedMilestones ?? [],
+        now,
+      );
       return {
         ...state,
         player: {
           ...state.player,
-          totalStepsEntered: state.player.totalStepsEntered + action.steps,
-          availableDice: Math.min(state.player.availableDice + newDice, state.config.maxDice),
+          totalStepsEntered: newTotal,
+          availableDice: Math.min(
+            state.player.availableDice + newDice + ms.tokens,
+            state.config.maxDice,
+          ),
           stepsTowardNextDie: remainder,
-          lastUpdated: Date.now(),
+          claimedMilestones: ms.newClaimed,
+          recentBonuses: ms.events.length
+            ? [...ms.events, ...(state.player.recentBonuses ?? [])].slice(0, MAX_RECENT_BONUSES)
+            : state.player.recentBonuses,
+          lastUpdated: now,
         },
       };
     }
@@ -149,17 +216,33 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const totalSteps = state.player.stepsTowardNextDie + delta;
       const newDice = Math.floor(totalSteps / state.config.stepsPerDie);
       const remainder = totalSteps % state.config.stepsPerDie;
+      const oldTotal = state.player.totalStepsEntered;
+      const newTotal = oldTotal + delta;
+      const now = Date.now();
+      const ms = checkMilestones(
+        oldTotal,
+        newTotal,
+        state.player.claimedMilestones ?? [],
+        now,
+      );
       return {
         ...state,
         player: {
           ...state.player,
-          totalStepsEntered: state.player.totalStepsEntered + delta,
-          availableDice: Math.min(state.player.availableDice + newDice, state.config.maxDice),
+          totalStepsEntered: newTotal,
+          availableDice: Math.min(
+            state.player.availableDice + newDice + ms.tokens,
+            state.config.maxDice,
+          ),
           stepsTowardNextDie: remainder,
           lastSyncTimestamp: action.syncTimestamp,
           todayStepsBaseline: todayAbsolute,
           todayBaselineDayStart: todayStart,
-          lastUpdated: Date.now(),
+          claimedMilestones: ms.newClaimed,
+          recentBonuses: ms.events.length
+            ? [...ms.events, ...(state.player.recentBonuses ?? [])].slice(0, MAX_RECENT_BONUSES)
+            : state.player.recentBonuses,
+          lastUpdated: now,
         },
       };
     }
@@ -224,8 +307,61 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         toSquare: advanced.toIndex,
       };
 
+      // City visit bonus — only when actually moving (totalAdvance > 0).
+      // Find any city within CITY_VISIT_RADIUS_KM of the landing square
+      // that the player hasn't visited yet. Real-life-visited cities pay
+      // double (思い出ボーナス).
+      const now = Date.now();
+      const visitedCities = [...(state.player.visitedCities ?? [])];
+      const cityBonusEvents: BonusEvent[] = [];
+      let cityBonusTokens = 0;
+      if (totalAdvance > 0) {
+        const landing = routeData.squares[advanced.toIndex];
+        for (const city of cities) {
+          if (visitedCities.includes(city.id)) continue;
+          const dKm = haversineDistance(landing.lat, landing.lng, city.lat, city.lng);
+          if (dKm <= CITY_VISIT_RADIUS_KM) {
+            visitedCities.push(city.id);
+            const irl = city.visitedInRealLife === true;
+            const tokens = irl ? 2 : 1;
+            cityBonusTokens += tokens;
+            cityBonusEvents.push({
+              kind: irl ? 'city-irl' : 'city',
+              amount: tokens,
+              label: irl
+                ? `★ 懐かしの${city.nameJa}を再訪`
+                : `${city.nameJa}に立ち寄り`,
+              timestamp: now,
+            });
+          }
+        }
+      }
+
+      // Capital arrival events (track them as toasts too).
+      const capitalEvents: BonusEvent[] = [];
+      const previouslyVisited = new Set(state.player.visitedCapitals);
+      for (const cid of advanced.newVisited) {
+        if (!previouslyVisited.has(cid)) {
+          const cap = routeData.capitals.find((c) => c.id === cid);
+          if (cap) {
+            // Approximate +2 if we LANDED on the capital, +1 if just passing.
+            const landingSquare = routeData.squares[advanced.toIndex];
+            const isLanding = landingSquare.capitalId === cid;
+            capitalEvents.push({
+              kind: isLanding ? 'capital-landing' : 'capital',
+              amount: isLanding ? 2 : 1,
+              label: isLanding
+                ? `🏛 ${cap.nameJa}（${cap.countryJa}）到着！`
+                : `🏛 ${cap.nameJa}を通過`,
+              timestamp: now,
+            });
+          }
+        }
+      }
+
+      const allNewEvents = [...capitalEvents, ...cityBonusEvents];
       const tokensAfter =
-        state.player.availableDice - totalBet + advanced.bonusTokens;
+        state.player.availableDice - totalBet + advanced.bonusTokens + cityBonusTokens;
 
       return {
         ...state,
@@ -235,8 +371,12 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           availableDice: Math.max(0, Math.min(tokensAfter, state.config.maxDice)),
           sicBoHistory: [...(state.player.sicBoHistory ?? []), sicBoRoll],
           visitedCapitals: advanced.newVisited,
+          visitedCities,
           completedLaps: advanced.completedLaps,
-          lastUpdated: Date.now(),
+          recentBonuses: allNewEvents.length
+            ? [...allNewEvents, ...(state.player.recentBonuses ?? [])].slice(0, MAX_RECENT_BONUSES)
+            : state.player.recentBonuses,
+          lastUpdated: now,
         },
       };
     }
