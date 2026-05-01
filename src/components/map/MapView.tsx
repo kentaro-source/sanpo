@@ -45,7 +45,6 @@ export function MapView() {
   const cityMarkersRef = useRef<google.maps.Marker[]>([]);
   const squareMarkersRef = useRef<google.maps.Marker[]>([]);
   const currentMarkerRef = useRef<google.maps.Marker | null>(null);
-  const prevSquareIndex = useRef(currentSquare.index);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
