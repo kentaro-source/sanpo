@@ -19,6 +19,14 @@ async function hardReload() {
     // Also clear the Directions polyline cache so any stale/empty
     // results get refetched with the latest API key state.
     localStorage.removeItem('sanpo-directions-cache-v1');
+    localStorage.removeItem('sanpo-directions-cache-v2');
+    // Clear stale Google Fit auth state. Fixes the deadlock where an
+    // old client_id's "ever-consented" flag makes the app think it's
+    // connected, but no token exists for the new client, so auto-sync
+    // silently fails forever.
+    localStorage.removeItem('sanpo-google-fit-token');
+    localStorage.removeItem('sanpo-google-fit-ever-consented');
+    localStorage.removeItem('sanpo-fit-user-key');
   } catch {
     // ignore
   }
