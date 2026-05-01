@@ -188,6 +188,9 @@ export async function fetchStepsBetween(startMs: number, endMs: number): Promise
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
+      // Belt-and-suspenders: PWAs / SW caches have surprised us before.
+      // Force a network roundtrip every poll so we never serve stale steps.
+      cache: 'no-store',
     },
   );
 

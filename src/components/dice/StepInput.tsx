@@ -19,6 +19,14 @@ export function StepInput() {
   const progress = player.stepsTowardNextDie;
   const progressPercent = (progress / config.stepsPerDie) * 100;
 
+  // Diagnostic line so the user can verify Fit is actually returning fresh
+  // data. Shows "what Fit said today's total is" + when we last asked.
+  const fitToday = player.todayStepsBaseline;
+  const lastSync = player.lastSyncTimestamp;
+  const fitInfo = connected && lastSync
+    ? `Fit: ${(fitToday ?? 0).toLocaleString()}歩 / ${new Date(lastSync).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} 同期`
+    : null;
+
   return (
     <div className="step-input">
       {!connected && (
@@ -45,6 +53,7 @@ export function StepInput() {
           {progress.toLocaleString()} / {config.stepsPerDie.toLocaleString()} 歩
         </span>
       </div>
+      {fitInfo && <div className="step-fit-info">{fitInfo}</div>}
     </div>
   );
 }

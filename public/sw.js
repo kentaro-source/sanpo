@@ -29,6 +29,15 @@ self.addEventListener('message', (event) => {
 self.addEventListener('fetch', (event) => {
   const { request } = event;
 
+  // Bypass the SW entirely for cross-origin API calls (Google Fit, Maps,
+  // Directions). Letting them go straight to the network avoids any
+  // cache contamination and matches the user's expectation that step
+  // data is always live.
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
   // Network first for navigation and API calls; refresh cache on success
   if (request.mode === 'navigate' || request.url.includes('/api/')) {
     event.respondWith(
