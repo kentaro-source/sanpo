@@ -381,6 +381,41 @@ function sumAggregate(data: AggregateResponse): number {
   return total;
 }
 
+/**
+ * Fetch raw step datapoints from a specific data source's dataset.
+ * Sometimes the raw endpoint returns fresher data than `dataset:aggregate`,
+ * which appears to use a lazy aggregation cache that lags behind newly
+ * recorded steps. Returns sum of step values in the window.
+ */
+async function rawDatasetSum(
+  token: string,
+  sourceId: string,
+  startMs: number,
+  endMs: number,
+): Promise<number> {
+  const startNs = (BigInt(startMs) * 1_000_000n).toString();
+  const endNs = (BigInt(endMs) * 1_000_000n).toString();
+  const datasetId = `${startNs}-${endNs}`;
+  const url =
+    `https://www.googleapis.com/fitness/v1/users/me/dataSources/` +
+    `${encodeURIComponent(sourceId)}/datasets/${datasetId}`;
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: 'no-store',
+  });
+  if (!res.ok) return 0;
+  const data = (await res.json()) as {
+    point?: Array<{ value?: Array<{ intVal?: number }> }>;
+  };
+  let total = 0;
+  for (const point of data.point ?? []) {
+    for (const v of point.value ?? []) {
+      total += v.intVal ?? 0;
+    }
+  }
+  return total;
+}
+
 async function aggregateOnce(
   token: string,
   startMs: number,
@@ -458,12 +493,19 @@ export async function fetchStepsBetween(startMs: number, endMs: number): Promise
         .map((d) => d.dataStreamId)
         .filter((s): s is string => !!s);
 
-      const results = await Promise.all(
+      const aggregateResults = await Promise.all(
         sourceIds.map((id) =>
           aggregateOnce(token, startMs, endMs, id).catch(() => 0),
         ),
       );
-      for (const r of results) {
+      // Also try the raw dataset endpoint per source. Sometimes raw
+      // datapoints land in storage faster than the aggregation pipeline.
+      const rawResults = await Promise.all(
+        sourceIds.map((id) =>
+          rawDatasetSum(token, id, startMs, endMs).catch(() => 0),
+        ),
+      );
+      for (const r of [...aggregateResults, ...rawResults]) {
         if (r > best) best = r;
       }
     }
