@@ -212,6 +212,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
       // Negative delta (e.g. Fit data correction) → ignore, don't subtract.
       const delta = Math.max(0, todayAbsolute - baseline);
+      // Only ratchet the baseline UP within a day. Otherwise a transient
+      // API hiccup that returned 0 would lower the baseline, then the next
+      // successful sync (returning the real total) would credit it all
+      // again, double-counting. Same-day baseline is monotonically increasing.
+      const newBaseline = Math.max(baseline, todayAbsolute);
 
       const totalSteps = state.player.stepsTowardNextDie + delta;
       const newDice = Math.floor(totalSteps / state.config.stepsPerDie);
@@ -236,7 +241,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           ),
           stepsTowardNextDie: remainder,
           lastSyncTimestamp: action.syncTimestamp,
-          todayStepsBaseline: todayAbsolute,
+          todayStepsBaseline: newBaseline,
           todayBaselineDayStart: todayStart,
           claimedMilestones: ms.newClaimed,
           recentBonuses: ms.events.length

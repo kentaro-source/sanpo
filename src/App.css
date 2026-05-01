@@ -487,6 +487,30 @@
   gap: 0;
 }
 
+.gfit-reauth-chip {
+  align-self: flex-start;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fcd34d;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.gfit-reauth-chip:hover { background: #fde68a; }
+.gfit-reauth-chip:disabled { opacity: 0.6; cursor: wait; }
+
+.gfit-error-mini {
+  font-size: 11px;
+  color: #991b1b;
+  background: #fef2f2;
+  border-radius: 6px;
+  padding: 3px 8px;
+  align-self: flex-start;
+}
+
 .gfit-status-mini {
   display: flex;
   align-items: center;

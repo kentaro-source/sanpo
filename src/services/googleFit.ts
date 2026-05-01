@@ -101,19 +101,37 @@ function ensureTokenClient(google: NonNullable<Window['google']>): TokenClient {
   return tokenClient;
 }
 
+// Serialize requestToken calls — GIS uses module-global pendingResolve/Reject
+// so concurrent requests would clobber each other.
+let inflightToken: Promise<string> | null = null;
+
 async function requestToken(prompt: 'consent' | 'none' | ''): Promise<string> {
+  if (inflightToken) return inflightToken;
   const google = await waitForGoogle();
   const client = ensureTokenClient(google);
-  return new Promise<string>((resolve, reject) => {
+  inflightToken = new Promise<string>((resolve, reject) => {
     pendingResolve = resolve;
     pendingReject = reject;
     client.requestAccessToken(prompt ? { prompt } : {});
+  }).finally(() => {
+    inflightToken = null;
   });
+  return inflightToken;
 }
 
-/** Trigger interactive sign-in. User clicks button -> popup -> consent. */
+/** Trigger first-time interactive sign-in (with consent screen). */
 export async function signIn(): Promise<string> {
   return requestToken('consent');
+}
+
+/**
+ * Re-authenticate after token expiry. Skips the consent screen (the user
+ * already granted access), so this is typically a one-tap operation —
+ * Google may flash an account picker briefly but won't ask "do you allow
+ * this app to access...". Use for the 再連携 flow.
+ */
+export async function reAuth(): Promise<string> {
+  return requestToken('');
 }
 
 /**

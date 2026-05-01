@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   signIn as gfSignIn,
+  reAuth as gfReAuth,
   signOut as gfSignOut,
   isSignedIn,
 } from '../services/googleFit';
@@ -64,6 +65,15 @@ export function useGoogleFitConnection() {
     hasFreshToken: () => isSignedIn(),
     signIn: async () => {
       await gfSignIn();
+      setEverConsented();
+      setConnectedGlobal(true);
+    },
+    /**
+     * One-tap re-auth (no consent screen). Use when the token expired but
+     * the user has previously consented on this device.
+     */
+    reAuth: async () => {
+      await gfReAuth();
       setEverConsented();
       setConnectedGlobal(true);
     },
