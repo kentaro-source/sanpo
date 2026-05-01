@@ -163,8 +163,38 @@ export function MapView() {
       if (seg) visibleSegs.push(seg);
     }
 
+    // Helper: distance between two latlng in km (haversine).
+    const kmBetween = (a: LL, b: LL): number => {
+      const R = 6371;
+      const toRad = (d: number) => (d * Math.PI) / 180;
+      const dLat = toRad(b.lat - a.lat);
+      const dLng = toRad(b.lng - a.lng);
+      const lat1 = toRad(a.lat);
+      const lat2 = toRad(b.lat);
+      const h =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(h));
+    };
+
+    // Linear interpolate between two points.
+    const interpAt = (a: LL, b: LL, frac: number): LL => ({
+      lat: a.lat + (b.lat - a.lat) * frac,
+      lng: a.lng + (b.lng - a.lng) * frac,
+    });
+
     async function renderCombinedRoute() {
+      // Track each point's cumulative km from the start of allPoints, so
+      // we can split into "walked" vs "future" at the player position.
       const allPoints: google.maps.LatLngLiteral[] = [];
+      const cumKm: number[] = [];
+      // The first visible segment's starting km — needed to align
+      // allPoints' cumKm with player.distanceKm.
+      const firstSeg = visibleSegs[0];
+      const firstSegStartKm = firstSeg
+        ? routeData.capitalDistances[firstSeg.fromCapitalId] ?? 0
+        : 0;
+      let runningKm = firstSegStartKm;
 
       for (const seg of visibleSegs) {
         if (cancelled) return;
@@ -213,25 +243,71 @@ export function MapView() {
         }
 
         // Append to combined path, skipping duplicate boundary point
-        if (allPoints.length === 0) {
-          allPoints.push(...segPath);
-        } else {
-          allPoints.push(...segPath.slice(1));
+        const startIdxAdd = allPoints.length === 0 ? 0 : 1;
+        for (let i = startIdxAdd; i < segPath.length; i++) {
+          const p = segPath[i];
+          if (allPoints.length > 0) {
+            runningKm += kmBetween(allPoints[allPoints.length - 1], p);
+          }
+          allPoints.push(p);
+          cumKm.push(runningKm);
         }
       }
 
       if (cancelled || !mapRef.current) return;
 
-      const polyline = new google.maps.Polyline({
-        path: allPoints,
-        strokeColor: '#2563eb',
-        strokeOpacity: 0.85,
-        strokeWeight: 3,
-        zIndex: 5,
-        geodesic: true,
-        map: mapRef.current,
-      });
-      realRoutePolylinesRef.current.push(polyline);
+      // Split into walked (cumKm <= player.distanceKm) and future.
+      const playerKm = player.distanceKm;
+      let splitIdx = -1;
+      for (let i = 0; i < cumKm.length; i++) {
+        if (cumKm[i] >= playerKm) {
+          splitIdx = i;
+          break;
+        }
+      }
+      let walkedPath: LL[] = [];
+      let futurePath: LL[] = [];
+      if (splitIdx === -1) {
+        // Player is past all visible points → all walked
+        walkedPath = allPoints;
+      } else if (splitIdx === 0) {
+        // Player is before all visible points → all future
+        futurePath = allPoints;
+      } else {
+        // Interpolate the exact split point between [splitIdx-1, splitIdx]
+        const a = allPoints[splitIdx - 1];
+        const b = allPoints[splitIdx];
+        const segKm = cumKm[splitIdx] - cumKm[splitIdx - 1];
+        const frac = segKm > 0 ? (playerKm - cumKm[splitIdx - 1]) / segKm : 0;
+        const splitPoint = interpAt(a, b, Math.max(0, Math.min(1, frac)));
+        walkedPath = [...allPoints.slice(0, splitIdx), splitPoint];
+        futurePath = [splitPoint, ...allPoints.slice(splitIdx)];
+      }
+
+      if (walkedPath.length >= 2) {
+        const walked = new google.maps.Polyline({
+          path: walkedPath,
+          strokeColor: '#10b981', // green
+          strokeOpacity: 0.9,
+          strokeWeight: 4,
+          zIndex: 6,
+          geodesic: true,
+          map: mapRef.current,
+        });
+        realRoutePolylinesRef.current.push(walked);
+      }
+      if (futurePath.length >= 2) {
+        const future = new google.maps.Polyline({
+          path: futurePath,
+          strokeColor: '#94a3b8', // gray (not-yet-walked)
+          strokeOpacity: 0.7,
+          strokeWeight: 3,
+          zIndex: 5,
+          geodesic: true,
+          map: mapRef.current,
+        });
+        realRoutePolylinesRef.current.push(future);
+      }
     }
 
     renderCombinedRoute().catch((e) => {
@@ -242,7 +318,7 @@ export function MapView() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded, currentSquare.segmentIndex]);
+  }, [loaded, currentSquare.segmentIndex, player.distanceKm]);
 
   // Render capital markers — only those near the current position to keep
   // marker count tiny. Re-renders when player advances.
