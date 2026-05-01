@@ -145,15 +145,20 @@ export function MapView() {
     // Render only segments near the current position. The full world
     // tour polyline (1500+ points) is too heavy on mobile, but the player
     // doesn't need to see segments halfway across the planet right now.
+    // Show segments around the current position. Clip (do NOT wrap):
+    // wrapping caused the Tokyo→Middle East ghost line because only 46/193
+    // segments are classified, so "3 behind segment 0" pulled in the last
+    // classified ones from the Middle East.
     const SEGMENTS_BEHIND = 3;
     const SEGMENTS_AHEAD = 5;
     const totalSegs = segmentClassifications.length;
     const currentSegIdx = currentSquare.segmentIndex;
+    const startIdx = Math.max(0, currentSegIdx - SEGMENTS_BEHIND);
+    const endIdx = Math.min(totalSegs - 1, currentSegIdx + SEGMENTS_AHEAD);
     const visibleSegs: typeof segmentClassifications = [];
-    for (let i = -SEGMENTS_BEHIND; i <= SEGMENTS_AHEAD; i++) {
-      const idx = (currentSegIdx + i + totalSegs) % totalSegs;
+    for (let idx = startIdx; idx <= endIdx; idx++) {
       const seg = segmentClassifications[idx];
-      if (seg && !visibleSegs.includes(seg)) visibleSegs.push(seg);
+      if (seg) visibleSegs.push(seg);
     }
 
     async function renderCombinedRoute() {

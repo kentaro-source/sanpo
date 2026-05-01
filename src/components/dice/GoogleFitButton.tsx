@@ -9,7 +9,7 @@ function startOfTodayMs(): number {
   return d.getTime();
 }
 
-const AUTO_SYNC_MIN_INTERVAL_MS = 60_000;
+const AUTO_SYNC_MIN_INTERVAL_MS = 25_000;
 
 export function GoogleFitButton() {
   const { player, syncFromGoogleFit } = useGame();
@@ -88,7 +88,7 @@ export function GoogleFitButton() {
       const last = lastSyncTimestampRef.current;
       if (last && Date.now() - last < AUTO_SYNC_MIN_INTERVAL_MS) return;
       doSync(true);
-    }, 60_000); // every 60s
+    }, 30_000); // every 30s — keeps step counter live without hammering the API
 
     return () => {
       document.removeEventListener('visibilitychange', onVisible);
