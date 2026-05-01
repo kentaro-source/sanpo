@@ -35,7 +35,7 @@ function loadGoogleMapsScript(apiKey: string): Promise<void> {
 }
 
 export function MapView() {
-  const { player, currentSquare, routeData } = useGame();
+  const { player, currentSquare, position, routeData } = useGame();
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const passedPolylineRef = useRef<google.maps.Polyline | null>(null);
@@ -66,7 +66,10 @@ export function MapView() {
 
     mapRef.current = new google.maps.Map(containerRef.current, {
       center: { lat: currentSquare.lat, lng: currentSquare.lng },
-      zoom: 11, // tight street-level view — see roads where you're walking
+      // 100m/step movement should be visibly perceptible. Zoom 15 ≈ 4.8m/px,
+      // so each step nudges the player marker ~20px. zoom 14 ≈ 9.5m/px would
+      // also work; 15 emphasizes the per-step feel.
+      zoom: 15,
       zoomControl: false,
       streetViewControl: false,
       mapTypeControl: false,
@@ -419,7 +422,7 @@ export function MapView() {
 
     if (!currentMarkerRef.current) {
       currentMarkerRef.current = new google.maps.Marker({
-        position: { lat: currentSquare.lat, lng: currentSquare.lng },
+        position,
         map: mapRef.current,
         zIndex: 1000,
         icon: {
@@ -432,17 +435,18 @@ export function MapView() {
         },
       });
     } else {
-      currentMarkerRef.current.setPosition({ lat: currentSquare.lat, lng: currentSquare.lng });
+      currentMarkerRef.current.setPosition(position);
     }
-  }, [loaded, currentSquare]);
+  }, [loaded, position]);
 
-  // Pan to current position on movement
+  // Pan to current position on meaningful movement (skip tiny per-step pans).
   useEffect(() => {
     if (!mapRef.current) return;
     if (currentSquare.index !== prevSquareIndex.current) {
-      mapRef.current.panTo({ lat: currentSquare.lat, lng: currentSquare.lng });
+      mapRef.current.panTo(position);
       prevSquareIndex.current = currentSquare.index;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSquare]);
 
   if (error) {

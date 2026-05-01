@@ -1,5 +1,20 @@
 import { useGame } from '../../hooks/useGame';
 
+function formatKm(km: number): string {
+  if (km >= 1000) return `${(km / 1000).toFixed(1)}千km`;
+  if (km >= 100) return `${km.toFixed(0)}km`;
+  if (km >= 10) return `${km.toFixed(1)}km`;
+  return `${km.toFixed(2)}km`;
+}
+
+function formatDuration(ms: number): string {
+  const totalMin = Math.floor(ms / 60_000);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h > 0) return `${h}h${m}m`;
+  return `${m}m`;
+}
+
 export function ProgressInfo() {
   const {
     nextCapital,
@@ -8,18 +23,26 @@ export function ProgressInfo() {
     player,
     visitedCount,
     totalCapitals,
+    localKm,
+    multiplierActive,
+    multiplierMsLeft,
   } = useGame();
 
   return (
     <div className="progress-info">
+      {multiplierActive && (
+        <div className="progress-multiplier">
+          ⚡ ×{player.currentMultiplier} 加速中（残り {formatDuration(multiplierMsLeft)}）
+        </div>
+      )}
       <div className="progress-next">
         {nextCapital ? (
           <>
             <span className="progress-label">次の停車地</span>
             <ol className="progress-stops">
-              {upcomingStops.map((stop) => (
+              {upcomingStops.map((stop, i) => (
                 <li
-                  key={stop.squareIndex}
+                  key={`${stop.nameJa}-${i}`}
                   className={`progress-stop progress-stop-${stop.kind}${
                     stop.visitedInRealLife ? ' progress-stop-irl' : ''
                   }`}
@@ -32,8 +55,8 @@ export function ProgressInfo() {
                     )}
                   </span>
                   <span className="progress-stop-dist">
-                    {stop.squaresFromPrev}マス
-                    <span className="progress-stop-total">/ 計{stop.squaresAway}</span>
+                    {formatKm(stop.kmFromPrev)}
+                    <span className="progress-stop-total">/ 計{formatKm(stop.kmAway)}</span>
                   </span>
                 </li>
               ))}
@@ -49,7 +72,7 @@ export function ProgressInfo() {
         </div>
         <div className="progress-stats">
           <span>{visitedCount}/{totalCapitals} 首都</span>
-          <span>{progressPercent.toFixed(1)}%</span>
+          <span>{progressPercent.toFixed(1)}% ({formatKm(localKm)})</span>
           {player.completedLaps > 0 && <span>{player.completedLaps}周目</span>}
         </div>
       </div>

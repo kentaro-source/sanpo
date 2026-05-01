@@ -2,14 +2,15 @@ import { useContext, useMemo } from 'react';
 import { GameContext } from '../contexts/GameContext';
 import { routeData } from '../data';
 import { cities } from '../data/cities';
+import { positionAtKm, squareIndexAtKm } from '../data/generateRoute';
 import type { BetSlot } from '../types';
 
 export interface UpcomingStop {
   squareIndex: number;
-  /** Squares from current position to this stop. */
-  squaresAway: number;
-  /** Squares from the previous stop (or from current pos for the first). */
-  squaresFromPrev: number;
+  /** km from current position to this stop. */
+  kmAway: number;
+  /** km from the previous stop (or from current pos for the first). */
+  kmFromPrev: number;
   kind: 'capital' | 'city';
   nameJa: string;
   countryJa?: string;
@@ -24,97 +25,134 @@ export function useGame() {
   const { player } = state;
 
   const derived = useMemo(() => {
-    const currentSquare = routeData.squares[player.currentSquareIndex];
+    const total = routeData.totalDistanceKm;
+    const distanceKm = player.distanceKm;
+    const localKm = ((distanceKm % total) + total) % total;
+
+    // Position on the route (interpolated for smooth map placement).
+    const position = positionAtKm(routeData, distanceKm);
+    const currentSquareIdx = squareIndexAtKm(routeData, distanceKm);
+    const currentSquare = routeData.squares[currentSquareIdx];
     const currentSegment = routeData.segments[currentSquare.segmentIndex];
 
-    // Find next capital
-    let nextCapitalIndex = -1;
-    for (let i = player.currentSquareIndex + 1; i < routeData.totalSquares + player.currentSquareIndex; i++) {
-      const idx = i % routeData.totalSquares;
-      const sq = routeData.squares[idx];
-      if (sq.isCapital && sq.capitalId) {
-        nextCapitalIndex = idx;
-        break;
+    // Next capital ahead (in km terms).
+    const capitals = routeData.capitals;
+    const capitalDistances = routeData.capitalDistances;
+    let nextCapital: typeof capitals[number] | null = null;
+    let nextCapitalKm = Infinity;
+    for (const cap of capitals) {
+      const capKm = capitalDistances[cap.id];
+      if (capKm == null) continue;
+      let delta = capKm - localKm;
+      if (delta <= 0) delta += total; // wrap around
+      if (delta > 0 && delta < nextCapitalKm) {
+        nextCapitalKm = delta;
+        nextCapital = cap;
       }
     }
+    const kmToNextCapital = nextCapital ? nextCapitalKm : 0;
 
-    const nextCapital = nextCapitalIndex >= 0
-      ? routeData.capitals.find(c => c.id === routeData.squares[nextCapitalIndex].capitalId)
-      : null;
+    // Are we standing right on a capital? (within 500m)
+    const currentCapital = (() => {
+      for (const cap of capitals) {
+        const capKm = capitalDistances[cap.id];
+        if (capKm != null && Math.abs(capKm - localKm) < 0.5) return cap;
+      }
+      return null;
+    })();
 
-    // Squares remaining to next capital
-    const squaresToNext = nextCapitalIndex >= 0
-      ? (nextCapitalIndex > player.currentSquareIndex
-          ? nextCapitalIndex - player.currentSquareIndex
-          : routeData.totalSquares - player.currentSquareIndex + nextCapitalIndex)
-      : 0;
-
-    // Current capital (if standing on one)
-    const currentCapital = currentSquare.isCapital && currentSquare.capitalId
-      ? routeData.capitals.find(c => c.id === currentSquare.capitalId) ?? null
-      : null;
-
-    const progressPercent = (player.currentSquareIndex / routeData.totalSquares) * 100;
+    const progressPercent = (localKm / total) * 100;
     const visitedCount = player.visitedCapitals.length;
-    const totalCapitals = routeData.capitals.length;
+    const totalCapitals = capitals.length;
 
-    // Walk forward and collect the next few "stops" (capitals + waypoint cities).
-    // squaresFromPrev tracks segment distances so 宮崎→長崎 (2 squares) reads
-    // very differently from Tokyo→宮崎 (8 squares) — matches geography.
+    // Build the upcoming stop chain in km space. Walk forward through
+    // capital + city km marks and collect the next ~6 stops.
+    type Stop = { km: number; kind: 'capital' | 'city'; id: string };
+    const allStops: Stop[] = [];
+    for (const cap of capitals) {
+      const km = capitalDistances[cap.id];
+      if (km != null) allStops.push({ km, kind: 'capital', id: cap.id });
+    }
+    for (const cid of Object.keys(routeData.cityDistances)) {
+      allStops.push({ km: routeData.cityDistances[cid], kind: 'city', id: cid });
+    }
+
+    // Sort by relative km from current position (wrapping around).
+    const stopsWithDelta = allStops
+      .map((s) => {
+        let delta = s.km - localKm;
+        if (delta <= 0) delta += total;
+        return { ...s, delta };
+      })
+      .filter((s) => s.delta > 0.01)
+      .sort((a, b) => a.delta - b.delta);
+
     const upcomingStops: UpcomingStop[] = [];
     const MAX_STOPS = 6;
-    let prevStep = 0;
-    for (
-      let step = 1;
-      step <= routeData.totalSquares && upcomingStops.length < MAX_STOPS;
-      step++
-    ) {
-      const idx = (player.currentSquareIndex + step) % routeData.totalSquares;
-      const sq = routeData.squares[idx];
-      if (sq.isCapital && sq.capitalId) {
-        const cap = routeData.capitals.find((c) => c.id === sq.capitalId);
+    let prevDelta = 0;
+    for (const s of stopsWithDelta) {
+      if (upcomingStops.length >= MAX_STOPS) break;
+      if (s.kind === 'capital') {
+        const cap = capitals.find((c) => c.id === s.id);
         if (cap) {
           upcomingStops.push({
-            squareIndex: idx,
-            squaresAway: step,
-            squaresFromPrev: step - prevStep,
+            squareIndex: 0, // unused now, kept for type compat
+            kmAway: s.delta,
+            kmFromPrev: s.delta - prevDelta,
             kind: 'capital',
             nameJa: cap.nameJa,
             countryJa: cap.countryJa,
           });
-          prevStep = step;
-          // Stop after the next capital — beyond that is "the next chapter".
-          break;
+          prevDelta = s.delta;
+          break; // stop chain ends at next capital
         }
-      } else if (sq.cityId) {
-        const city = cities.find((c) => c.id === sq.cityId);
+      } else {
+        const city = cities.find((c) => c.id === s.id);
         if (city) {
           upcomingStops.push({
-            squareIndex: idx,
-            squaresAway: step,
-            squaresFromPrev: step - prevStep,
+            squareIndex: 0,
+            kmAway: s.delta,
+            kmFromPrev: s.delta - prevDelta,
             kind: 'city',
             nameJa: city.nameJa,
             countryJa: city.countryJa,
             visitedInRealLife: city.visitedInRealLife,
           });
-          prevStep = step;
+          prevDelta = s.delta;
         }
       }
     }
 
+    // Active multiplier window state (for UI).
+    const now = Date.now();
+    const multiplierActive =
+      player.multiplierUntil > now && player.currentMultiplier !== 1.0;
+    const multiplierMsLeft = multiplierActive
+      ? player.multiplierUntil - now
+      : 0;
+
     return {
       currentSquare,
       currentSegment,
+      position,
+      distanceKm,
+      localKm,
       nextCapital,
-      squaresToNext,
+      kmToNextCapital,
       currentCapital,
       progressPercent,
       visitedCount,
       totalCapitals,
       upcomingStops,
+      multiplierActive,
+      multiplierMsLeft,
     };
-  }, [player.currentSquareIndex, player.visitedCapitals.length]);
+  }, [
+    player.distanceKm,
+    player.visitedCapitals.length,
+    player.multiplierUntil,
+    player.currentMultiplier,
+  ]);
 
   const addSteps = (steps: number) => dispatch({ type: 'ADD_STEPS', steps });
   const syncFromGoogleFit = (steps: number, syncTimestamp: number) =>
