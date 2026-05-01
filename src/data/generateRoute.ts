@@ -134,9 +134,10 @@ export function generateRoute(capitals: Capital[]): RouteData {
     capitalDistances[from.id] = segmentStartKm;
     squareIndex++;
 
-    // Compute the path-fractional position of each waypoint city, then mark
-    // the closest square index for that segment. Used to surface "next stop"
-    // info and (later) drive city-visit bonus.
+    // Compute exact per-waypoint cumulative km along the path. We no longer
+    // snap waypoints to "the nearest square" — that quantization caused
+    // bizarre stop chains like "宮崎 297km → 長崎 297km" (multiples of one
+    // square). With the distance model, cities live at their actual km.
     const fullPath = [from, ...waypointPoints, to];
     const segLengths: number[] = [];
     let pathTotal = 0;
@@ -150,35 +151,22 @@ export function generateRoute(capitals: Capital[]): RouteData {
       segLengths.push(d);
       pathTotal += d;
     }
-    // For each waypoint city, fractional distance along the path = sum of
-    // leg lengths up to and including that waypoint divided by total.
     const wpCityIds = seg?.waypointCityIds ?? [];
-    const cityFractions = new Map<number, string>(); // localIndex → cityId
     if (pathTotal > 0 && wpCityIds.length === waypointPoints.length) {
       let acc = 0;
       for (let k = 0; k < wpCityIds.length; k++) {
-        acc += segLengths[k]; // origin → waypoint k (waypoint k is fullPath[k+1])
+        acc += segLengths[k];
         const f = acc / pathTotal;
-        // Map fractional position to the nearest intermediate square
-        // (localIndex 1..squareCount-1). j/squareCount is its fraction.
-        const localIdx = Math.max(
-          1,
-          Math.min(squareCount - 1, Math.round(f * squareCount)),
-        );
-        // If two waypoints would land on the same square (very dense),
-        // bump the second one forward to keep them distinct.
-        let chosen = localIdx;
-        while (cityFractions.has(chosen) && chosen < squareCount - 1) chosen++;
-        cityFractions.set(chosen, wpCityIds[k]);
+        cityDistances[wpCityIds[k]] = segmentStartKm + f * distanceKm;
       }
     }
 
-    // Intermediate squares: interpolate along the full waypoint path so
-    // squares follow the visible polyline rather than a Tokyo–Seoul straight line.
+    // Intermediate squares are still emitted for the map's path interpolation
+    // (positionAtKm uses them) and the legacy square-dot rendering. They no
+    // longer carry city tags — city positions are read from cityDistances.
     for (let j = 1; j < squareCount; j++) {
       const fraction = j / squareCount;
       const [lat, lng] = interpolateAlongPath(fullPath, fraction);
-      const cityId = cityFractions.get(j);
       const cumulativeKm = segmentStartKm + j * kmPerSquare;
       squares.push({
         index: squareIndex,
@@ -187,10 +175,8 @@ export function generateRoute(capitals: Capital[]): RouteData {
         segmentIndex: i,
         localIndex: j,
         isCapital: false,
-        cityId,
         cumulativeKm,
       });
-      if (cityId) cityDistances[cityId] = cumulativeKm;
       squareIndex++;
     }
   }
