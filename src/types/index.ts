@@ -37,6 +37,8 @@ export interface Square {
   capitalId?: string;
   /** Set when a waypoint city sits on this square (for display + bonus logic). */
   cityId?: string;
+  /** Cumulative distance from start (km). Player position is now distance-based. */
+  cumulativeKm: number;
 }
 
 export interface Segment {
@@ -53,6 +55,10 @@ export interface RouteData {
   squares: Square[];
   totalSquares: number;
   totalDistanceKm: number;
+  /** Capital ID → cumulative km from start. */
+  capitalDistances: Record<string, number>;
+  /** City ID → cumulative km from start. */
+  cityDistances: Record<string, number>;
 }
 
 /**
@@ -110,7 +116,18 @@ export interface SicBoRoll {
 }
 
 export interface PlayerState {
+  /** Distance from start of route (km). Continuous position. */
+  distanceKm: number;
+  /**
+   * @deprecated Kept for migration / map fallback. Derive from distanceKm
+   * via routeData.squares cumulativeKm instead.
+   */
   currentSquareIndex: number;
+  /** Active speed multiplier (1.0 = base, 2.0 = ×2, 0.5 = penalty, etc.). */
+  currentMultiplier: number;
+  /** Unix ms when the multiplier window expires. 0 = no window. */
+  multiplierUntil: number;
+  /** Last seen step count for diff-based input (legacy add-steps still uses stepsTowardNextDie). */
   availableDice: number;
   totalStepsEntered: number;
   stepsTowardNextDie: number;

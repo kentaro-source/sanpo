@@ -10,9 +10,15 @@ import type {
 } from '../types';
 import { routeData } from '../data';
 import { cities } from '../data/cities';
-import { haversineDistance } from '../utils/geo';
+import { squareIndexAtKm } from '../data/generateRoute';
 import { loadGameState, saveGameState, clearGameState } from '../utils/storage';
-import { rollDice, isTriple, evaluateAllBets, totalBetAmount } from '../utils/sicbo';
+import {
+  rollDice,
+  isTriple,
+  totalBetAmount,
+  evaluateBetWindow,
+  LOSS_MULTIPLIER,
+} from '../utils/sicbo';
 
 // Step-count milestones: { threshold, bonus tokens, label }.
 // Sorted ascending so we can pick the largest crossed threshold easily.
@@ -24,13 +30,149 @@ const MILESTONES: Array<{ steps: number; tokens: number; label: string }> = [
   { steps: 100_000_000, tokens: 5, label: '1億歩達成 — 特別演出！' },
 ];
 
-// City visit bonus: stopping within this radius of an unvisited city
-// counts as a visit. 200km is generous on purpose — at the world scale
-// of the route, ~1 square ≈ 150km, so this means "you stopped basically
-// near it".
-const CITY_VISIT_RADIUS_KM = 200;
-
 const MAX_RECENT_BONUSES = 8;
+
+// Distance gained per step at 1.0x multiplier.
+const KM_PER_STEP = 0.1; // 100m per step
+
+/**
+ * Convert N steps walked at the current point in time into km moved,
+ * accounting for any active multiplier window. If the window expires
+ * mid-step-batch, the remaining steps are credited at 1.0x.
+ */
+function stepsToKm(
+  steps: number,
+  player: PlayerState,
+  now: number,
+): { km: number; remainingMultiplierUntil: number; remainingMultiplier: number } {
+  if (steps <= 0) {
+    return {
+      km: 0,
+      remainingMultiplierUntil: player.multiplierUntil,
+      remainingMultiplier: player.currentMultiplier,
+    };
+  }
+  // If multiplier already expired, no bonus.
+  if (player.multiplierUntil <= now) {
+    return {
+      km: steps * KM_PER_STEP,
+      remainingMultiplierUntil: 0,
+      remainingMultiplier: 1.0,
+    };
+  }
+  // Multiplier is active for the entire batch. We don't sub-divide steps
+  // proportionally to wall-clock time within the sync window — practically
+  // the user walks all the steps "now" and they all benefit from the
+  // active multiplier.
+  return {
+    km: steps * KM_PER_STEP * player.currentMultiplier,
+    remainingMultiplierUntil: player.multiplierUntil,
+    remainingMultiplier: player.currentMultiplier,
+  };
+}
+
+/**
+ * Walk forward from `oldKm` to `newKm` and detect any capital / city
+ * crossings. Awards the appropriate bonus tokens + emits BonusEvents.
+ * Handles wrap-around (multi-lap progress in a single batch).
+ */
+function detectCrossings(
+  oldKm: number,
+  newKm: number,
+  visitedCapitals: string[],
+  visitedCities: string[],
+  now: number,
+): {
+  newCapitals: string[];
+  newCities: string[];
+  bonusTokens: number;
+  events: BonusEvent[];
+  completedLaps: number;
+} {
+  const total = routeData.totalDistanceKm;
+  let bonusTokens = 0;
+  const events: BonusEvent[] = [];
+  const newCapitalsSet = new Set(visitedCapitals);
+  const newCitiesSet = new Set(visitedCities);
+  let laps = 0;
+
+  // Walk in one or more wrap-around laps.
+  let cursor = oldKm;
+  while (cursor < newKm) {
+    const lapEnd = Math.floor(cursor / total + 1) * total;
+    const segEnd = Math.min(newKm, lapEnd);
+    // Look for capitals between cursor (exclusive) and segEnd (inclusive)
+    // within the current lap.
+    const lapStart = Math.floor(cursor / total) * total;
+    const localStart = cursor - lapStart;
+    const localEnd = segEnd - lapStart;
+    for (const cap of routeData.capitals) {
+      const capKm = routeData.capitalDistances[cap.id];
+      if (capKm == null) continue;
+      if (capKm > localStart && capKm <= localEnd) {
+        if (!newCapitalsSet.has(cap.id)) {
+          newCapitalsSet.add(cap.id);
+          // +2 if this is the landing position, +1 for pass-through.
+          const isLanding = Math.abs(localEnd - capKm) < 0.5; // 500m tolerance
+          const tokens = isLanding ? 2 : 1;
+          bonusTokens += tokens;
+          events.push({
+            kind: isLanding ? 'capital-landing' : 'capital',
+            amount: tokens,
+            label: isLanding
+              ? `🏛 ${cap.nameJa}（${cap.countryJa}）到着！`
+              : `🏛 ${cap.nameJa}を通過`,
+            timestamp: now,
+          });
+        }
+      }
+    }
+    // Cities crossed in this lap window
+    for (const cid of Object.keys(routeData.cityDistances)) {
+      const cityKm = routeData.cityDistances[cid];
+      if (cityKm > localStart && cityKm <= localEnd) {
+        if (!newCitiesSet.has(cid)) {
+          newCitiesSet.add(cid);
+          // city is looked up below
+        }
+      }
+    }
+    if (segEnd >= lapEnd) {
+      laps++;
+      cursor = lapEnd;
+    } else {
+      cursor = segEnd;
+    }
+  }
+
+  // Build city events with proper labels (irl bonus etc.)
+  const newCityIds = Array.from(newCitiesSet).filter(
+    (id) => !visitedCities.includes(id),
+  );
+  for (const cid of newCityIds) {
+    const city = cities.find((c) => c.id === cid);
+    if (!city) continue;
+    const irl = city.visitedInRealLife === true;
+    const tokens = irl ? 2 : 1;
+    bonusTokens += tokens;
+    events.push({
+      kind: irl ? 'city-irl' : 'city',
+      amount: tokens,
+      label: irl
+        ? `★ 懐かしの${city.nameJa}を再訪`
+        : `${city.nameJa}に立ち寄り`,
+      timestamp: now,
+    });
+  }
+
+  return {
+    newCapitals: Array.from(newCapitalsSet),
+    newCities: Array.from(newCitiesSet),
+    bonusTokens,
+    events,
+    completedLaps: laps,
+  };
+}
 
 /** Compute milestone bonuses crossed by going from oldTotal → newTotal. */
 function checkMilestones(
@@ -66,7 +208,10 @@ const DEFAULT_CONFIG: GameConfig = {
 
 function createInitialPlayer(): PlayerState {
   return {
+    distanceKm: 0,
     currentSquareIndex: 0,
+    currentMultiplier: 1.0,
+    multiplierUntil: 0,
     availableDice: 0,
     totalStepsEntered: 0,
     stepsTowardNextDie: 0,
@@ -85,7 +230,7 @@ function createInitialState(): GameState {
   return {
     player: createInitialPlayer(),
     config: DEFAULT_CONFIG,
-    version: 5,
+    version: 6,
   };
 }
 
@@ -93,55 +238,8 @@ function getInitialState(): GameState {
   return loadGameState() ?? createInitialState();
 }
 
-/**
- * Apply N-square advance to player state. Handles:
- * - Lap wrapping
- * - Capital pass-through (first time only): +1 token
- * - Capital exact landing (first time only): +2 tokens (overrides the +1)
- *   (i.e., if it's both passed AND landed on a new capital, gets +2 not +3)
- *
- * Returns updated indices, visited list, completedLaps, and bonus tokens earned.
- */
-function applyAdvance(state: GameState, advance: number) {
-  const fromSquare = state.player.currentSquareIndex;
-  let completedLaps = state.player.completedLaps;
-  const newVisited = [...state.player.visitedCapitals];
-  let bonusTokens = 0;
-
-  if (advance <= 0) {
-    return {
-      toIndex: fromSquare,
-      newVisited,
-      completedLaps,
-      bonusTokens: 0,
-    };
-  }
-
-  // Walk each square between fromSquare+1 and fromSquare+advance.
-  // The final square (fromSquare+advance) is the landing square.
-  for (let i = fromSquare + 1; i <= fromSquare + advance; i++) {
-    const idx = i % routeData.totalSquares;
-    const square = routeData.squares[idx];
-    if (square.isCapital && square.capitalId) {
-      const isNew = !newVisited.includes(square.capitalId);
-      const isLanding = i === fromSquare + advance;
-      if (isNew) {
-        // +2 if exact landing on new capital, otherwise +1 for pass-through
-        bonusTokens += isLanding ? 2 : 1;
-        newVisited.push(square.capitalId);
-      }
-    }
-  }
-
-  // Lap completion
-  let toIndex = fromSquare + advance;
-  while (toIndex >= routeData.totalSquares) {
-    toIndex -= routeData.totalSquares;
-    completedLaps++;
-  }
-
-  return { toIndex, newVisited, completedLaps, bonusTokens };
-}
+// Legacy applyAdvance(squares-based) removed. Crossings now detected
+// via detectCrossings() in distance space.
 
 // Actions
 type GameAction =
@@ -155,31 +253,57 @@ type GameAction =
 function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
     case 'ADD_STEPS': {
+      const now = Date.now();
+      // Tokens still accrue from raw step count (stepsPerDie = 5000).
       const totalSteps = state.player.stepsTowardNextDie + action.steps;
       const newDice = Math.floor(totalSteps / state.config.stepsPerDie);
       const remainder = totalSteps % state.config.stepsPerDie;
-      const oldTotal = state.player.totalStepsEntered;
-      const newTotal = oldTotal + action.steps;
-      const now = Date.now();
+
+      // Convert steps to km via current multiplier window.
+      const conv = stepsToKm(action.steps, state.player, now);
+      const oldKm = state.player.distanceKm;
+      const newKm = oldKm + conv.km;
+
+      // Detect capital/city crossings between oldKm and newKm.
+      const cross = detectCrossings(
+        oldKm,
+        newKm,
+        state.player.visitedCapitals,
+        state.player.visitedCities ?? [],
+        now,
+      );
+
+      // Milestone bonuses on cumulative steps.
+      const oldStepTotal = state.player.totalStepsEntered;
+      const newStepTotal = oldStepTotal + action.steps;
       const ms = checkMilestones(
-        oldTotal,
-        newTotal,
+        oldStepTotal,
+        newStepTotal,
         state.player.claimedMilestones ?? [],
         now,
       );
+
+      const allEvents = [...cross.events, ...ms.events];
       return {
         ...state,
         player: {
           ...state.player,
-          totalStepsEntered: newTotal,
+          distanceKm: newKm,
+          currentSquareIndex: squareIndexAtKm(routeData, newKm),
+          currentMultiplier: conv.remainingMultiplier,
+          multiplierUntil: conv.remainingMultiplierUntil,
+          totalStepsEntered: newStepTotal,
           availableDice: Math.min(
-            state.player.availableDice + newDice + ms.tokens,
+            state.player.availableDice + newDice + ms.tokens + cross.bonusTokens,
             state.config.maxDice,
           ),
           stepsTowardNextDie: remainder,
+          visitedCapitals: cross.newCapitals,
+          visitedCities: cross.newCities,
+          completedLaps: state.player.completedLaps + cross.completedLaps,
           claimedMilestones: ms.newClaimed,
-          recentBonuses: ms.events.length
-            ? [...ms.events, ...(state.player.recentBonuses ?? [])].slice(0, MAX_RECENT_BONUSES)
+          recentBonuses: allEvents.length
+            ? [...allEvents, ...(state.player.recentBonuses ?? [])].slice(0, MAX_RECENT_BONUSES)
             : state.player.recentBonuses,
           lastUpdated: now,
         },
@@ -218,34 +342,58 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       // again, double-counting. Same-day baseline is monotonically increasing.
       const newBaseline = Math.max(baseline, todayAbsolute);
 
+      const now = Date.now();
       const totalSteps = state.player.stepsTowardNextDie + delta;
       const newDice = Math.floor(totalSteps / state.config.stepsPerDie);
       const remainder = totalSteps % state.config.stepsPerDie;
-      const oldTotal = state.player.totalStepsEntered;
-      const newTotal = oldTotal + delta;
-      const now = Date.now();
+
+      // Convert delta steps to km using active multiplier.
+      const conv = stepsToKm(delta, state.player, now);
+      const oldKm = state.player.distanceKm;
+      const newKm = oldKm + conv.km;
+
+      // Detect crossings between oldKm and newKm.
+      const cross = detectCrossings(
+        oldKm,
+        newKm,
+        state.player.visitedCapitals,
+        state.player.visitedCities ?? [],
+        now,
+      );
+
+      const oldStepTotal = state.player.totalStepsEntered;
+      const newStepTotal = oldStepTotal + delta;
       const ms = checkMilestones(
-        oldTotal,
-        newTotal,
+        oldStepTotal,
+        newStepTotal,
         state.player.claimedMilestones ?? [],
         now,
       );
+
+      const allEvents = [...cross.events, ...ms.events];
       return {
         ...state,
         player: {
           ...state.player,
-          totalStepsEntered: newTotal,
+          distanceKm: newKm,
+          currentSquareIndex: squareIndexAtKm(routeData, newKm),
+          currentMultiplier: conv.remainingMultiplier,
+          multiplierUntil: conv.remainingMultiplierUntil,
+          totalStepsEntered: newStepTotal,
           availableDice: Math.min(
-            state.player.availableDice + newDice + ms.tokens,
+            state.player.availableDice + newDice + ms.tokens + cross.bonusTokens,
             state.config.maxDice,
           ),
           stepsTowardNextDie: remainder,
           lastSyncTimestamp: action.syncTimestamp,
           todayStepsBaseline: newBaseline,
           todayBaselineDayStart: todayStart,
+          visitedCapitals: cross.newCapitals,
+          visitedCities: cross.newCities,
+          completedLaps: state.player.completedLaps + cross.completedLaps,
           claimedMilestones: ms.newClaimed,
-          recentBonuses: ms.events.length
-            ? [...ms.events, ...(state.player.recentBonuses ?? [])].slice(0, MAX_RECENT_BONUSES)
+          recentBonuses: allEvents.length
+            ? [...allEvents, ...(state.player.recentBonuses ?? [])].slice(0, MAX_RECENT_BONUSES)
             : state.player.recentBonuses,
           lastUpdated: now,
         },
@@ -253,33 +401,45 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'ROLL_DIE': {
+      // Legacy 1-die roll. Distance-based: each pip = 50 km of advance
+      // (rough analogue of an old single square). Mostly unused now that
+      // Sic Bo drives gameplay via multiplier windows.
       if (state.player.availableDice <= 0) return state;
-
       const roll = Math.floor(Math.random() * 6) + 1;
-      const fromSquare = state.player.currentSquareIndex;
-      const advance = roll;
-      const advanced = applyAdvance(state, advance);
-
+      const now = Date.now();
+      const oldKm = state.player.distanceKm;
+      const newKm = oldKm + roll * 50;
+      const cross = detectCrossings(
+        oldKm,
+        newKm,
+        state.player.visitedCapitals,
+        state.player.visitedCities ?? [],
+        now,
+      );
       const diceRoll: DiceRoll = {
         roll,
-        timestamp: Date.now(),
-        fromSquare,
-        toSquare: advanced.toIndex,
+        timestamp: now,
+        fromSquare: state.player.currentSquareIndex,
+        toSquare: squareIndexAtKm(routeData, newKm),
       };
-
       return {
         ...state,
         player: {
           ...state.player,
-          currentSquareIndex: advanced.toIndex,
+          distanceKm: newKm,
+          currentSquareIndex: squareIndexAtKm(routeData, newKm),
           availableDice: Math.min(
-            state.player.availableDice - 1 + advanced.bonusTokens,
+            state.player.availableDice - 1 + cross.bonusTokens,
             state.config.maxDice,
           ),
           diceHistory: [...state.player.diceHistory, diceRoll],
-          visitedCapitals: advanced.newVisited,
-          completedLaps: advanced.completedLaps,
-          lastUpdated: Date.now(),
+          visitedCapitals: cross.newCapitals,
+          visitedCities: cross.newCities,
+          completedLaps: state.player.completedLaps + cross.completedLaps,
+          recentBonuses: cross.events.length
+            ? [...cross.events, ...(state.player.recentBonuses ?? [])].slice(0, MAX_RECENT_BONUSES)
+            : state.player.recentBonuses,
+          lastUpdated: now,
         },
       };
     }
@@ -295,92 +455,56 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const triple = isTriple(dice);
       const tripleValue = triple ? dice[0] : undefined;
 
-      const { total: totalAdvance } = evaluateAllBets(bets, dice);
-
-      const fromSquare = state.player.currentSquareIndex;
-      const advanced = applyAdvance(state, totalAdvance);
+      // New: evaluate the bet → multiplier window. Doesn't advance the
+      // player directly; instead sets player.currentMultiplier and
+      // player.multiplierUntil so future steps benefit/suffer.
+      const result = evaluateBetWindow(bets, dice);
+      const now = Date.now();
+      const multiplierUntil = now + result.windowMs;
 
       const sicBoRoll: SicBoRoll = {
         dice,
         sum,
         isTriple: triple,
         tripleValue,
-        timestamp: Date.now(),
+        timestamp: now,
         bets,
-        totalAdvance,
-        fromSquare,
-        toSquare: advanced.toIndex,
+        // Repurpose totalAdvance as a flag of the multiplier (×N) won.
+        totalAdvance: result.won ? result.multiplier : 0,
+        fromSquare: state.player.currentSquareIndex,
+        toSquare: state.player.currentSquareIndex,
       };
 
-      // City visit bonus — only when actually moving (totalAdvance > 0).
-      // Find any city within CITY_VISIT_RADIUS_KM of the landing square
-      // that the player hasn't visited yet. Real-life-visited cities pay
-      // double (思い出ボーナス).
-      const now = Date.now();
-      const visitedCities = [...(state.player.visitedCities ?? [])];
-      const cityBonusEvents: BonusEvent[] = [];
-      let cityBonusTokens = 0;
-      if (totalAdvance > 0) {
-        const landing = routeData.squares[advanced.toIndex];
-        for (const city of cities) {
-          if (visitedCities.includes(city.id)) continue;
-          const dKm = haversineDistance(landing.lat, landing.lng, city.lat, city.lng);
-          if (dKm <= CITY_VISIT_RADIUS_KM) {
-            visitedCities.push(city.id);
-            const irl = city.visitedInRealLife === true;
-            const tokens = irl ? 2 : 1;
-            cityBonusTokens += tokens;
-            cityBonusEvents.push({
-              kind: irl ? 'city-irl' : 'city',
-              amount: tokens,
-              label: irl
-                ? `★ 懐かしの${city.nameJa}を再訪`
-                : `${city.nameJa}に立ち寄り`,
-              timestamp: now,
-            });
+      // Toast for the result.
+      const hours = Math.floor(result.windowMs / 3_600_000);
+      const minutes = Math.round((result.windowMs % 3_600_000) / 60_000);
+      const durLabel =
+        hours > 0 ? `${hours}時間${minutes > 0 ? `${minutes}分` : ''}` : `${minutes}分`;
+      const event: BonusEvent = result.won
+        ? {
+            kind: 'milestone',
+            amount: 0,
+            label: `×${result.multiplier} 加速 ${durLabel}！`,
+            timestamp: now,
           }
-        }
-      }
-
-      // Capital arrival events (track them as toasts too).
-      const capitalEvents: BonusEvent[] = [];
-      const previouslyVisited = new Set(state.player.visitedCapitals);
-      for (const cid of advanced.newVisited) {
-        if (!previouslyVisited.has(cid)) {
-          const cap = routeData.capitals.find((c) => c.id === cid);
-          if (cap) {
-            // Approximate +2 if we LANDED on the capital, +1 if just passing.
-            const landingSquare = routeData.squares[advanced.toIndex];
-            const isLanding = landingSquare.capitalId === cid;
-            capitalEvents.push({
-              kind: isLanding ? 'capital-landing' : 'capital',
-              amount: isLanding ? 2 : 1,
-              label: isLanding
-                ? `🏛 ${cap.nameJa}（${cap.countryJa}）到着！`
-                : `🏛 ${cap.nameJa}を通過`,
-              timestamp: now,
-            });
-          }
-        }
-      }
-
-      const allNewEvents = [...capitalEvents, ...cityBonusEvents];
-      const tokensAfter =
-        state.player.availableDice - totalBet + advanced.bonusTokens + cityBonusTokens;
+        : {
+            kind: 'city',
+            amount: 0,
+            label: `ハズレ… ×${LOSS_MULTIPLIER} ${durLabel}`,
+            timestamp: now,
+          };
 
       return {
         ...state,
         player: {
           ...state.player,
-          currentSquareIndex: advanced.toIndex,
-          availableDice: Math.max(0, Math.min(tokensAfter, state.config.maxDice)),
+          // Bet tokens are spent, no advance.
+          availableDice: Math.max(0, state.player.availableDice - totalBet),
+          // Overwrite any active multiplier.
+          currentMultiplier: result.multiplier,
+          multiplierUntil,
           sicBoHistory: [...(state.player.sicBoHistory ?? []), sicBoRoll],
-          visitedCapitals: advanced.newVisited,
-          visitedCities,
-          completedLaps: advanced.completedLaps,
-          recentBonuses: allNewEvents.length
-            ? [...allNewEvents, ...(state.player.recentBonuses ?? [])].slice(0, MAX_RECENT_BONUSES)
-            : state.player.recentBonuses,
+          recentBonuses: [event, ...(state.player.recentBonuses ?? [])].slice(0, MAX_RECENT_BONUSES),
           lastUpdated: now,
         },
       };

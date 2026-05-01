@@ -69,6 +69,8 @@ function interpolateAlongPath(
 export function generateRoute(capitals: Capital[]): RouteData {
   const segments: Segment[] = [];
   const squares: Square[] = [];
+  const capitalDistances: Record<string, number> = {};
+  const cityDistances: Record<string, number> = {};
   let squareIndex = 0;
   let totalDistanceKm = 0;
 
@@ -115,6 +117,9 @@ export function generateRoute(capitals: Capital[]): RouteData {
     };
     segments.push(segment);
 
+    const segmentStartKm = totalDistanceKm - distanceKm;
+    const kmPerSquare = distanceKm / squareCount;
+
     // First square is the capital itself
     squares.push({
       index: squareIndex,
@@ -124,7 +129,9 @@ export function generateRoute(capitals: Capital[]): RouteData {
       localIndex: 0,
       isCapital: true,
       capitalId: from.id,
+      cumulativeKm: segmentStartKm,
     });
+    capitalDistances[from.id] = segmentStartKm;
     squareIndex++;
 
     // Compute the path-fractional position of each waypoint city, then mark
@@ -171,6 +178,8 @@ export function generateRoute(capitals: Capital[]): RouteData {
     for (let j = 1; j < squareCount; j++) {
       const fraction = j / squareCount;
       const [lat, lng] = interpolateAlongPath(fullPath, fraction);
+      const cityId = cityFractions.get(j);
+      const cumulativeKm = segmentStartKm + j * kmPerSquare;
       squares.push({
         index: squareIndex,
         lat,
@@ -178,8 +187,10 @@ export function generateRoute(capitals: Capital[]): RouteData {
         segmentIndex: i,
         localIndex: j,
         isCapital: false,
-        cityId: cityFractions.get(j),
+        cityId,
+        cumulativeKm,
       });
+      if (cityId) cityDistances[cityId] = cumulativeKm;
       squareIndex++;
     }
   }
@@ -190,5 +201,58 @@ export function generateRoute(capitals: Capital[]): RouteData {
     squares,
     totalSquares: squares.length,
     totalDistanceKm,
+    capitalDistances,
+    cityDistances,
   };
+}
+
+/**
+ * Interpolate a {lat, lng} position at a given km along the route.
+ * Used by MapView to place the player marker continuously.
+ */
+export function positionAtKm(
+  route: RouteData,
+  km: number,
+): { lat: number; lng: number } {
+  const total = route.totalDistanceKm;
+  if (total <= 0) return { lat: route.squares[0].lat, lng: route.squares[0].lng };
+  // Wrap around for laps.
+  let target = km % total;
+  if (target < 0) target += total;
+
+  const squares = route.squares;
+  // Binary search for the square whose cumulativeKm is just <= target.
+  let lo = 0;
+  let hi = squares.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (squares[mid].cumulativeKm <= target) lo = mid;
+    else hi = mid - 1;
+  }
+  const a = squares[lo];
+  const b = squares[lo + 1] ?? squares[0];
+  const segLenKm = (b.cumulativeKm > a.cumulativeKm
+    ? b.cumulativeKm
+    : total) - a.cumulativeKm;
+  const f = segLenKm > 0 ? (target - a.cumulativeKm) / segLenKm : 0;
+  return {
+    lat: a.lat + (b.lat - a.lat) * f,
+    lng: a.lng + (b.lng - a.lng) * f,
+  };
+}
+
+/** Find the square index containing (or just before) a given km. */
+export function squareIndexAtKm(route: RouteData, km: number): number {
+  const total = route.totalDistanceKm;
+  let target = km % total;
+  if (target < 0) target += total;
+  const squares = route.squares;
+  let lo = 0;
+  let hi = squares.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (squares[mid].cumulativeKm <= target) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo;
 }

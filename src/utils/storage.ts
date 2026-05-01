@@ -1,10 +1,10 @@
 import type { GameState } from '../types';
 
 const STORAGE_KEY = 'sanpo-game-state';
-// Version 5: land/mixed segments now multiply great-circle by 1.4× to
-// approximate road overhead, so square counts and per-segment indices
-// changed. Old saves would put the player on a misaligned square.
-const CURRENT_VERSION = 5;
+// Version 6: distance-based player position (player.distanceKm replaces
+// currentSquareIndex). Sic Bo now sets a multiplier window instead of
+// directly advancing. Square count/indices completely recalibrated.
+const CURRENT_VERSION = 6;
 
 export function loadGameState(): GameState | null {
   try {
