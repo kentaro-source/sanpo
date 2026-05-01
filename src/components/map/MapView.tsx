@@ -66,10 +66,10 @@ export function MapView() {
 
     mapRef.current = new google.maps.Map(containerRef.current, {
       center: { lat: currentSquare.lat, lng: currentSquare.lng },
-      // 100m/step movement should be visibly perceptible. Zoom 15 ≈ 4.8m/px,
-      // so each step nudges the player marker ~20px. zoom 14 ≈ 9.5m/px would
-      // also work; 15 emphasizes the per-step feel.
-      zoom: 15,
+      // Zoom 13 ≈ 19m/px: 100m/step = ~5px of marker movement (visible),
+      // viewport ~7.6km wide so the polyline + next stop are in context.
+      // Zoom 15 was too tight — marker walked off-screen quickly.
+      zoom: 13,
       zoomControl: false,
       streetViewControl: false,
       mapTypeControl: false,
@@ -439,15 +439,32 @@ export function MapView() {
     }
   }, [loaded, position]);
 
-  // Pan to current position on meaningful movement (skip tiny per-step pans).
+  // Auto-pan: follow the marker when it leaves the visible viewport.
+  // (We don't pan on every tiny step — that fights the user's manual pan.)
+  // When the player walks far enough that the marker is near or outside
+  // the visible bounds, recenter on them.
   useEffect(() => {
-    if (!mapRef.current) return;
-    if (currentSquare.index !== prevSquareIndex.current) {
-      mapRef.current.panTo(position);
-      prevSquareIndex.current = currentSquare.index;
+    const map = mapRef.current;
+    if (!map) return;
+    const bounds = map.getBounds();
+    if (!bounds) {
+      map.panTo(position);
+      return;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentSquare]);
+    // Shrink bounds to a "stay-in-view" inner box (75% of viewport). If the
+    // marker drifts outside that box, recenter. This way small steps don't
+    // jitter the map but a long walk follows the player.
+    const ne = bounds.getNorthEast();
+    const sw = bounds.getSouthWest();
+    const latPad = (ne.lat() - sw.lat()) * 0.125;
+    const lngPad = (ne.lng() - sw.lng()) * 0.125;
+    const inside =
+      position.lat > sw.lat() + latPad &&
+      position.lat < ne.lat() - latPad &&
+      position.lng > sw.lng() + lngPad &&
+      position.lng < ne.lng() - lngPad;
+    if (!inside) map.panTo(position);
+  }, [position]);
 
   if (error) {
     return (
