@@ -1,6 +1,6 @@
 # Sanpo - 歩いて世界一周アプリ
 
-## 🚀 引継ぎサマリ (2026-04-30)
+## 🚀 引継ぎサマリ (2026-05-01)
 
 別PCで再開する Claude / 数ヶ月後の自分が**最初に読むべき要点**:
 
@@ -8,8 +8,11 @@
 2. **本番URL**: https://kentaro-source.github.io/sanpo/ (push で自動デプロイ、約45秒)
 3. **ローカル**: `git clone https://github.com/kentaro-source/sanpo.git C:\dev\sanpo` → `npm install` → `npm run dev`
 4. **API キー**: `.env.local` に `VITE_GOOGLE_MAPS_API_KEY=AIzaSyAl8HkXqKTy1_PDDU7-XX4cLQNYfXwrwl8` 必要(localhost:5173 のみ動作)
-5. **最新の動作確認**: Android Chrome PWA で動作中、Google Fit 同期成功(13歩実機テスト済み)
-6. **次やる作業の最優先**: 実道路距離プリコンピュートスクリプト(下記「次のフェーズ実装」項目1)
+5. **最新の動作確認**: Android Chrome PWA で動作中、Google Fit 多ソース同期で歩数増加確認済み
+6. **次やる作業の最優先**:
+   - **A. 実道路距離プリコンピュート実行** — スクリプト `scripts/precompute-distances.ts` 完成済みだが、現行 API キーは HTTP referrer 制限ありで Directions HTTP API に弾かれる(REQUEST_DENIED)。Google Cloud で **referrer 制限なしのサーバー用 API キー**を新規作成し `.env.local` に置くか、`API_KEY` 直書きで実行 → `src/data/segmentDistances.ts` 自動生成 → 1.4倍ヒューリスティクスを置換
+   - **B. セグメント分類バッチ4-11** — 残147/193(ロシア・欧州・アフリカ・米州・オセアニア)。プレイヤー進行に追いつかれる前に
+7. **致命的な誤情報訂正(2026-05-01)**: 旧版 CLAUDE.md にあった「referrer ヘッダ `https://kentaro-source.github.io/` 付きで HTTP fetch すれば既存 API キーで通る」は**誤り**。Maps JS API は Referer 検証するが Directions HTTP API は検証しない(REQUEST_DENIED)。precompute には別キー必須
 
 git の identity は `kentaro-source` / `kentaro-source@users.noreply.github.com` をローカルセット推奨。
 
@@ -46,27 +49,65 @@ PWAの強制更新は**ヘッダー右の `⟳` ボタン**(SW unregister + cach
   - 同期失敗時のみ小さい「再連携が必要です [再連携]」表示
   - Fit query から `dataSourceId` 削除 → 全ソース集計（Health Connect 経由でも歩数取得できるように）
   - 細かい修正: 距離プリコンピュート用 `tsx` 導入（まだ未使用）、各種CSS調整
+- 2026-05-01: 大型セッション。**地図パフォーマンス + Google Fit 同期 + 進行 UX + ボーナス系**を一気に整備:
+  - **地図パフォーマンス**:
+    - 全193セグメントの個別 Polyline → **「現在地周辺の9セグメントだけ」を1本の Polyline に統合**(SEGMENTS_BEHIND=3, SEGMENTS_AHEAD=5)
+    - クリッピング(modulo wrap しない)。wrap させると未分類セグメントが古い分類域を巻き込んで「東京→中東 ghost line」が出る
+    - Polyline 簡略化を Douglas-Peucker(RDP, 0.02deg≈2km)に変更。固定数サンプリングだと曲線が直線化してしまうため
+    - 首都マーカーを「現在地から3つ後・5つ前」のみに削減。zoom>=7 でのみ表示
+    - マスドット zoom>=8 + 1/5 サンプル
+    - デフォルト zoom 4→11(街レベル)。`fitBounds` ではなくプレイヤー中心の `setCenter`+`setZoom`
+    - **ヘッダーにビルドタグ表示**(`vite.config.ts` で `__BUILD_TAG__` define、MMDD-HHMM形式)。「変わってない」を可視化
+  - **Google Fit「歩数増えない」問題の決着**:
+    - 旧: incremental fetch `[lastSync, now]` → Fit サーバ書き込み遅延でウィンドウ通過したデータが永久に取りこぼし
+    - 新: **絶対値ベース** — 毎回 `[startOfToday, now]` で当日累計を取得し、reducer 側で前回累計 baseline との delta を加算。idempotent + 遅延データ自動回収。日跨ぎで baseline reset。アップグレード初回は二重カウント防止で baseline 採用のみ
+    - PlayerState 拡張: `todayStepsBaseline`, `todayBaselineDayStart`
+    - 自動ポーリング: 60s/60s → **30s/25s** に短縮(間隔と min interval 同値だと半分の tick が no-op になっていた)
+    - **Service Worker が外部 API リクエストに干渉する可能性**を完全排除。`url.origin !== self.location.origin` で SW スルー
+    - Fit fetch に `cache: 'no-store'`(belt-and-suspenders)
+    - **多ソース最大値採用**: モダン Android Fit アカウントは複数の歩数ストリーム(estimated_steps / merged / Health Connect mirror / OEM)が共存し、**1ストリームだけ更新が止まる現象がある**(これが3,647歩固定の真因)。`dataSources?dataTypeName=...` で全列挙→各 ID で aggregate→max を採用
+    - 診断UI: ProgressInfo に「Fit: N歩 / HH:MM:SS 同期」を表示。同期が動いてるか・何を返してるかを画面で切り分け可能に
+    - **致命的修正**: `silent re-auth` の入れすぎでポップアップブロッカ起動 → 結局 catch して null 返すラッパーで囲ったので一応OK。`getAccessToken(interactive=false)` で外向きには interactive を要求しない設計
+  - **ルート精度 + 進行 UX**:
+    - **waypoint 都市をマスに紐付け**(`Square.cityId`)。`generateRoute` で各 waypoint の path 上 fractional 位置から最寄マス決定、衝突時は前進
+    - **停車地チェーン表示**(ProgressInfo): 次の首都に着くまでの city stops を 6個まで列挙、`📍 宮崎 / 📍 長崎 / 📍 福岡 / 🏛 ソウル` の縦リスト
+    - 距離は **「前の停車地からの距離」** を主表示、計N(現在地から)を muted で副表示。絶対距離だけだと "宮崎 8 / 長崎 10 / 福岡 11" が一様に見えて宮崎→長崎の近さが伝わらない
+    - 実生活訪問都市は ★ プレフィックス
+    - **land/mixed セグメントは great-circle × 1.4倍** で道路距離を概算(precompute されるまでの暫定)。Tokyo→Seoul 11→16マス
+    - precompute スクリプト `scripts/precompute-distances.ts` 完成済(が API キー問題で実行不可)
+    - 空の `src/data/segmentDistances.ts` 用意 → precompute 実行されたら自動で `generateRoute` が優先採用
+    - storage version 4→5(マス数シフトのため)
+  - **マイルストーン + 都市訪問ボーナス + トースト**:
+    - マイルストーン: `MILESTONES` 定数(10k=+1🎲, 100k=+2, 1M=+3, 10M=+5, 100M=+5+特別ラベル)。`ADD_STEPS` / `SYNC_FROM_GOOGLE_FIT` でトリガ
+    - 都市訪問ボーナス: `ROLL_SICBO` で `totalAdvance>0` 時、着地マスから半径200km以内の未訪問都市を検出 → +1🎲 (`visitedInRealLife=true` なら +2🎲 思い出ボーナス)
+    - 首都通過/到着もトースト化
+    - PlayerState 拡張: `claimedMilestones`, `visitedCities`, `recentBonuses`(直近8件 ring buffer)
+    - `BonusToast` コンポーネント: 地図右上に floating、5秒で自動消滅。kind 別色(milestone=琥珀, city-irl=ピンク, capital-landing=緑)
+  - **CLAUDE.md 自体のアップデート**: 今あなたが読んでいるこの長大な追記がそれ
 
 ### デプロイ
 - **本番URL**: https://kentaro-source.github.io/sanpo/
 - **リポジトリ**: https://github.com/kentaro-source/sanpo
 - **デプロイ**: pushすると GitHub Actions で自動デプロイ（`.github/workflows/deploy.yml`）
 
-### 現在の状態 (2026-04-30 引継ぎ)
+### 現在の状態 (2026-05-01 引継ぎ)
 
-**動作状況**: 本番URLで完全動作。Android Chrome PWA で動作確認済み。歩数同期も成功(13歩カウントを実機で確認)。
+**動作状況**: 本番URLで完全動作。Android Chrome PWA で動作確認済み。Google Fit 多ソース同期で歩数増加確認済み。
 
 **主要実装ファイル**:
 - レイアウト: `src/App.css` — `.app-layout` flex column / map `flex:1` / `.bottom-panel` `position:fixed; bottom:0`
-- ヘッダー: `src/components/layout/Header.tsx` — `せかいさんぽ` + visited count + dice token + `⟳` (`hardReload()`)
-- マップ: `src/components/map/MapView.tsx` — `loading=async` 無し、Polyline `geodesic:true`、square dots は1/3サンプル+zoom<4で非表示
+- ヘッダー: `src/components/layout/Header.tsx` — `せかいさんぽ` + visited count + dice token + ビルドタグ + `⟳` (`hardReload()`)
+- マップ: `src/components/map/MapView.tsx` — Polyline は近傍9セグメント結合 + RDP簡略化、首都マーカーは近傍9個のみ、デフォルト zoom 11
 - ルート描画: mixed セグメントは隣接ペアごとに Directions API、海越え(`seaSegments`明示 or API失敗)は直線
-- マス生成: `src/data/generateRoute.ts` — waypoint-aware 距離計算、waypoint パス沿い補間
-- Google Fit: `sanpo-google-fit-ever-consented` フラグで二度とボタン非表示、`dataSourceId` 削除で全ソース集計
-- PWA更新: `public/sw.js` の `__BUILD_ID__` をビルド時に注入(`vite.config.ts` writeBundle hook)、`controllerchange` で自動リロード
+- マス生成: `src/data/generateRoute.ts` — waypoint-aware 距離計算 + 1.4倍 road factor(land/mixed)、waypoint 都市をマスに紐付け
+- 進行UI: `src/hooks/useGame.ts` の `upcomingStops` derive、`src/components/stats/ProgressInfo.tsx` で停車地チェーン表示
+- ボーナス: `src/contexts/GameContext.tsx` の `MILESTONES` 配列 + ROLL_SICBO 内の都市検出ロジック + `BonusToast.tsx`
+- Google Fit: `src/services/googleFit.ts` — 多ソース max 採用、`cache: 'no-store'`、SW バイパス
+- 診断UI: `src/components/dice/StepInput.tsx` — `Fit: N歩 / HH:MM:SS 同期` 行
+- PWA更新: `public/sw.js` の `__BUILD_ID__` をビルド時に注入、`controllerchange` で自動リロード、外部 origin はバイパス
 
 **localStorage キー一覧**:
-- `sanpo-game-state` (version 4)
+- `sanpo-game-state` (**version 5**, マス数 1.4倍 road factor 反映)
 - `sanpo-google-fit-token` (1時間期限)
 - `sanpo-google-fit-ever-consented` ("1"なら永続「連携済み」扱い、トークン履歴があればbackfill)
 - `sanpo-directions-cache-v1` (Directions API 結果キャッシュ、TTL 30日)
@@ -232,14 +273,23 @@ git push
   - **gameplay logic未実装**（Reducer連携が次回タスク）
 
 **次回再開: 残作業**
-1. **マイルストーン・都市訪問ボーナス実装**
-   - PlayerState 拡張: `visitedCities`, `claimedMilestones`
-   - Reducer: ROLL_SICBO 時に着地マス周辺の都市検出（200km以内）→ +1🎲 (or +2🎲 思い出)
-   - Reducer: ADD_STEPS/SYNC_FROM_GOOGLE_FIT 時にマイルストーン判定
-   - UI通知: ポップアップ・トースト
-2. **セグメント分類バッチ4-11** (ロシア・欧州・アフリカ・米州・オセアニア)
-3. **実道路距離プリコンピュート** (option A): `tsx` 導入済み。`scripts/precompute-distances.ts` を書いて Directions API HTTP endpoint で各セグメント実距離を取得 → `src/data/segmentDistances.ts` に保存 → `generateRoute.ts` で利用 → 現状 great-circle 1.5倍ほど短い距離計算が解消(Tokyo→Seoul 11→17マス想定)。referrer ヘッダ `https://kentaro-source.github.io/` 付きで HTTP fetch すれば既存 API キーで通る
+1. ✅ **マイルストーン・都市訪問ボーナス実装** (2026-05-01 完了)
+   - `MILESTONES` 定数 + `checkMilestones()` ヘルパー
+   - ROLL_SICBO 内で半径200km検出 + 思い出+2🎲
+   - `BonusToast` で5秒 floating 表示
+2. **セグメント分類バッチ4-11** (ロシア・欧州・アフリカ・米州・オセアニア) — まだ未着手、147/193 残
+3. **実道路距離プリコンピュート** — スクリプト `scripts/precompute-distances.ts` 完成済み。**しかし API キーの referrer 制限で REQUEST_DENIED**(旧 CLAUDE.md の記載は誤り)。要対応:
+   - Google Cloud で **referrer 制限なし**(または IP制限のみ)のサーバー用 API キーを新規作成
+   - `.env.local` に追加するか、スクリプト内で別 env から読む
+   - `npx tsx scripts/precompute-distances.ts` で `src/data/segmentDistances.ts` 自動生成
+   - 完了後は `generateRoute` が `precomputed ?? heuristic*1.4` で自動採用
 4. その他: ログインボーナスは**不要**で確定（純粋に歩数連動）
+
+**今後検討する UX**
+- 自動ストップ機能(首都/都市で必ず止まる、超過分消失、ボーナス統一)
+- Sic Bo ダイス履歴(過去10回)
+- 首都到着時に国情報 popup(RestCountries API)
+- 地図がまだ重ければ追加対応(マーカー全廃モード or Leaflet 戻し)
 
 ### 確定したルール設計
 - **Sic Bo返金**: 案3（返金なし、現状）
@@ -262,24 +312,30 @@ git push
 ### 地図
 - Google Maps（OpenStreetMapから移行済み）
 - `loading=async` を URL から外している(新API仕様で `google.maps.Map` constructor を直接使うため)
-- 経由都市マーカー: タイプ別色
-- ルート色分け: red=land / blue=sea / purple=mixed / orange=fantasy
+- 経由都市マーカー: タイプ別色、**zoom>=7 でのみ表示**
+- ルート: ユーザー指摘により**色分けは廃止**。単一の青(#2563eb)Polyline
 - 通過済み: 緑実線 / 未通過: グレー破線
-- 訪問済み首都: 大きい緑丸 / 未訪問: 小さいグレー丸
+- 訪問済み首都: 大きい緑丸 / 未訪問: 小さいグレー丸、**現在地から3つ後・5つ前のみ表示**
 - landセグメントは Directions API で実道路追従
 - mixedセグメントは隣接ペア毎に Directions API 試行、海越えは直線(geodesic curve)
 - すべての Polyline に `geodesic: true` → 直線でなく大圏弧
-- マスドット: 1/3サンプル(perf)、zoom<4で非表示、通過済み4px緑/未通過2px灰
+- マスドット: 1/5サンプル + **zoom>=8 でのみ表示**、通過済み4px緑/未通過2px灰
+- **デフォルト zoom 11**(街レベル)、プレイヤー中心 `setCenter`+`setZoom`(`fitBounds`は使わない)
+- **Polyline は近傍9セグメント結合 + RDP簡略化**(2km tolerance)。世界一周分1500点を毎回描くのは重すぎたため
+- ヘッダー右に**ビルドタグ表示**(MMDD-HHMM)で「最新版か」を即座に確認できる
 
 ### Google Fit
 - 連携後はUI完全非表示（自動同期がbackground）
 - 同期成功時のみ短いトースト
-- アプリ起動時とフォーカス復帰時に自動同期
+- アプリ起動時とフォーカス復帰時に自動同期 + **30秒ごとポーリング**(min 25s dedup)
 - 連携前のみ大きな「連携」ボタン
 - **`ever-consented` フラグで永続「連携済み」扱い** — トークン期限切れ後もボタン再表示しない
 - 旧トークン保存履歴があれば自動でフラグONバックフィル(過去ユーザーも対応)
-- silent re-auth (prompt:'none') は使わない — popup blocker でエラー大量発生したため
-- Fit API リクエストから `dataSourceId` 削除済み — Health Connect 経由でも歩数取得可能
+- silent re-auth は controlled に試行(`getAccessToken(interactive=false)` 内で `silentSignIn()` をサイレントに、失敗時は throw して呼び出し側でハンドリング)
+- **多ソース max 採用** — `dataSources?dataTypeName=com.google.step_count.delta` で全ストリームを列挙し、各 ID に対して個別 aggregate を投げて**最大値**を返す。モダン Android で複数ストリームのうち1つだけ更新が止まる現象に対処
+- **絶対値ベース同期** — 毎回 `[startOfToday, now]` で当日累計を取得し、reducer で前回 baseline との delta を加算。Fit サーバ書き込み遅延でデータが遅れて到着しても次回ポーリングで自動回収。アップグレード初回だけ二重カウント防止で baseline 採用のみ
+- `cache: 'no-store'` + Service Worker 外部 origin バイパスで stale データを完全排除
+- 診断UI: 進捗バー下に `Fit: N歩 / HH:MM:SS 同期` を表示。「歩数増えない」を切り分け可能
 
 ### 出発地について
 - ゲーム内のスタート: **東京（JP capital）** = square 0
@@ -330,6 +386,26 @@ git push
 - 都市追加（150+）でマス密度が上がれば、自動ストップ無しでも飛ばし問題は解消する見込み
 - 実装するなら「新規首都・都市で必ず停止、超過分は消失、ボーナスは+2に統一」
 
+### なぜ road factor を 1.4倍にした(precompute 完了までの暫定)
+- great-circle で waypoint を辿った長さは実道路距離より明らかに短い(関東→九州横断で 1100km vs 道路 1500km 弱)
+- precompute 入るまで land/mixed セグメントは `× 1.4` でかさ上げ
+- Tokyo→Seoul: 11マス → 16マス(2026-05-01時点)
+- precompute 結果が `segmentDistances.ts` に入ったら自動で優先採用、1.4倍は使われなくなる
+- 1.4 という数字は「Asia 区間で実距離 / great-circle が概ねこの比」の経験則。地域差は precompute で吸収
+
+### なぜ停車地表示は「前の停車地からの距離」を主にした
+- 当初は「現在地から N マス先」で表示していたが、Tokyo→宮崎 8マス・宮崎→長崎 10マス・福岡 11マス と並ぶと「どれも 10マス前後」に見えてしまい近さの差が伝わらない
+- 主表示を「前の stop からの距離」(2/1/2/2/1)に変更、計N(現在地から)を muted で副表示
+- 地理的な「次の一歩の重さ」が直感的に伝わるようになった
+
+### マイルストーン+都市訪問ボーナスの実装ポイント
+- `MILESTONES` は ascending、`oldTotal < threshold <= newTotal` を1つの sync で複数跨いだ場合は全部 fire
+- `claimedMilestones` でべき等性を担保(同じ閾値で2度報酬は出ない)
+- 都市検出は `ROLL_SICBO` の advance>0 時のみ、停止地点(toSquare)から半径 200km haversine で
+- `recentBonuses` は ring buffer (max 8)、新しいものが先頭、`BonusToast` が timestamp で expire
+- 思い出ボーナスは `city.visitedInRealLife === true` で判定、`★懐かしの〇〇を再訪` ラベル
+- 首都到着もトースト化(以前は silent だった)
+
 ### 振り中のサウンド演出（重要）
 - ユーザー要望: コロコロ音必須
 - Web Audio APIで合成音実装済み（src/services/sound.ts）
@@ -357,16 +433,28 @@ git push
 ### 都市データ (164都市)
 - `src/data/cities.ts`: 164都市（追加: TW-TAIPEI, MO-MACAU, JP-MIYAZAKI, JP-NAGASAKI）
 - 全ユーザー訪問都市カバー済み
-- Mapに表示済み（type別色分け）
-- ❌ 近接検出と初訪+1🎲ボーナスは未実装
+- Mapに表示済み（type別色分け、zoom>=7）
+- ✅ **近接検出と都市訪問ボーナス実装済み** (2026-05-01: ROLL_SICBO 時に半径200km、未訪問+1🎲、思い出+2🎲)
 
 ### 次のフェーズ実装 (まだ未着手)
-1. **実道路距離プリコンピュート**: `npx tsx scripts/precompute-distances.ts` でビルド時取得 → `src/data/segmentDistances.ts` 出力 → `generateRoute.ts` で利用 (great-circle の1.5倍ほど短い問題解消)
+1. **実道路距離プリコンピュート**: スクリプト `scripts/precompute-distances.ts` 完成済み。**API キー問題で実行ブロック**(下記参照)。出力 → `src/data/segmentDistances.ts` → `generateRoute.ts` が自動採用
 2. **海ルート手動キュレーション**: 重要な海峡・フェリー waypoint(どの mixed セグメントで `seaSegments` を明示するか)
-3. **マイルストーン+都市訪問ボーナス**: PlayerState 拡張 + Reducer 連携 + UI通知
+3. **セグメント分類バッチ4-11** (ロシア・欧州・アフリカ・米州・オセアニア) — 147/193 残
 4. **自動ストップ機能**: 新規首都・都市で必ず止まる
-5. **都市マーカー近接検出**: 半径200km以内で訪問判定→トークンボーナス
-6. **セグメント分類バッチ4-11** (ロシア・欧州・アフリカ・米州・オセアニア)
+5. **Sic Bo ダイス履歴** (過去10回)
+6. **首都到着時の国情報** (RestCountries API)
+
+### precompute スクリプト実行のための API キー問題
+- 現行 `VITE_GOOGLE_MAPS_API_KEY` は HTTP referrer 制限 (`https://kentaro-source.github.io/*` + `http://localhost:5173/*`)
+- Maps JS API はブラウザの Referer 検証で動くが、**Directions HTTP API は Referer 検証しない** → REQUEST_DENIED が返る
+- 旧 CLAUDE.md の「referrer ヘッダ付きで HTTP fetch すれば通る」は**実機検証で誤りと判明**(2026-05-01)
+- 解決策: Google Cloud Console で
+  1. 新しい API キーを作成
+  2. **アプリケーション制限なし** または IP 制限のみ(自宅IP等)
+  3. **API 制限**: Directions API のみ許可
+  4. `.env.local` に別変数として追加 or スクリプト内ハードコードして実行
+  5. 実行後はキーを削除/制限変更で安全に
+- 実行手順: `API_KEY=xxx npx tsx scripts/precompute-distances.ts`(スクリプトは現状 `.env.local` から読むので別 env サポート要追加)
 
 ## 直近の改善メモ（次回検討）
 
