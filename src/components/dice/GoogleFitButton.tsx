@@ -80,9 +80,20 @@ export function GoogleFitButton() {
 
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('focus', onVisible);
+
+    // Periodic polling while app is in foreground - keeps step counter
+    // feeling "live" instead of only updating when the user re-focuses.
+    const interval = setInterval(() => {
+      if (document.visibilityState !== 'visible') return;
+      const last = lastSyncTimestampRef.current;
+      if (last && Date.now() - last < AUTO_SYNC_MIN_INTERVAL_MS) return;
+      doSync(true);
+    }, 60_000); // every 60s
+
     return () => {
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('focus', onVisible);
+      clearInterval(interval);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connected]);

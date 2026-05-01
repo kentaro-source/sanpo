@@ -66,7 +66,7 @@ export function MapView() {
 
     mapRef.current = new google.maps.Map(containerRef.current, {
       center: { lat: currentSquare.lat, lng: currentSquare.lng },
-      zoom: 7, // regional view — see the walking area, not the whole continent
+      zoom: 9, // city/region view — see roads and the immediate walking area
       zoomControl: false,
       streetViewControl: false,
       mapTypeControl: false,
@@ -79,77 +79,33 @@ export function MapView() {
     });
   }, [loaded]);
 
-  // Render route polylines (recompute on position change)
-  // Subsample: 1,692 squares → ~340 points per polyline (1/5)
-  // Heavy mobile rendering when full detail; this is plenty for visual.
+  // Note: passed/upcoming square-by-square polylines were dropped for perf.
+  // The colored segment-classification polylines (red/blue/purple/orange)
+  // already show the route. Progress is shown via the current-position
+  // marker and the colored square dots (when zoomed in).
   useEffect(() => {
-    if (!mapRef.current) return;
-
     passedPolylineRef.current?.setMap(null);
     upcomingPolylineRef.current?.setMap(null);
-
-    const SAMPLE = 5;
-    const passedPath: google.maps.LatLngLiteral[] = [];
-    const upcomingPath: google.maps.LatLngLiteral[] = [];
-    const currentIdx = player.currentSquareIndex;
-    const total = routeData.squares.length;
-    for (let i = 0; i < total; i++) {
-      const sq = routeData.squares[i];
-      // Always include capitals + current + sampled
-      const include =
-        sq.isCapital || i === currentIdx || i === total - 1 || i % SAMPLE === 0;
-      if (!include) continue;
-      const point = { lat: sq.lat, lng: sq.lng };
-      if (i <= currentIdx) {
-        passedPath.push(point);
-      } else {
-        upcomingPath.push(point);
-      }
-    }
-    if (currentIdx < total) {
-      const cur = routeData.squares[currentIdx];
-      upcomingPath.unshift({ lat: cur.lat, lng: cur.lng });
-    }
-
-    if (passedPath.length > 1) {
-      passedPolylineRef.current = new google.maps.Polyline({
-        path: passedPath,
-        strokeColor: '#10b981',
-        strokeOpacity: 0.8,
-        strokeWeight: 3,
-        geodesic: true,
-        map: mapRef.current,
-      });
-    }
-    if (upcomingPath.length > 1) {
-      upcomingPolylineRef.current = new google.maps.Polyline({
-        path: upcomingPath,
-        strokeOpacity: 0,
-        strokeColor: '#94a3b8',
-        strokeWeight: 2,
-        geodesic: true,
-        icons: [
-          {
-            icon: {
-              path: 'M 0,-1 0,1',
-              strokeOpacity: 0.5,
-              strokeColor: '#94a3b8',
-              scale: 3,
-            },
-            offset: '0',
-            repeat: '20px',
-          },
-        ],
-        map: mapRef.current,
-      });
-    }
-  }, [loaded, player.currentSquareIndex, routeData]);
+  }, [loaded]);
 
   // Render real route polylines from segmentClassifications (Batch N waypoint cities)
   // Uses Directions API for land segments to follow real roads.
+  // Polylines are simplified to ~50 points each to keep pan/zoom fast.
   useEffect(() => {
     if (!mapRef.current || !loaded) return;
     let cancelled = false;
+
+    // Drop intermediate points to keep total vertex count manageable.
+    const simplifyPath = (path: google.maps.LatLngLiteral[], maxPoints = 40) => {
+      if (path.length <= maxPoints) return path;
+      const step = Math.ceil(path.length / maxPoints);
+      const result: google.maps.LatLngLiteral[] = [];
+      for (let i = 0; i < path.length; i += step) result.push(path[i]);
+      if (result[result.length - 1] !== path[path.length - 1]) {
+        result.push(path[path.length - 1]);
+      }
+      return result;
+    };
 
     const ROUTE_COLORS: Record<string, string> = {
       land: '#dc2626',
@@ -215,13 +171,11 @@ export function MapView() {
 
         const color = ROUTE_COLORS[seg.routeType] ?? '#dc2626';
         const polyline = new google.maps.Polyline({
-          path,
+          path: simplifyPath(path),
           strokeColor: color,
           strokeOpacity: 0.9,
           strokeWeight: 4,
           zIndex: 5,
-          // Curve along the great-circle so straight 2-point sea/fantasy
-          // segments don't render as a Mercator straight line.
           geodesic: true,
           map: mapRef.current,
         });
