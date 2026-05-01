@@ -11,7 +11,7 @@
 //   Access tokens last 1 hour, no refresh tokens. User must re-tap once
 //   per hour. Used when the worker isn't deployed yet.
 
-const CLIENT_ID = '329322197077-ba96t4apoji356kphtccruujp7p3oth3.apps.googleusercontent.com';
+const CLIENT_ID = '283060166957-n7v8roliir9nbhiueiolbgimdftjfd1d.apps.googleusercontent.com';
 const SCOPE = 'https://www.googleapis.com/auth/fitness.activity.read';
 const TOKEN_STORAGE_KEY = 'sanpo-google-fit-token';
 const USER_KEY_STORAGE_KEY = 'sanpo-fit-user-key';

@@ -12,5 +12,5 @@ id = "REPLACE_WITH_KV_NAMESPACE_ID"
 # Public env vars. Secrets (CLIENT_SECRET) are NOT here — set with:
 #   npx wrangler secret put GOOGLE_CLIENT_SECRET
 [vars]
-GOOGLE_CLIENT_ID = "329322197077-ba96t4apoji356kphtccruujp7p3oth3.apps.googleusercontent.com"
+GOOGLE_CLIENT_ID = "283060166957-n7v8roliir9nbhiueiolbgimdftjfd1d.apps.googleusercontent.com"
 ALLOWED_ORIGIN = "https://kentaro-source.github.io,http://localhost:5173"
