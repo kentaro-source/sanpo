@@ -120,19 +120,45 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'SYNC_FROM_GOOGLE_FIT': {
-      // Steps fetched from Google Fit between lastSyncTimestamp and now.
-      // Same logic as ADD_STEPS, plus update lastSyncTimestamp.
-      const totalSteps = state.player.stepsTowardNextDie + action.steps;
+      // action.steps is the ABSOLUTE total step count for today (since
+      // start-of-day in local time), not an incremental delta. We compute
+      // the delta from the last seen baseline so that late-arriving Fit
+      // data still gets credited correctly on a subsequent poll.
+      const todayAbsolute = action.steps;
+      const d = new Date(action.syncTimestamp);
+      d.setHours(0, 0, 0, 0);
+      const todayStart = d.getTime();
+
+      // First sync after upgrade (no baseline tracked yet) — adopt the
+      // current absolute value as the baseline without crediting steps.
+      // This avoids double-counting steps already credited under the old
+      // incremental sync model.
+      const isFirstSyncAfterUpgrade =
+        state.player.todayBaselineDayStart === undefined;
+
+      // If the day has rolled over since the last sync, reset baseline.
+      const baseline = isFirstSyncAfterUpgrade
+        ? todayAbsolute
+        : state.player.todayBaselineDayStart === todayStart
+          ? state.player.todayStepsBaseline ?? 0
+          : 0;
+
+      // Negative delta (e.g. Fit data correction) → ignore, don't subtract.
+      const delta = Math.max(0, todayAbsolute - baseline);
+
+      const totalSteps = state.player.stepsTowardNextDie + delta;
       const newDice = Math.floor(totalSteps / state.config.stepsPerDie);
       const remainder = totalSteps % state.config.stepsPerDie;
       return {
         ...state,
         player: {
           ...state.player,
-          totalStepsEntered: state.player.totalStepsEntered + action.steps,
+          totalStepsEntered: state.player.totalStepsEntered + delta,
           availableDice: Math.min(state.player.availableDice + newDice, state.config.maxDice),
           stepsTowardNextDie: remainder,
           lastSyncTimestamp: action.syncTimestamp,
+          todayStepsBaseline: todayAbsolute,
+          todayBaselineDayStart: todayStart,
           lastUpdated: Date.now(),
         },
       };

@@ -30,15 +30,17 @@ export function GoogleFitButton() {
     setLastResult(null);
     try {
       const now = Date.now();
-      const startMs = lastSyncTimestampRef.current ?? startOfTodayMs();
-      if (startMs >= now) {
-        if (!auto) setLastResult('同期する歩数がありません');
-        return;
-      }
-      const steps = await fetchStepsBetween(startMs, now);
-      syncFromGoogleFit(steps, now);
-      if (steps > 0) {
-        setLastResult(`+${steps.toLocaleString()} 歩 同期`);
+      // Always fetch the absolute total for today. The reducer computes
+      // an idempotent delta against its baseline, which is robust against
+      // Fit data that arrives late (after our previous sync window).
+      const startMs = startOfTodayMs();
+      const todayTotal = await fetchStepsBetween(startMs, now);
+      const previousTotal = player.todayStepsBaseline ?? 0;
+      const sameDay = player.todayBaselineDayStart === startMs;
+      const delta = sameDay ? Math.max(0, todayTotal - previousTotal) : todayTotal;
+      syncFromGoogleFit(todayTotal, now);
+      if (delta > 0) {
+        setLastResult(`+${delta.toLocaleString()} 歩 同期`);
       } else if (!auto) {
         setLastResult('新しい歩数はありませんでした');
       }

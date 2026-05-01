@@ -120,6 +120,11 @@ export interface PlayerState {
   completedLaps: number;
   // Google Fit sync state
   lastSyncTimestamp?: number; // unix ms - last time we successfully pulled from Google Fit
+  // Absolute step counter for the current day, last seen from Fit. Used to
+  // compute idempotent deltas resilient to late-arriving Fit data.
+  todayStepsBaseline?: number;
+  // start-of-day ms for the day todayStepsBaseline applies to
+  todayBaselineDayStart?: number;
 }
 
 export interface GameConfig {
