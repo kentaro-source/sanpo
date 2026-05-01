@@ -163,17 +163,43 @@ export function signOut(): void {
   clearToken();
 }
 
-/**
- * Fetch step count from Google Fit between two timestamps.
- * Returns total steps in the window.
- */
-export async function fetchStepsBetween(startMs: number, endMs: number): Promise<number> {
-  const token = await getAccessToken(false);
+interface AggregateResponse {
+  bucket?: Array<{
+    dataset?: Array<{
+      point?: Array<{
+        value?: Array<{ intVal?: number }>;
+      }>;
+    }>;
+  }>;
+}
 
-  // Aggregate from any available source (modern Android may route through
-  // Health Connect rather than the legacy 'estimated_steps' dataSourceId).
+function sumAggregate(data: AggregateResponse): number {
+  let total = 0;
+  for (const bucket of data.bucket ?? []) {
+    for (const ds of bucket.dataset ?? []) {
+      for (const point of ds.point ?? []) {
+        for (const v of point.value ?? []) {
+          total += v.intVal ?? 0;
+        }
+      }
+    }
+  }
+  return total;
+}
+
+async function aggregateOnce(
+  token: string,
+  startMs: number,
+  endMs: number,
+  dataSourceId?: string,
+): Promise<number> {
+  const aggregateBy: Record<string, string>[] = [
+    { dataTypeName: 'com.google.step_count.delta' },
+  ];
+  if (dataSourceId) aggregateBy[0].dataSourceId = dataSourceId;
+
   const body = {
-    aggregateBy: [{ dataTypeName: 'com.google.step_count.delta' }],
+    aggregateBy,
     bucketByTime: { durationMillis: Math.max(60_000, endMs - startMs) },
     startTimeMillis: startMs,
     endTimeMillis: endMs,
@@ -188,12 +214,9 @@ export async function fetchStepsBetween(startMs: number, endMs: number): Promise
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),
-      // Belt-and-suspenders: PWAs / SW caches have surprised us before.
-      // Force a network roundtrip every poll so we never serve stale steps.
       cache: 'no-store',
     },
   );
-
   if (res.status === 401) {
     clearToken();
     throw new Error('Authentication expired. Please sign in again.');
@@ -202,26 +225,57 @@ export async function fetchStepsBetween(startMs: number, endMs: number): Promise
     const text = await res.text();
     throw new Error(`Fitness API error: ${res.status} ${text}`);
   }
+  const data = (await res.json()) as AggregateResponse;
+  return sumAggregate(data);
+}
 
-  const data = (await res.json()) as {
-    bucket?: Array<{
-      dataset?: Array<{
-        point?: Array<{
-          value?: Array<{ intVal?: number }>;
-        }>;
-      }>;
-    }>;
-  };
+/**
+ * Fetch step count from Google Fit between two timestamps.
+ *
+ * Strategy: Modern Android devices have multiple step data streams
+ * coexisting in a single Fit account (legacy estimated_steps from Google
+ * Play Services, the merged stream, Health Connect mirrors, manufacturer
+ * stream from Fitbit/Samsung/Xiaomi, etc.). Different streams update at
+ * different cadences and one of them can stall while another is fresh.
+ * We query each step-count data source the user has and return the
+ * MAX — the most generous estimate of "what the user actually walked".
+ */
+export async function fetchStepsBetween(startMs: number, endMs: number): Promise<number> {
+  const token = await getAccessToken(false);
 
-  let total = 0;
-  for (const bucket of data.bucket ?? []) {
-    for (const ds of bucket.dataset ?? []) {
-      for (const point of ds.point ?? []) {
-        for (const v of point.value ?? []) {
-          total += v.intVal ?? 0;
-        }
+  // 1) Default aggregate (no dataSourceId). Fit picks its merged stream.
+  let best = await aggregateOnce(token, startMs, endMs);
+
+  // 2) List all step-count data sources for the user and probe each.
+  try {
+    const dsRes = await fetch(
+      'https://www.googleapis.com/fitness/v1/users/me/dataSources?dataTypeName=com.google.step_count.delta',
+      {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
+      },
+    );
+    if (dsRes.ok) {
+      const list = (await dsRes.json()) as {
+        dataSource?: Array<{ dataStreamId?: string }>;
+      };
+      const sourceIds = (list.dataSource ?? [])
+        .map((d) => d.dataStreamId)
+        .filter((s): s is string => !!s);
+
+      const results = await Promise.all(
+        sourceIds.map((id) =>
+          aggregateOnce(token, startMs, endMs, id).catch(() => 0),
+        ),
+      );
+      for (const r of results) {
+        if (r > best) best = r;
       }
     }
+  } catch {
+    // List endpoint failed — fall back to the default aggregate value.
   }
-  return total;
+
+  return best;
 }
