@@ -1,7 +1,17 @@
 import { useContext, useMemo } from 'react';
 import { GameContext } from '../contexts/GameContext';
 import { routeData } from '../data';
+import { cities } from '../data/cities';
 import type { BetSlot } from '../types';
+
+export interface UpcomingStop {
+  squareIndex: number;
+  squaresAway: number;
+  kind: 'capital' | 'city';
+  nameJa: string;
+  countryJa?: string;
+  visitedInRealLife?: boolean;
+}
 
 export function useGame() {
   const ctx = useContext(GameContext);
@@ -45,6 +55,45 @@ export function useGame() {
     const visitedCount = player.visitedCapitals.length;
     const totalCapitals = routeData.capitals.length;
 
+    // Walk forward and collect the next few "stops" (capitals + waypoint cities).
+    // Used to show "次: 宮崎(3) → 長崎(5) → 福岡(7) → ソウル(11)".
+    const upcomingStops: UpcomingStop[] = [];
+    const MAX_STOPS = 6;
+    for (
+      let step = 1;
+      step <= routeData.totalSquares && upcomingStops.length < MAX_STOPS;
+      step++
+    ) {
+      const idx = (player.currentSquareIndex + step) % routeData.totalSquares;
+      const sq = routeData.squares[idx];
+      if (sq.isCapital && sq.capitalId) {
+        const cap = routeData.capitals.find((c) => c.id === sq.capitalId);
+        if (cap) {
+          upcomingStops.push({
+            squareIndex: idx,
+            squaresAway: step,
+            kind: 'capital',
+            nameJa: cap.nameJa,
+            countryJa: cap.countryJa,
+          });
+          // Stop after the next capital — beyond that is "the next chapter".
+          break;
+        }
+      } else if (sq.cityId) {
+        const city = cities.find((c) => c.id === sq.cityId);
+        if (city) {
+          upcomingStops.push({
+            squareIndex: idx,
+            squaresAway: step,
+            kind: 'city',
+            nameJa: city.nameJa,
+            countryJa: city.countryJa,
+            visitedInRealLife: city.visitedInRealLife,
+          });
+        }
+      }
+    }
+
     return {
       currentSquare,
       currentSegment,
@@ -54,6 +103,7 @@ export function useGame() {
       progressPercent,
       visitedCount,
       totalCapitals,
+      upcomingStops,
     };
   }, [player.currentSquareIndex, player.visitedCapitals.length]);
 

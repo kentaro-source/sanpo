@@ -2,6 +2,7 @@ import type { Capital, RouteData, Segment, Square } from '../types';
 import { haversineDistance, interpolate } from '../utils/geo';
 import { cities } from './cities';
 import { segmentClassifications } from './segmentMeta';
+import { segmentDistances } from './segmentDistances';
 
 function calculateSquareCount(distanceKm: number): number {
   // 150km = 1マス, 最小5マス, 最大40マス → 合計約3,000マス
@@ -86,10 +87,21 @@ export function generateRoute(capitals: Capital[]): RouteData {
       .filter((c): c is NonNullable<typeof c> => !!c)
       .map((c) => ({ lat: c.lat, lng: c.lng }));
 
-    const distanceKm =
-      waypointPoints.length > 0
+    // Prefer the precomputed real-road distance (Directions API) if we have
+    // it — that's what makes "Tokyo→宮崎→長崎→福岡→Seoul" a properly long
+    // multi-day chunk instead of a misleadingly short straight line.
+    // Until precompute populates the table, scale up land/mixed great-circle
+    // by 1.4× to approximate road overhead (still rough, but closer than
+    // raw straight lines and gives waypoint cities room to breathe).
+    const precomputedKm = segmentDistances[`${from.id}-${to.id}`]?.km;
+    const isRoadHeavy =
+      seg?.routeType === 'land' || seg?.routeType === 'mixed';
+    const roadFactor = isRoadHeavy && !precomputedKm ? 1.4 : 1.0;
+    const baseDistanceKm = precomputedKm
+      ?? (waypointPoints.length > 0
         ? pathDistanceKm(from, to, waypointPoints)
-        : haversineDistance(from.lat, from.lng, to.lat, to.lng);
+        : haversineDistance(from.lat, from.lng, to.lat, to.lng));
+    const distanceKm = baseDistanceKm * roadFactor;
     const squareCount = calculateSquareCount(distanceKm);
 
     totalDistanceKm += distanceKm;
@@ -115,9 +127,47 @@ export function generateRoute(capitals: Capital[]): RouteData {
     });
     squareIndex++;
 
+    // Compute the path-fractional position of each waypoint city, then mark
+    // the closest square index for that segment. Used to surface "next stop"
+    // info and (later) drive city-visit bonus.
+    const fullPath = [from, ...waypointPoints, to];
+    const segLengths: number[] = [];
+    let pathTotal = 0;
+    for (let k = 0; k < fullPath.length - 1; k++) {
+      const d = haversineDistance(
+        fullPath[k].lat,
+        fullPath[k].lng,
+        fullPath[k + 1].lat,
+        fullPath[k + 1].lng,
+      );
+      segLengths.push(d);
+      pathTotal += d;
+    }
+    // For each waypoint city, fractional distance along the path = sum of
+    // leg lengths up to and including that waypoint divided by total.
+    const wpCityIds = seg?.waypointCityIds ?? [];
+    const cityFractions = new Map<number, string>(); // localIndex → cityId
+    if (pathTotal > 0 && wpCityIds.length === waypointPoints.length) {
+      let acc = 0;
+      for (let k = 0; k < wpCityIds.length; k++) {
+        acc += segLengths[k]; // origin → waypoint k (waypoint k is fullPath[k+1])
+        const f = acc / pathTotal;
+        // Map fractional position to the nearest intermediate square
+        // (localIndex 1..squareCount-1). j/squareCount is its fraction.
+        const localIdx = Math.max(
+          1,
+          Math.min(squareCount - 1, Math.round(f * squareCount)),
+        );
+        // If two waypoints would land on the same square (very dense),
+        // bump the second one forward to keep them distinct.
+        let chosen = localIdx;
+        while (cityFractions.has(chosen) && chosen < squareCount - 1) chosen++;
+        cityFractions.set(chosen, wpCityIds[k]);
+      }
+    }
+
     // Intermediate squares: interpolate along the full waypoint path so
     // squares follow the visible polyline rather than a Tokyo–Seoul straight line.
-    const fullPath = [from, ...waypointPoints, to];
     for (let j = 1; j < squareCount; j++) {
       const fraction = j / squareCount;
       const [lat, lng] = interpolateAlongPath(fullPath, fraction);
@@ -128,6 +178,7 @@ export function generateRoute(capitals: Capital[]): RouteData {
         segmentIndex: i,
         localIndex: j,
         isCapital: false,
+        cityId: cityFractions.get(j),
       });
       squareIndex++;
     }

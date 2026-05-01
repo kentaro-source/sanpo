@@ -125,12 +125,56 @@
 
 .progress-next {
   display: flex;
-  align-items: baseline;
-  gap: 4px;
-  flex-wrap: nowrap;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.progress-stops {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.progress-stop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.3;
+  padding: 1px 0;
+}
+
+.progress-stop-name {
+  color: #1e293b;
   overflow: hidden;
-  white-space: nowrap;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.progress-stop-capital .progress-stop-name {
+  font-weight: 600;
+}
+
+.progress-stop-city .progress-stop-name {
+  color: #475569;
+  font-size: 12px;
+}
+
+.progress-stop-irl .progress-stop-name::before {
+  content: '★ ';
+  color: #d97706;
+}
+
+.progress-stop-dist {
+  color: #2563eb;
+  font-weight: 500;
+  font-size: 12px;
+  flex-shrink: 0;
 }
 
 .progress-label {

@@ -35,6 +35,8 @@ export interface Square {
   localIndex: number;
   isCapital: boolean;
   capitalId?: string;
+  /** Set when a waypoint city sits on this square (for display + bonus logic). */
+  cityId?: string;
 }
 
 export interface Segment {

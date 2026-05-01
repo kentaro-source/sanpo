@@ -1,19 +1,40 @@
 import { useGame } from '../../hooks/useGame';
 
 export function ProgressInfo() {
-  const { nextCapital, squaresToNext, progressPercent, player, visitedCount, totalCapitals } = useGame();
+  const {
+    nextCapital,
+    upcomingStops,
+    progressPercent,
+    player,
+    visitedCount,
+    totalCapitals,
+  } = useGame();
 
   return (
     <div className="progress-info">
       <div className="progress-next">
         {nextCapital ? (
           <>
-            <span className="progress-label">次の目的地</span>
-            <span className="progress-capital">
-              {nextCapital.nameJa}
-              <span className="progress-country">({nextCapital.countryJa})</span>
-            </span>
-            <span className="progress-remaining">残り {squaresToNext} マス</span>
+            <span className="progress-label">次の停車地</span>
+            <ol className="progress-stops">
+              {upcomingStops.map((stop) => (
+                <li
+                  key={stop.squareIndex}
+                  className={`progress-stop progress-stop-${stop.kind}${
+                    stop.visitedInRealLife ? ' progress-stop-irl' : ''
+                  }`}
+                >
+                  <span className="progress-stop-name">
+                    {stop.kind === 'capital' ? '🏛 ' : '📍 '}
+                    {stop.nameJa}
+                    {stop.countryJa && stop.kind === 'capital' && (
+                      <span className="progress-country">({stop.countryJa})</span>
+                    )}
+                  </span>
+                  <span className="progress-stop-dist">{stop.squaresAway}マス</span>
+                </li>
+              ))}
+            </ol>
           </>
         ) : (
           <span className="progress-label">世界一周達成！</span>

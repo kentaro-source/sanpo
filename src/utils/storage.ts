@@ -1,9 +1,10 @@
 import type { GameState } from '../types';
 
 const STORAGE_KEY = 'sanpo-game-state';
-// Version 4: square counts now use waypoint-aware path length, so total
-// square count and per-segment indices change. Old saves are incompatible.
-const CURRENT_VERSION = 4;
+// Version 5: land/mixed segments now multiply great-circle by 1.4× to
+// approximate road overhead, so square counts and per-segment indices
+// changed. Old saves would put the player on a misaligned square.
+const CURRENT_VERSION = 5;
 
 export function loadGameState(): GameState | null {
   try {
