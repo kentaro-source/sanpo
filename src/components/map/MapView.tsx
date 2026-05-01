@@ -66,7 +66,7 @@ export function MapView() {
 
     mapRef.current = new google.maps.Map(containerRef.current, {
       center: { lat: currentSquare.lat, lng: currentSquare.lng },
-      zoom: 10, // close-in city view — clearly see roads where you're walking
+      zoom: 11, // tight street-level view — see roads where you're walking
       zoomControl: false,
       streetViewControl: false,
       mapTypeControl: false,
@@ -218,94 +218,106 @@ export function MapView() {
     }
   }, [loaded, player.visitedCapitals, routeData]);
 
-  // Render city markers - only visible at zoom >= 5 to keep panning fast
+  // City markers: only created when zooming in close enough to actually see them.
+  // Lazy-create on first qualifying zoom to keep initial load fast.
   useEffect(() => {
     if (!mapRef.current) return;
 
-    cityMarkersRef.current.forEach((m) => m.setMap(null));
-    cityMarkersRef.current = [];
-
-    for (const city of cities) {
-      const color = TYPE_COLORS[city.type] ?? '#6b7280';
-      const m = new google.maps.Marker({
-        position: { lat: city.lat, lng: city.lng },
-        map: mapRef.current,
-        clickable: false,
-        title: `${city.nameJa} (${city.countryJa}) - ${city.description}`,
-        icon: {
-          path: google.maps.SymbolPath.CIRCLE,
-          scale: 3,
-          fillColor: color,
-          fillOpacity: 0.7,
-          strokeColor: 'white',
-          strokeWeight: 0.8,
-        },
-      });
-      cityMarkersRef.current.push(m);
-    }
+    let created = false;
+    const ensureCreated = () => {
+      if (created) return;
+      created = true;
+      for (const city of cities) {
+        const color = TYPE_COLORS[city.type] ?? '#6b7280';
+        const m = new google.maps.Marker({
+          position: { lat: city.lat, lng: city.lng },
+          map: mapRef.current,
+          clickable: false,
+          title: `${city.nameJa} (${city.countryJa}) - ${city.description}`,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 3,
+            fillColor: color,
+            fillOpacity: 0.7,
+            strokeColor: 'white',
+            strokeWeight: 0.8,
+          },
+        });
+        cityMarkersRef.current.push(m);
+      }
+    };
 
     const updateCityVisibility = () => {
       const zoom = mapRef.current?.getZoom() ?? 4;
-      const visible = zoom >= 5;
-      for (const m of cityMarkersRef.current) m.setVisible(visible);
+      const shouldShow = zoom >= 7;
+      if (shouldShow && !created) ensureCreated();
+      for (const m of cityMarkersRef.current) m.setVisible(shouldShow);
     };
     mapRef.current.addListener('zoom_changed', updateCityVisibility);
     updateCityVisibility();
+
+    return () => {
+      cityMarkersRef.current.forEach((m) => m.setMap(null));
+      cityMarkersRef.current = [];
+    };
   }, [loaded]);
 
-  // Render square dots — sample every Nth square to keep marker count
-  // manageable on phones, plus auto-hide when zoomed out (dots cluster
-  // unreadably anyway). Only color/opacity updates on position change.
-  const SQUARE_SAMPLE = 5; // render 1 in N non-capital squares (was 3)
-  const SQUARE_MIN_ZOOM = 6; // hide at typical world/region zooms (was 4)
+  // Square dots: lazy-create only when zoomed close enough to actually see them.
+  // Sampling 1/5 keeps marker count manageable when they do exist.
+  const SQUARE_SAMPLE = 5;
+  const SQUARE_MIN_ZOOM = 8; // higher threshold — only at street-level views
 
   useEffect(() => {
     if (!loaded || !mapRef.current) return;
-    if (squareMarkersRef.current.length > 0) return; // already created
 
-    for (let i = 0; i < routeData.squares.length; i++) {
-      const sq = routeData.squares[i];
-      if (sq.isCapital) continue;
-      if (i % SQUARE_SAMPLE !== 0) continue;
-      const m = new google.maps.Marker({
-        position: { lat: sq.lat, lng: sq.lng },
-        map: mapRef.current,
-        clickable: false,
-        zIndex: 2,
-        icon: {
-          path: google.maps.SymbolPath.CIRCLE,
-          scale: 2,
-          fillColor: '#cbd5e1',
-          fillOpacity: 0.85,
-          strokeColor: '#475569',
-          strokeWeight: 0.5,
-        },
-      });
-      (m as unknown as { _idx: number })._idx = i;
-      squareMarkersRef.current.push(m);
-    }
+    let created = false;
+    const ensureCreated = () => {
+      if (created) return;
+      created = true;
+      for (let i = 0; i < routeData.squares.length; i++) {
+        const sq = routeData.squares[i];
+        if (sq.isCapital) continue;
+        if (i % SQUARE_SAMPLE !== 0) continue;
+        const m = new google.maps.Marker({
+          position: { lat: sq.lat, lng: sq.lng },
+          map: mapRef.current,
+          clickable: false,
+          zIndex: 2,
+          icon: {
+            path: google.maps.SymbolPath.CIRCLE,
+            scale: 2,
+            fillColor: '#cbd5e1',
+            fillOpacity: 0.85,
+            strokeColor: '#475569',
+            strokeWeight: 0.5,
+          },
+        });
+        (m as unknown as { _idx: number })._idx = i;
+        squareMarkersRef.current.push(m);
+      }
+      // Initial color paint for current position
+      paintSquareDots(player.currentSquareIndex);
+    };
 
-    // Hide markers when zoomed out so panning is smooth.
     const updateVisibility = () => {
       const zoom = mapRef.current?.getZoom() ?? 4;
-      const visible = zoom >= SQUARE_MIN_ZOOM;
-      for (const m of squareMarkersRef.current) {
-        m.setVisible(visible);
-      }
+      const shouldShow = zoom >= SQUARE_MIN_ZOOM;
+      if (shouldShow && !created) ensureCreated();
+      for (const m of squareMarkersRef.current) m.setVisible(shouldShow);
     };
     mapRef.current.addListener('zoom_changed', updateVisibility);
     updateVisibility();
+
+    return () => {
+      squareMarkersRef.current.forEach((m) => m.setMap(null));
+      squareMarkersRef.current = [];
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded, routeData]);
 
-  // Update square dot colors when current position changes (only the markers
-  // whose passed/upcoming status actually flipped, not all of them).
-  const prevPassedIndexRef = useRef(-1);
-  useEffect(() => {
-    if (!loaded || squareMarkersRef.current.length === 0) return;
-    const currentIdx = player.currentSquareIndex;
-    const prev = prevPassedIndexRef.current;
-    prevPassedIndexRef.current = currentIdx;
-
+  // Helper: repaint square dots based on current position
+  const paintSquareDots = (currentIdx: number) => {
+    if (squareMarkersRef.current.length === 0) return;
     const passedIcon = {
       path: google.maps.SymbolPath.CIRCLE,
       scale: 4,
@@ -322,24 +334,18 @@ export function MapView() {
       strokeColor: '#475569',
       strokeWeight: 0.5,
     };
-
-    if (prev === -1) {
-      // First run: paint everything once
-      for (const m of squareMarkersRef.current) {
-        const i = (m as unknown as { _idx: number })._idx;
-        m.setIcon(i <= currentIdx ? passedIcon : upcomingIcon);
-      }
-      return;
-    }
-    // Only repaint markers whose state actually flipped
-    const lo = Math.min(prev, currentIdx);
-    const hi = Math.max(prev, currentIdx);
     for (const m of squareMarkersRef.current) {
       const i = (m as unknown as { _idx: number })._idx;
-      if (i < lo || i > hi) continue;
       m.setIcon(i <= currentIdx ? passedIcon : upcomingIcon);
     }
-  }, [player.currentSquareIndex]);
+  };
+
+  // Repaint square dots when player position changes.
+  useEffect(() => {
+    if (!loaded) return;
+    paintSquareDots(player.currentSquareIndex);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [player.currentSquareIndex, loaded]);
 
   // Render / move current position marker
   useEffect(() => {
