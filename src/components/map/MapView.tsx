@@ -65,10 +65,10 @@ export function MapView() {
 
     mapRef.current = new google.maps.Map(containerRef.current, {
       center: { lat: currentSquare.lat, lng: currentSquare.lng },
-      // Zoom 13 ≈ 19m/px: 100m/step = ~5px of marker movement (visible),
-      // viewport ~7.6km wide so the polyline + next stop are in context.
-      // Zoom 15 was too tight — marker walked off-screen quickly.
-      zoom: 13,
+      // Zoom 14 ≈ 9.5m/px: 100m/step = ~10px of marker movement (clearly
+      // visible per step). Auto-pan keeps marker in view as the player
+      // walks. Tighter than 13 (street-level feel restored).
+      zoom: 14,
       zoomControl: false,
       streetViewControl: false,
       mapTypeControl: false,
