@@ -95,8 +95,9 @@ export function MapView() {
     if (!mapRef.current || !loaded) return;
     let cancelled = false;
 
-    // Drop intermediate points to keep total vertex count manageable.
-    const simplifyPath = (path: google.maps.LatLngLiteral[], maxPoints = 40) => {
+    // Drop intermediate points to keep total vertex count manageable while
+    // preserving enough detail to show road curves (not just straight lines).
+    const simplifyPath = (path: google.maps.LatLngLiteral[], maxPoints = 100) => {
       if (path.length <= maxPoints) return path;
       const step = Math.ceil(path.length / maxPoints);
       const result: google.maps.LatLngLiteral[] = [];
