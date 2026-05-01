@@ -142,13 +142,24 @@ export function MapView() {
     realRoutePolylinesRef.current.forEach((p) => p.setMap(null));
     realRoutePolylinesRef.current = [];
 
-    // Build ONE big combined path across all segments and render as a single
-    // Polyline. SVG renders a single path much faster than 46 separate paths,
-    // especially during pan/zoom on mobile.
+    // Render only segments near the current position. The full world
+    // tour polyline (1500+ points) is too heavy on mobile, but the player
+    // doesn't need to see segments halfway across the planet right now.
+    const SEGMENTS_BEHIND = 3;
+    const SEGMENTS_AHEAD = 5;
+    const totalSegs = segmentClassifications.length;
+    const currentSegIdx = currentSquare.segmentIndex;
+    const visibleSegs: typeof segmentClassifications = [];
+    for (let i = -SEGMENTS_BEHIND; i <= SEGMENTS_AHEAD; i++) {
+      const idx = (currentSegIdx + i + totalSegs) % totalSegs;
+      const seg = segmentClassifications[idx];
+      if (seg && !visibleSegs.includes(seg)) visibleSegs.push(seg);
+    }
+
     async function renderCombinedRoute() {
       const allPoints: google.maps.LatLngLiteral[] = [];
 
-      for (const seg of segmentClassifications) {
+      for (const seg of visibleSegs) {
         if (cancelled) return;
         const fromCap = routeData.capitals.find((c) => c.id === seg.fromCapitalId);
         const toCap = routeData.capitals.find((c) => c.id === seg.toCapitalId);
@@ -223,7 +234,8 @@ export function MapView() {
     return () => {
       cancelled = true;
     };
-  }, [loaded]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, currentSquare.segmentIndex]);
 
   // Render capital markers — only those near the current position to keep
   // marker count tiny. Re-renders when player advances.
