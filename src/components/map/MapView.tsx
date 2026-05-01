@@ -95,17 +95,47 @@ export function MapView() {
     if (!mapRef.current || !loaded) return;
     let cancelled = false;
 
-    // Drop intermediate points to keep total vertex count manageable while
-    // preserving enough detail to show road curves (not just straight lines).
-    const simplifyPath = (path: google.maps.LatLngLiteral[], maxPoints = 100) => {
-      if (path.length <= maxPoints) return path;
-      const step = Math.ceil(path.length / maxPoints);
-      const result: google.maps.LatLngLiteral[] = [];
-      for (let i = 0; i < path.length; i += step) result.push(path[i]);
-      if (result[result.length - 1] !== path[path.length - 1]) {
-        result.push(path[path.length - 1]);
+    // Douglas-Peucker simplification: keeps curve-defining points (high
+    // perpendicular distance from the chord) and drops redundant ones in
+    // near-straight sections. epsilon is in degrees (~0.02 ≈ 2km).
+    type LL = google.maps.LatLngLiteral;
+    const perpDist = (p: LL, a: LL, b: LL): number => {
+      const dx = b.lat - a.lat;
+      const dy = b.lng - a.lng;
+      const lenSq = dx * dx + dy * dy;
+      if (lenSq === 0) {
+        const ddx = p.lat - a.lat;
+        const ddy = p.lng - a.lng;
+        return Math.sqrt(ddx * ddx + ddy * ddy);
       }
-      return result;
+      const t = ((p.lat - a.lat) * dx + (p.lng - a.lng) * dy) / lenSq;
+      const px = a.lat + t * dx;
+      const py = a.lng + t * dy;
+      const ddx = p.lat - px;
+      const ddy = p.lng - py;
+      return Math.sqrt(ddx * ddx + ddy * ddy);
+    };
+    const rdp = (pts: LL[], eps: number): LL[] => {
+      if (pts.length < 3) return pts;
+      let maxD = 0;
+      let maxI = 0;
+      const a = pts[0];
+      const b = pts[pts.length - 1];
+      for (let i = 1; i < pts.length - 1; i++) {
+        const d = perpDist(pts[i], a, b);
+        if (d > maxD) { maxD = d; maxI = i; }
+      }
+      if (maxD > eps) {
+        const left = rdp(pts.slice(0, maxI + 1), eps);
+        const right = rdp(pts.slice(maxI), eps);
+        return [...left.slice(0, -1), ...right];
+      }
+      return [a, b];
+    };
+    const simplifyPath = (path: LL[]) => {
+      if (path.length <= 4) return path;
+      // ~2km tolerance — keeps highway curves, drops dense straight segments
+      return rdp(path, 0.02);
     };
 
     const ROUTE_COLORS: Record<string, string> = {
