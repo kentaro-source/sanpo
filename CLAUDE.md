@@ -1,22 +1,24 @@
 # Sanpo - 歩いて世界一周アプリ
 
-## 🚀 引継ぎサマリ (2026-05-01)
+## 🚀 引継ぎサマリ (2026-05-02)
 
 別PCで再開する Claude / 数ヶ月後の自分が**最初に読むべき要点**:
 
 1. **このリポジトリ**: https://github.com/kentaro-source/sanpo (public)
 2. **本番URL**: https://kentaro-source.github.io/sanpo/ (push で自動デプロイ、約45秒)
 3. **ローカル**: `git clone https://github.com/kentaro-source/sanpo.git C:\dev\sanpo` → `npm install` → `npm run dev`
-4. **API キー**: `.env.local` に `VITE_GOOGLE_MAPS_API_KEY=AIzaSyAl8HkXqKTy1_PDDU7-XX4cLQNYfXwrwl8` 必要(localhost:5173 のみ動作)
-5. **最新の動作確認**: Android Chrome PWA で動作中、Google Fit 多ソース同期で歩数増加確認済み
-6. **次やる作業の最優先**:
-   - **A. 実道路距離プリコンピュート実行** — スクリプト `scripts/precompute-distances.ts` 完成済みだが、現行 API キーは HTTP referrer 制限ありで Directions HTTP API に弾かれる(REQUEST_DENIED)。Google Cloud で **referrer 制限なしのサーバー用 API キー**を新規作成し `.env.local` に置くか、`API_KEY` 直書きで実行 → `src/data/segmentDistances.ts` 自動生成 → 1.4倍ヒューリスティクスを置換
-   - **B. セグメント分類バッチ4-11** — 残147/193(ロシア・欧州・アフリカ・米州・オセアニア)。プレイヤー進行に追いつかれる前に
-7. **致命的な誤情報訂正(2026-05-01)**: 旧版 CLAUDE.md にあった「referrer ヘッダ `https://kentaro-source.github.io/` 付きで HTTP fetch すれば既存 API キーで通る」は**誤り**。Maps JS API は Referer 検証するが Directions HTTP API は検証しない(REQUEST_DENIED)。precompute には別キー必須
+4. **API キー**: `.env.local` に `VITE_GOOGLE_MAPS_API_KEY=...` + `VITE_FIT_WORKER_URL=https://sanpo-fit.kk891751.workers.dev` 必要
+5. **重大な仕様変更(2026-05-02)**: **マスベース → 距離ベース**にリファクタ完了（v6 ストレージ）。Sic Bo は「マスを進める」ではなく「次の N 時間の速度倍率を決める」勝負に。詳細は下記「2026-05-02 大型リファクタ」参照
+6. **Google Fit Worker 化(2026-05-02)**: Cloudflare Worker (`worker/`) で refresh token を保管。1時間ごとの再連携プロンプトを廃止。新 OAuth クライアント `283060166957-n7v8roliir9nbhiueiolbgimdftjfd1d...` (My First Project 配下、Fitness API 有効化済み)
+7. **既知の根本問題**: モダン Android (Pixel等) は端末歩数を Health Connect に書き、Fit クラウド DB へのミラーが極端に遅い／無いことがある。Fit REST API ではほぼリアルタイム取得が不可能。Fit アプリは HC を直接読むので増えるが、我々の REST 経由は増えない。**根本解決には Capacitor 化 + Health Connect プラグイン直叩き(B案、未着手)**
+8. **次やる作業の優先順位**:
+   - **0. Capacitor 化**(B案、ユーザーと合意済み・未着手) — Fit クラウド遅延を完全回避するための唯一の選択肢
+   - **A. セグメント分類バッチ4-11** — 残147/193(ロシア・欧州・アフリカ・米州・オセアニア)
+   - **B. 実道路距離プリコンピュート実行** — スクリプト完成済みだが API キー問題あり(下記参照)
 
 git の identity は `kentaro-source` / `kentaro-source@users.noreply.github.com` をローカルセット推奨。
 
-PWAの強制更新は**ヘッダー右の `⟳` ボタン**(SW unregister + cache全削除 + cache-busted reload)。これがあれば push 後の反映で困らない。
+**⟳ ボタン挙動の変遷**: 一時期 Fit 認証状態もクリアしていたが、デプロイのたびにユーザーが再連携要求される事故が発生 → 7888d73 で Fit 状態の clear を撤去。今は SW unregister + caches 削除 + directions cache 削除のみ。Fit 認証は保持。
 
 ## プロジェクト概要
 スマホの歩数計と連動して、歩くだけで世界193カ国の首都を一筆書きで巡るシミュレーション。
@@ -49,6 +51,45 @@ PWAの強制更新は**ヘッダー右の `⟳` ボタン**(SW unregister + cach
   - 同期失敗時のみ小さい「再連携が必要です [再連携]」表示
   - Fit query から `dataSourceId` 削除 → 全ソース集計（Health Connect 経由でも歩数取得できるように）
   - 細かい修正: 距離プリコンピュート用 `tsx` 導入（まだ未使用）、各種CSS調整
+- 2026-05-02: **距離ベース大型リファクタ + Worker 認証 + Fit クラウド遅延の限界露呈**。重要な転換点:
+  - **マス概念廃止 → 距離ベース**(player.distanceKm continuous km along route)
+    - 歩数 → km 直接変換 (1歩 = 100m, KM_PER_STEP=0.1)
+    - 1日約 1,000km 進行(10,000歩×100m)、約230日で1周
+    - storage version 5→6
+  - **Sic Bo 仕様変更**: マス進行ではなく**速度倍率ウィンドウ**を設定する勝負に
+    - 標準 Sic Bo 配当(大/小=×2 等、`SICBO_PAYOUTS`)
+    - Boost budget = 倍率 × 時間 = 48 一定: ×2 → 24h、×12 → 4h、×180 → 16分
+    - 勝ち: 倍率ウィンドウ起動。負け: ×0.5 同時間ペナルティ
+    - 倍率有効中の再ロールは**上書き**
+    - `evaluateBetWindow`, `windowMsForMultiplier`, `LOSS_MULTIPLIER` (utils/sicbo.ts)
+  - **進行UI再設計**: マス → km 表示
+    - ProgressInfo: 「📍 宮崎 868km / 計868」(実距離、square 量子化なし)
+    - waypoint 都市は path-fractional km で正確に配置(7e9e26a)
+    - 「⚡ ×2 加速中（残り 23h45m）」バナー
+    - 距離フォーマット: 100km以上はカンマ区切り("1,234km"、"千km"廃止)
+  - **地図表示**:
+    - プレイヤーマーカーは `positionAtKm()` で polyline 上に補間 → 歩くと滑らかに動く
+    - **歩いた所(緑太線) / これから(グレー細線)** の2色描画(7e9e26a)
+    - デフォルト zoom 14(100m=10px、街レベル)、AUTO-PAN は marker が viewport 内側75%から外れた時のみ
+    - 東京座標を**東京駅(35.6812, 139.7671)**に変更(以前は Suginami 和泉でしょぼかった)
+  - **Cloudflare Worker 認証(`worker/`)**: 1時間 token 期限切れの再連携要求を廃止
+    - 構成: PWA で `initCodeClient` ポップアップ → auth code を Worker `/exchange` へ POST → Worker が client_secret で交換し refresh_token を KV に保存 → 以降は `/refresh` で永続トークン取得
+    - 新規 OAuth クライアント `283060166957-n7v8roliir9nbhiueiolbgimdftjfd1d.apps.googleusercontent.com` (My First Project 配下、テストモード)
+    - **必須**: redirect URI に `postmessage` を追加(GIS popup フロー仕様)
+    - GitHub Actions Secret: `VITE_FIT_WORKER_URL=https://sanpo-fit.kk891751.workers.dev`
+    - KV namespace ID: `62334a5f2e064b3b84e441795c734b8b`
+    - `getAccessToken(false)` は worker mode で `workerRefresh()` を呼び silent token 更新
+  - **Fit データ遅延の構造的問題が露呈**:
+    - 端末 → Health Connect → Fit Cloud のパイプラインで Fit Cloud への到達が極端に遅い／無い
+    - 多ソース max + 生 dataset endpoint も併用したが効果限定的
+    - **Fit アプリは HC を直接読むので増えるが、我々の REST API は Fit Cloud しか見えない**
+    - 解決には Capacitor + Health Connect プラグイン化が必要(未着手)
+  - **NaN-safe 防御**: stepsToKm の multiplier/multiplierUntil が undefined だと NaN→localStorage に null として保存→無限ループでロックする可能性あり。`Number.isFinite()` チェックと `loadGameState` のサニタイザで自動修復(579ce87)
+  - **その他**:
+    - 歩数取得は徒歩優先、長距離は車優先のフォールバック(`directions.ts`)
+    - `⟳` ボタンが Fit 状態を clear する仕様を撤回(596a5d9 → 7888d73 でリバート)
+    - 手動歩数入力を Fit 連携中も常時表示する案を**ユーザー却下**(撤回)
+    - Fit 同期は診断行タップで手動同期可能(`sanpo-force-sync` カスタムイベント)
 - 2026-05-01: 大型セッション。**地図パフォーマンス + Google Fit 同期 + 進行 UX + ボーナス系**を一気に整備:
   - **地図パフォーマンス**:
     - 全193セグメントの個別 Polyline → **「現在地周辺の9セグメントだけ」を1本の Polyline に統合**(SEGMENTS_BEHIND=3, SEGMENTS_AHEAD=5)
