@@ -129,10 +129,17 @@ export async function silentSignIn(): Promise<string | null> {
   }
 }
 
-/** Get a valid access token: cached if fresh, otherwise re-prompt silently. */
+/** Get a valid access token: cached if fresh, otherwise try silent refresh,
+ * then optionally fall through to interactive sign-in. */
 async function getAccessToken(interactive = false): Promise<string> {
   const cached = loadToken();
   if (cached) return cached.access_token;
+
+  // Try silent refresh first — works if the user previously granted consent
+  // and is still signed in to Google in this browser. Avoids prompting them
+  // every hour when the access token expires.
+  const silent = await silentSignIn();
+  if (silent) return silent;
 
   if (!interactive) {
     throw new Error('Not signed in');
