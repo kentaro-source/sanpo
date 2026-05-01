@@ -7,7 +7,10 @@
  * Cache: results stored in localStorage to minimize API calls.
  */
 
-const CACHE_KEY = 'sanpo-directions-cache-v1';
+// Cache version bumped to v2 because we switched from DRIVING to WALKING-
+// preferred routing — previous cached paths are driving routes and shouldn't
+// be reused.
+const CACHE_KEY = 'sanpo-directions-cache-v2';
 const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 interface CacheEntry {
@@ -79,48 +82,59 @@ export async function getRoadPolyline(
     return cached.path;
   }
 
-  try {
-    const service = getService();
-    const result = await new Promise<google.maps.DirectionsResult>(
-      (resolve, reject) => {
-        service.route(
-          {
-            origin,
-            destination,
-            waypoints: waypoints.map((w) => ({ location: w, stopover: false })),
-            travelMode: google.maps.TravelMode.DRIVING,
-            optimizeWaypoints: false,
-          },
-          (res, status) => {
-            if (status === 'OK' && res) {
-              resolve(res);
-            } else {
-              reject(new Error(`Directions failed: ${status}`));
-            }
-          },
-        );
-      },
-    );
-
-    // Extract path from all legs
-    const path: google.maps.LatLngLiteral[] = [];
-    for (const leg of result.routes[0].legs) {
-      for (const step of leg.steps) {
-        for (const point of step.path) {
-          path.push({ lat: point.lat(), lng: point.lng() });
+  // Try walking first (fits the "歩いて世界一周" theme), then fall back to
+  // driving for long inter-city legs the walking router refuses to compute.
+  const tryRoute = async (
+    travelMode: google.maps.TravelMode,
+  ): Promise<google.maps.LatLngLiteral[] | null> => {
+    try {
+      const service = getService();
+      const result = await new Promise<google.maps.DirectionsResult>(
+        (resolve, reject) => {
+          service.route(
+            {
+              origin,
+              destination,
+              waypoints: waypoints.map((w) => ({ location: w, stopover: false })),
+              travelMode,
+              optimizeWaypoints: false,
+            },
+            (res, status) => {
+              if (status === 'OK' && res) {
+                resolve(res);
+              } else {
+                reject(new Error(`Directions ${travelMode} failed: ${status}`));
+              }
+            },
+          );
+        },
+      );
+      const path: google.maps.LatLngLiteral[] = [];
+      for (const leg of result.routes[0].legs) {
+        for (const step of leg.steps) {
+          for (const point of step.path) {
+            path.push({ lat: point.lat(), lng: point.lng() });
+          }
         }
       }
+      return path;
+    } catch (e) {
+      console.warn('Directions API error:', e);
+      return null;
     }
+  };
 
-    // Cache result
-    cache[cacheKey] = { path, timestamp: Date.now() };
-    saveCache(cache);
-
-    return path;
-  } catch (e) {
-    console.warn('Directions API error:', e);
-    return null;
+  let path = await tryRoute(google.maps.TravelMode.WALKING);
+  if (!path) {
+    // Walking router rejects routes longer than a few hundred km. Retry
+    // with driving so the polyline at least follows real roads.
+    path = await tryRoute(google.maps.TravelMode.DRIVING);
   }
+  if (!path) return null;
+
+  cache[cacheKey] = { path, timestamp: Date.now() };
+  saveCache(cache);
+  return path;
 }
 
 /** Clear all cached polylines (e.g., when route data changes). */

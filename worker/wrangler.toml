@@ -7,7 +7,7 @@ compatibility_date = "2024-12-01"
 # (wrangler will print the id; paste it below)
 [[kv_namespaces]]
 binding = "FIT_KV"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
+id = "62334a5f2e064b3b84e441795c734b8b"
 
 # Public env vars. Secrets (CLIENT_SECRET) are NOT here — set with:
 #   npx wrangler secret put GOOGLE_CLIENT_SECRET
