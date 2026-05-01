@@ -16,6 +16,9 @@ async function hardReload() {
       const keys = await caches.keys();
       await Promise.all(keys.map((k) => caches.delete(k)));
     }
+    // Also clear the Directions polyline cache so any stale/empty
+    // results get refetched with the latest API key state.
+    localStorage.removeItem('sanpo-directions-cache-v1');
   } catch {
     // ignore
   }
