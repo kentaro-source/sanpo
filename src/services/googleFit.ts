@@ -1,8 +1,23 @@
-// Google Fit integration via Google Identity Services + Fitness REST API
+// Google Fit integration via Google Identity Services + Fitness REST API.
+//
+// Two modes, picked at runtime based on whether VITE_FIT_WORKER_URL is set:
+//
+//   Worker mode (preferred): A small Cloudflare Worker (see /worker) holds
+//   a refresh token in KV. The PWA never sees the refresh token; it just
+//   asks the worker for a fresh access token whenever it needs one. This
+//   means the user stays connected indefinitely after one consent.
+//
+//   Legacy GIS mode (fallback): Pure browser flow via initTokenClient.
+//   Access tokens last 1 hour, no refresh tokens. User must re-tap once
+//   per hour. Used when the worker isn't deployed yet.
 
 const CLIENT_ID = '329322197077-ba96t4apoji356kphtccruujp7p3oth3.apps.googleusercontent.com';
 const SCOPE = 'https://www.googleapis.com/auth/fitness.activity.read';
 const TOKEN_STORAGE_KEY = 'sanpo-google-fit-token';
+const USER_KEY_STORAGE_KEY = 'sanpo-fit-user-key';
+
+const WORKER_URL: string | undefined = import.meta.env.VITE_FIT_WORKER_URL;
+const useWorker = !!WORKER_URL;
 
 interface StoredToken {
   access_token: string;
@@ -14,10 +29,20 @@ interface TokenClient {
   requestAccessToken: (overrideConfig?: { prompt?: string }) => void;
 }
 
+interface CodeClient {
+  requestCode: () => void;
+}
+
 interface TokenResponse {
   access_token: string;
   expires_in: number; // seconds
   error?: string;
+}
+
+interface CodeResponse {
+  code?: string;
+  error?: string;
+  error_description?: string;
 }
 
 declare global {
@@ -31,11 +56,28 @@ declare global {
             callback: (response: TokenResponse) => void;
             error_callback?: (error: unknown) => void;
           }) => TokenClient;
+          initCodeClient: (config: {
+            client_id: string;
+            scope: string;
+            ux_mode?: 'popup' | 'redirect';
+            callback: (response: CodeResponse) => void;
+            error_callback?: (error: unknown) => void;
+          }) => CodeClient;
           revoke: (accessToken: string, callback?: () => void) => void;
         };
       };
     };
   }
+}
+
+/** Per-device random ID used to look up the user's refresh token in the worker's KV. */
+function getOrCreateUserKey(): string {
+  let key = localStorage.getItem(USER_KEY_STORAGE_KEY);
+  if (!key) {
+    key = crypto.randomUUID();
+    localStorage.setItem(USER_KEY_STORAGE_KEY, key);
+  }
+  return key;
 }
 
 let tokenClient: TokenClient | null = null;
@@ -119,18 +161,133 @@ async function requestToken(prompt: 'consent' | 'none' | ''): Promise<string> {
   return inflightToken;
 }
 
+// === Worker-mode helpers ===
+
+let codeClient: CodeClient | null = null;
+let pendingCodeResolve: ((code: string) => void) | null = null;
+let pendingCodeReject: ((err: Error) => void) | null = null;
+
+function ensureCodeClient(google: NonNullable<Window['google']>): CodeClient {
+  if (codeClient) return codeClient;
+  codeClient = google.accounts.oauth2.initCodeClient({
+    client_id: CLIENT_ID,
+    scope: SCOPE,
+    ux_mode: 'popup',
+    callback: (response) => {
+      if (response.error) {
+        pendingCodeReject?.(new Error(response.error));
+      } else if (response.code) {
+        pendingCodeResolve?.(response.code);
+      } else {
+        pendingCodeReject?.(new Error('no code returned'));
+      }
+      pendingCodeResolve = null;
+      pendingCodeReject = null;
+    },
+    error_callback: (err) => {
+      pendingCodeReject?.(
+        new Error(typeof err === 'string' ? err : 'OAuth error'),
+      );
+      pendingCodeResolve = null;
+      pendingCodeReject = null;
+    },
+  });
+  return codeClient;
+}
+
+async function requestAuthCode(): Promise<string> {
+  const google = await waitForGoogle();
+  const client = ensureCodeClient(google);
+  return new Promise<string>((resolve, reject) => {
+    pendingCodeResolve = resolve;
+    pendingCodeReject = reject;
+    client.requestCode();
+  });
+}
+
+interface WorkerTokenResponse {
+  access_token?: string;
+  expires_in?: number;
+  error?: string;
+  hint?: string;
+}
+
+async function workerExchange(code: string): Promise<string> {
+  const userKey = getOrCreateUserKey();
+  const res = await fetch(`${WORKER_URL}/exchange`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ code, userKey }),
+    cache: 'no-store',
+  });
+  const data = (await res.json()) as WorkerTokenResponse;
+  if (!res.ok || !data.access_token || !data.expires_in) {
+    throw new Error(data.error ?? `worker exchange failed: ${res.status}`);
+  }
+  saveToken({
+    access_token: data.access_token,
+    expires_at: Date.now() + (data.expires_in - 60) * 1000,
+  });
+  return data.access_token;
+}
+
+async function workerRefresh(): Promise<string> {
+  const userKey = getOrCreateUserKey();
+  const res = await fetch(`${WORKER_URL}/refresh`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userKey }),
+    cache: 'no-store',
+  });
+  const data = (await res.json()) as WorkerTokenResponse;
+  if (!res.ok || !data.access_token || !data.expires_in) {
+    throw new Error(data.error ?? `worker refresh failed: ${res.status}`);
+  }
+  saveToken({
+    access_token: data.access_token,
+    expires_at: Date.now() + (data.expires_in - 60) * 1000,
+  });
+  return data.access_token;
+}
+
+async function workerRevoke(): Promise<void> {
+  const userKey = getOrCreateUserKey();
+  try {
+    await fetch(`${WORKER_URL}/revoke`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userKey }),
+    });
+  } catch {
+    // best-effort
+  }
+}
+
+// === Public API ===
+
 /** Trigger first-time interactive sign-in (with consent screen). */
 export async function signIn(): Promise<string> {
+  if (useWorker) {
+    // Get an auth code from Google (popup), exchange via worker for tokens.
+    const code = await requestAuthCode();
+    return workerExchange(code);
+  }
   return requestToken('consent');
 }
 
 /**
- * Re-authenticate after token expiry. Skips the consent screen (the user
- * already granted access), so this is typically a one-tap operation —
- * Google may flash an account picker briefly but won't ask "do you allow
- * this app to access...". Use for the 再連携 flow.
+ * Re-authenticate after token expiry.
+ *
+ * Worker mode: hits /refresh — completely silent, no UI. The user only
+ * sees the popup ONCE during initial signIn().
+ *
+ * Legacy mode: prompt-less GIS interactive flow. May flash an account
+ * picker; doesn't re-ask for consent if previously granted.
  */
 export async function reAuth(): Promise<string> {
+  if (useWorker) {
+    return workerRefresh();
+  }
   return requestToken('');
 }
 
@@ -153,9 +310,24 @@ async function getAccessToken(interactive = false): Promise<string> {
   const cached = loadToken();
   if (cached) return cached.access_token;
 
-  // Try silent refresh first — works if the user previously granted consent
-  // and is still signed in to Google in this browser. Avoids prompting them
-  // every hour when the access token expires.
+  // Worker mode: refresh is fully silent and reliable. No interactive
+  // step needed except for initial signIn().
+  if (useWorker) {
+    try {
+      return await workerRefresh();
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : '';
+      // If the worker has no creds for us, fall through to signIn.
+      if (msg.includes('not_found') || msg.includes('invalid_grant')) {
+        if (!interactive) throw new Error('Not signed in');
+        return signIn();
+      }
+      throw e;
+    }
+  }
+
+  // Legacy GIS mode: try silent refresh first — works if user is still
+  // signed in to Google. Otherwise prompt.
   const silent = await silentSignIn();
   if (silent) return silent;
 
@@ -170,12 +342,16 @@ export function isSignedIn(): boolean {
 }
 
 export function signOut(): void {
-  const t = loadToken();
-  if (t && window.google) {
-    try {
-      window.google.accounts.oauth2.revoke(t.access_token);
-    } catch {
-      // ignore
+  if (useWorker) {
+    void workerRevoke();
+  } else {
+    const t = loadToken();
+    if (t && window.google) {
+      try {
+        window.google.accounts.oauth2.revoke(t.access_token);
+      } catch {
+        // ignore
+      }
     }
   }
   clearToken();
