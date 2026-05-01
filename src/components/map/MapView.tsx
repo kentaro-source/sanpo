@@ -80,17 +80,25 @@ export function MapView() {
   }, [loaded]);
 
   // Render route polylines (recompute on position change)
+  // Subsample: 1,692 squares → ~340 points per polyline (1/5)
+  // Heavy mobile rendering when full detail; this is plenty for visual.
   useEffect(() => {
     if (!mapRef.current) return;
 
     passedPolylineRef.current?.setMap(null);
     upcomingPolylineRef.current?.setMap(null);
 
+    const SAMPLE = 5;
     const passedPath: google.maps.LatLngLiteral[] = [];
     const upcomingPath: google.maps.LatLngLiteral[] = [];
     const currentIdx = player.currentSquareIndex;
-    for (let i = 0; i < routeData.squares.length; i++) {
+    const total = routeData.squares.length;
+    for (let i = 0; i < total; i++) {
       const sq = routeData.squares[i];
+      // Always include capitals + current + sampled
+      const include =
+        sq.isCapital || i === currentIdx || i === total - 1 || i % SAMPLE === 0;
+      if (!include) continue;
       const point = { lat: sq.lat, lng: sq.lng };
       if (i <= currentIdx) {
         passedPath.push(point);
@@ -98,7 +106,7 @@ export function MapView() {
         upcomingPath.push(point);
       }
     }
-    if (currentIdx < routeData.squares.length) {
+    if (currentIdx < total) {
       const cur = routeData.squares[currentIdx];
       upcomingPath.unshift({ lat: cur.lat, lng: cur.lng });
     }
@@ -109,6 +117,7 @@ export function MapView() {
         strokeColor: '#10b981',
         strokeOpacity: 0.8,
         strokeWeight: 3,
+        geodesic: true,
         map: mapRef.current,
       });
     }
@@ -118,6 +127,7 @@ export function MapView() {
         strokeOpacity: 0,
         strokeColor: '#94a3b8',
         strokeWeight: 2,
+        geodesic: true,
         icons: [
           {
             icon: {
@@ -127,7 +137,7 @@ export function MapView() {
               scale: 3,
             },
             offset: '0',
-            repeat: '12px',
+            repeat: '20px',
           },
         ],
         map: mapRef.current,
@@ -254,7 +264,7 @@ export function MapView() {
     }
   }, [loaded, player.visitedCapitals, routeData]);
 
-  // Render city markers (once)
+  // Render city markers - only visible at zoom >= 5 to keep panning fast
   useEffect(() => {
     if (!mapRef.current) return;
 
@@ -266,6 +276,7 @@ export function MapView() {
       const m = new google.maps.Marker({
         position: { lat: city.lat, lng: city.lng },
         map: mapRef.current,
+        clickable: false,
         title: `${city.nameJa} (${city.countryJa}) - ${city.description}`,
         icon: {
           path: google.maps.SymbolPath.CIRCLE,
@@ -278,13 +289,21 @@ export function MapView() {
       });
       cityMarkersRef.current.push(m);
     }
+
+    const updateCityVisibility = () => {
+      const zoom = mapRef.current?.getZoom() ?? 4;
+      const visible = zoom >= 5;
+      for (const m of cityMarkersRef.current) m.setVisible(visible);
+    };
+    mapRef.current.addListener('zoom_changed', updateCityVisibility);
+    updateCityVisibility();
   }, [loaded]);
 
   // Render square dots — sample every Nth square to keep marker count
   // manageable on phones, plus auto-hide when zoomed out (dots cluster
   // unreadably anyway). Only color/opacity updates on position change.
-  const SQUARE_SAMPLE = 3; // render 1 in N non-capital squares
-  const SQUARE_MIN_ZOOM = 4;
+  const SQUARE_SAMPLE = 5; // render 1 in N non-capital squares (was 3)
+  const SQUARE_MIN_ZOOM = 6; // hide at typical world/region zooms (was 4)
 
   useEffect(() => {
     if (!loaded || !mapRef.current) return;
