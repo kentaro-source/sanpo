@@ -66,7 +66,7 @@ export function MapView() {
 
     mapRef.current = new google.maps.Map(containerRef.current, {
       center: { lat: currentSquare.lat, lng: currentSquare.lng },
-      zoom: 4,
+      zoom: 7, // regional view — see the walking area, not the whole continent
       zoomControl: false,
       streetViewControl: false,
       mapTypeControl: false,
