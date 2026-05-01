@@ -1,5 +1,11 @@
 import { useGame } from '../../hooks/useGame';
 
+// Build tag injected by vite.config.ts (define: __BUILD_TAG__)
+// Visible in the header so the user can confirm they're on the latest deploy.
+declare const __BUILD_TAG__: string;
+const BUILD_TAG: string =
+  typeof __BUILD_TAG__ !== 'undefined' ? __BUILD_TAG__ : 'dev';
+
 async function hardReload() {
   try {
     if ('serviceWorker' in navigator) {
@@ -25,6 +31,7 @@ export function Header() {
   return (
     <header className="header">
       <h1 className="header-title">せかいさんぽ</h1>
+      <span className="header-build">v{BUILD_TAG}</span>
       <div className="header-meta">{visitedCount}/{totalCapitals}</div>
       <div className="header-dice">
         <span className="dice-icon">🎲</span>

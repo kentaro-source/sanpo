@@ -22,9 +22,20 @@ function injectSwBuildId() {
   }
 }
 
+// Short build tag for visible "is this the latest?" badge in the UI.
+// Format: MMDD-HHMM in local time (Asia/Tokyo on the build runner).
+const buildTag = (() => {
+  const d = new Date()
+  const tz = (n: number) => String(n).padStart(2, '0')
+  return `${tz(d.getMonth() + 1)}${tz(d.getDate())}-${tz(d.getHours())}${tz(d.getMinutes())}`
+})()
+
 export default defineConfig({
   plugins: [react(), injectSwBuildId()],
   base: '/sanpo/',
+  define: {
+    __BUILD_TAG__: JSON.stringify(buildTag),
+  },
   server: {
     host: true,
   },

@@ -30,6 +30,14 @@
   min-width: 0;
 }
 
+.header-build {
+  font-size: 10px;
+  color: #64748b;
+  white-space: nowrap;
+  margin-left: 6px;
+  font-family: ui-monospace, monospace;
+}
+
 .header-meta {
   font-size: 12px;
   color: #94a3b8;

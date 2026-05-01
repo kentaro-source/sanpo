@@ -66,7 +66,7 @@ export function MapView() {
 
     mapRef.current = new google.maps.Map(containerRef.current, {
       center: { lat: currentSquare.lat, lng: currentSquare.lng },
-      zoom: 9, // city/region view — see roads and the immediate walking area
+      zoom: 10, // close-in city view — clearly see roads where you're walking
       zoomControl: false,
       streetViewControl: false,
       mapTypeControl: false,
