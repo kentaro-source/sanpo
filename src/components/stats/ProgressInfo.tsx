@@ -1,8 +1,10 @@
 import { useGame } from '../../hooks/useGame';
 
 function formatKm(km: number): string {
-  if (km >= 1000) return `${(km / 1000).toFixed(1)}千km`;
-  if (km >= 100) return `${km.toFixed(0)}km`;
+  if (km >= 100) {
+    // 1,234km / 850km — comma thousands separator, no decimals
+    return `${Math.round(km).toLocaleString()}km`;
+  }
   if (km >= 10) return `${km.toFixed(1)}km`;
   return `${km.toFixed(2)}km`;
 }

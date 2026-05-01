@@ -10,8 +10,11 @@ export const capitals: Capital[] = [
     nameJa: '東京',
     country: 'Japan',
     countryJa: '日本',
-    lat: 35.6762,
-    lng: 139.6503,
+    // Tokyo Station (東京駅) — iconic transit hub, the actual face of "Tokyo"
+    // for a world-tour starting point. Old coords pointed at Suginami 和泉,
+    // which is residential nowhere.
+    lat: 35.6812,
+    lng: 139.7671,
     region: 'asia',
   },
   {
