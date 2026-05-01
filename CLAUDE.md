@@ -1,5 +1,20 @@
 # Sanpo - 歩いて世界一周アプリ
 
+## 🚀 引継ぎサマリ (2026-04-30)
+
+別PCで再開する Claude / 数ヶ月後の自分が**最初に読むべき要点**:
+
+1. **このリポジトリ**: https://github.com/kentaro-source/sanpo (public)
+2. **本番URL**: https://kentaro-source.github.io/sanpo/ (push で自動デプロイ、約45秒)
+3. **ローカル**: `git clone https://github.com/kentaro-source/sanpo.git C:\dev\sanpo` → `npm install` → `npm run dev`
+4. **API キー**: `.env.local` に `VITE_GOOGLE_MAPS_API_KEY=AIzaSyAl8HkXqKTy1_PDDU7-XX4cLQNYfXwrwl8` 必要(localhost:5173 のみ動作)
+5. **最新の動作確認**: Android Chrome PWA で動作中、Google Fit 同期成功(13歩実機テスト済み)
+6. **次やる作業の最優先**: 実道路距離プリコンピュートスクリプト(下記「次のフェーズ実装」項目1)
+
+git の identity は `kentaro-source` / `kentaro-source@users.noreply.github.com` をローカルセット推奨。
+
+PWAの強制更新は**ヘッダー右の `⟳` ボタン**(SW unregister + cache全削除 + cache-busted reload)。これがあれば push 後の反映で困らない。
+
 ## プロジェクト概要
 スマホの歩数計と連動して、歩くだけで世界193カ国の首都を一筆書きで巡るシミュレーション。
 **Sic Bo（大小）スタイルのベット&ダイス**でマスを進む。**自分用、個人プロジェクト**。
@@ -15,13 +30,48 @@
 - 2026-04-29 (午後): Sic Boベット制（カジノ風）に変更、UI伝統マカオ風
 - 2026-04-29 (夕方): 都市データ追加（164都市）+ Google Maps切替完了
 - 2026-04-29 (夜): 実在ルート化開始 - capitals.ts再構成 (v3) + セグメント分類 (バッチ1-3, 46/193) + Directions API実装
+- 2026-04-30: 別PC再開セッション。本番反映周りを大幅整備:
+  - PWA自動更新（SWビルドID注入 + controllerchange自動リロード）+ ヘッダーに `⟳` 強制更新ボタン
+  - GitHub Actions Secret `VITE_GOOGLE_MAPS_API_KEY` 設定済み（→ 地図がProdで描画されるようになった）
+  - `loading=async` を Maps URL から削除（`google.maps.Map` constructor復活、白画面修正）
+  - **mixed セグメントを区間ペア毎に Directions API**で描画 → 海を直進せず、陸は道路追従
+  - Polyline `geodesic: true` → 海/ファンタジー区間も大圏弧に
+  - `seaSegments` 任意フィールドを `SegmentClassification` に追加（明示的に直線にしたい区間用）
+  - **マス数を waypoint-aware に**（Tokyo→Seoul 8→11マス、storage version 3→4）
+  - 各マスを地図上に小さい点で可視化（通過済み=緑大、未通過=灰小）。perf考慮で**1/3サンプル**+zoom<4で非表示
+  - レイアウト変更: `position: fixed; bottom: 0` でパネル下端固定、Diceボタン必ず可視
+  - ヘッダー右に `⟳` ボタン: SW unregister + cache全消去 + cache-busted reload
+  - アプリ名「**せかいさんぽ**」(index.html, manifest, Header)
+  - Google Fit: `sanpo-google-fit-ever-consented` フラグ導入。トークン期限切れでも一度連携した端末は大ボタン非表示。token保存履歴があれば自動でフラグONバックフィル
+  - 同期失敗時のみ小さい「再連携が必要です [再連携]」表示
+  - Fit query から `dataSourceId` 削除 → 全ソース集計（Health Connect 経由でも歩数取得できるように）
+  - 細かい修正: 距離プリコンピュート用 `tsx` 導入（まだ未使用）、各種CSS調整
 
 ### デプロイ
 - **本番URL**: https://kentaro-source.github.io/sanpo/
 - **リポジトリ**: https://github.com/kentaro-source/sanpo
 - **デプロイ**: pushすると GitHub Actions で自動デプロイ（`.github/workflows/deploy.yml`）
 
-### 実装済み (2026-04-29時点)
+### 現在の状態 (2026-04-30 引継ぎ)
+
+**動作状況**: 本番URLで完全動作。Android Chrome PWA で動作確認済み。歩数同期も成功(13歩カウントを実機で確認)。
+
+**主要実装ファイル**:
+- レイアウト: `src/App.css` — `.app-layout` flex column / map `flex:1` / `.bottom-panel` `position:fixed; bottom:0`
+- ヘッダー: `src/components/layout/Header.tsx` — `せかいさんぽ` + visited count + dice token + `⟳` (`hardReload()`)
+- マップ: `src/components/map/MapView.tsx` — `loading=async` 無し、Polyline `geodesic:true`、square dots は1/3サンプル+zoom<4で非表示
+- ルート描画: mixed セグメントは隣接ペアごとに Directions API、海越え(`seaSegments`明示 or API失敗)は直線
+- マス生成: `src/data/generateRoute.ts` — waypoint-aware 距離計算、waypoint パス沿い補間
+- Google Fit: `sanpo-google-fit-ever-consented` フラグで二度とボタン非表示、`dataSourceId` 削除で全ソース集計
+- PWA更新: `public/sw.js` の `__BUILD_ID__` をビルド時に注入(`vite.config.ts` writeBundle hook)、`controllerchange` で自動リロード
+
+**localStorage キー一覧**:
+- `sanpo-game-state` (version 4)
+- `sanpo-google-fit-token` (1時間期限)
+- `sanpo-google-fit-ever-consented` ("1"なら永続「連携済み」扱い、トークン履歴があればbackfill)
+- `sanpo-directions-cache-v1` (Directions API 結果キャッシュ、TTL 30日)
+
+**実装済み (2026-04-29時点)**
 
 #### コアゲーム
 - 193カ国首都ルート（東京スタート、合計1,692マス、約230,000km）
@@ -188,7 +238,8 @@ git push
    - Reducer: ADD_STEPS/SYNC_FROM_GOOGLE_FIT 時にマイルストーン判定
    - UI通知: ポップアップ・トースト
 2. **セグメント分類バッチ4-11** (ロシア・欧州・アフリカ・米州・オセアニア)
-3. その他: ログインボーナスは**不要**で確定（純粋に歩数連動）
+3. **実道路距離プリコンピュート** (option A): `tsx` 導入済み。`scripts/precompute-distances.ts` を書いて Directions API HTTP endpoint で各セグメント実距離を取得 → `src/data/segmentDistances.ts` に保存 → `generateRoute.ts` で利用 → 現状 great-circle 1.5倍ほど短い距離計算が解消(Tokyo→Seoul 11→17マス想定)。referrer ヘッダ `https://kentaro-source.github.io/` 付きで HTTP fetch すれば既存 API キーで通る
+4. その他: ログインボーナスは**不要**で確定（純粋に歩数連動）
 
 ### 確定したルール設計
 - **Sic Bo返金**: 案3（返金なし、現状）
@@ -210,17 +261,25 @@ git push
 
 ### 地図
 - Google Maps（OpenStreetMapから移行済み）
+- `loading=async` を URL から外している(新API仕様で `google.maps.Map` constructor を直接使うため)
 - 経由都市マーカー: タイプ別色
 - ルート色分け: red=land / blue=sea / purple=mixed / orange=fantasy
 - 通過済み: 緑実線 / 未通過: グレー破線
 - 訪問済み首都: 大きい緑丸 / 未訪問: 小さいグレー丸
 - landセグメントは Directions API で実道路追従
+- mixedセグメントは隣接ペア毎に Directions API 試行、海越えは直線(geodesic curve)
+- すべての Polyline に `geodesic: true` → 直線でなく大圏弧
+- マスドット: 1/3サンプル(perf)、zoom<4で非表示、通過済み4px緑/未通過2px灰
 
 ### Google Fit
 - 連携後はUI完全非表示（自動同期がbackground）
 - 同期成功時のみ短いトースト
 - アプリ起動時とフォーカス復帰時に自動同期
 - 連携前のみ大きな「連携」ボタン
+- **`ever-consented` フラグで永続「連携済み」扱い** — トークン期限切れ後もボタン再表示しない
+- 旧トークン保存履歴があれば自動でフラグONバックフィル(過去ユーザーも対応)
+- silent re-auth (prompt:'none') は使わない — popup blocker でエラー大量発生したため
+- Fit API リクエストから `dataSourceId` 削除済み — Health Connect 経由でも歩数取得可能
 
 ### 出発地について
 - ゲーム内のスタート: **東京（JP capital）** = square 0
@@ -289,10 +348,11 @@ git push
 
 ### Google Maps APIキー
 - `AIzaSyAl8HkXqKTy1_PDDU7-XX4cLQNYfXwrwl8`
-- 「My First Project」配下（Fitness APIは「sampo」配下、別プロジェクト）
+- 「My First Project」配下（Fitness APIは「sampo」配下、別プロジェクト)
 - HTTP リファラ制限: `https://kentaro-source.github.io/*` + `http://localhost:5173/*`
 - `.env.local` 設定済み (gitignored)
-- GitHub Actions Secret `VITE_GOOGLE_MAPS_API_KEY` 要確認
+- ✅ **GitHub Actions Secret `VITE_GOOGLE_MAPS_API_KEY` 設定済み** (2026-04-30に追加、本番ビルドで自動注入)
+- ⚠ **CLAUDE.md(public)にキー直書きは妥協** — referrer制限あるので実害なし、リスク許容
 
 ### 都市データ (164都市)
 - `src/data/cities.ts`: 164都市（追加: TW-TAIPEI, MO-MACAU, JP-MIYAZAKI, JP-NAGASAKI）
@@ -301,11 +361,12 @@ git push
 - ❌ 近接検出と初訪+1🎲ボーナスは未実装
 
 ### 次のフェーズ実装 (まだ未着手)
-1. **Directions API ラッパー**: 陸セグメントの polyline をビルド時取得・キャッシュ
-2. **海ルート手動キュレーション**: 重要な海峡・フェリー waypoint
-3. **ルート再生成**: polyline 沿いに Square 再分配
+1. **実道路距離プリコンピュート**: `npx tsx scripts/precompute-distances.ts` でビルド時取得 → `src/data/segmentDistances.ts` 出力 → `generateRoute.ts` で利用 (great-circle の1.5倍ほど短い問題解消)
+2. **海ルート手動キュレーション**: 重要な海峡・フェリー waypoint(どの mixed セグメントで `seaSegments` を明示するか)
+3. **マイルストーン+都市訪問ボーナス**: PlayerState 拡張 + Reducer 連携 + UI通知
 4. **自動ストップ機能**: 新規首都・都市で必ず止まる
 5. **都市マーカー近接検出**: 半径200km以内で訪問判定→トークンボーナス
+6. **セグメント分類バッチ4-11** (ロシア・欧州・アフリカ・米州・オセアニア)
 
 ## 直近の改善メモ（次回検討）
 
