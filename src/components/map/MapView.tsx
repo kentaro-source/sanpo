@@ -41,6 +41,13 @@ export function MapView() {
   const passedPolylineRef = useRef<google.maps.Polyline | null>(null);
   const upcomingPolylineRef = useRef<google.maps.Polyline | null>(null);
   const realRoutePolylinesRef = useRef<google.maps.Polyline[]>([]);
+  // Persistent split-polylines: created once, updated via setPath on each
+  // step. Without this we'd destroy + recreate every distanceKm change
+  // (≥1× per second of walking) and the user would see route flicker.
+  const walkedGlowRef = useRef<google.maps.Polyline | null>(null);
+  const walkedRef = useRef<google.maps.Polyline | null>(null);
+  const futureGlowRef = useRef<google.maps.Polyline | null>(null);
+  const futureRef = useRef<google.maps.Polyline | null>(null);
   const builtPathRef = useRef<{
     allPoints: google.maps.LatLngLiteral[];
     cumKm: number[];
@@ -215,12 +222,12 @@ export function MapView() {
       cumKm: number[];
     };
 
-    // Materialize walked + future polylines from a Built path. Wipes any
-    // existing route polylines first so the rebuild replaces them.
+    // Materialize walked + future polylines from a Built path. Reuses
+    // the persistent refs (walkedRef etc.) so distanceKm changes update
+    // setPath instead of destroy+recreate. Without this every step
+    // produced visible route flicker (user: '頻繁に更新されるのは不快').
     const renderFromBuilt = (b: Built) => {
       if (!mapRef.current) return;
-      realRoutePolylinesRef.current.forEach((p) => p.setMap(null));
-      realRoutePolylinesRef.current = [];
 
       const playerKm = player.distanceKm;
       let splitIdx = -1;
@@ -246,53 +253,80 @@ export function MapView() {
         futurePath = [splitPoint, ...b.allPoints.slice(splitIdx)];
       }
 
-      if (walkedPath.length >= 2) {
-        const walkedGlow = new google.maps.Polyline({
-          path: walkedPath,
-          strokeColor: '#ffffff',
-          strokeOpacity: 0.85,
-          strokeWeight: 8,
-          zIndex: 5,
-          geodesic: true,
-          map: mapRef.current,
-        });
-        realRoutePolylinesRef.current.push(walkedGlow);
-        const walked = new google.maps.Polyline({
-          path: walkedPath,
-          strokeColor: '#10b981',
-          strokeOpacity: 0.98,
-          strokeWeight: 5,
-          zIndex: 6,
-          geodesic: true,
-          map: mapRef.current,
-        });
-        realRoutePolylinesRef.current.push(walked);
-      }
-      if (futurePath.length >= 2) {
-        // White underglow first, then the colored line on top — gives a
-        // strong silhouette against busy urban tiles where a plain line
-        // gets lost in the building/road clutter at zoom 16.
-        const futureGlow = new google.maps.Polyline({
-          path: futurePath,
-          strokeColor: '#ffffff',
-          strokeOpacity: 0.85,
-          strokeWeight: 8,
-          zIndex: 4,
-          geodesic: true,
-          map: mapRef.current,
-        });
-        realRoutePolylinesRef.current.push(futureGlow);
-        const future = new google.maps.Polyline({
-          path: futurePath,
-          strokeColor: '#2563eb', // blue, high contrast against everything
-          strokeOpacity: 0.95,
-          strokeWeight: 5,
-          zIndex: 5,
-          geodesic: true,
-          map: mapRef.current,
-        });
-        realRoutePolylinesRef.current.push(future);
-      }
+      const ensureWalked = (path: google.maps.LatLngLiteral[]) => {
+        if (path.length < 2) {
+          walkedGlowRef.current?.setMap(null);
+          walkedGlowRef.current = null;
+          walkedRef.current?.setMap(null);
+          walkedRef.current = null;
+          return;
+        }
+        if (walkedGlowRef.current) {
+          walkedGlowRef.current.setPath(path);
+        } else {
+          walkedGlowRef.current = new google.maps.Polyline({
+            path,
+            strokeColor: '#ffffff',
+            strokeOpacity: 0.85,
+            strokeWeight: 8,
+            zIndex: 5,
+            geodesic: true,
+            map: mapRef.current!,
+          });
+        }
+        if (walkedRef.current) {
+          walkedRef.current.setPath(path);
+        } else {
+          walkedRef.current = new google.maps.Polyline({
+            path,
+            strokeColor: '#10b981',
+            strokeOpacity: 0.98,
+            strokeWeight: 5,
+            zIndex: 6,
+            geodesic: true,
+            map: mapRef.current!,
+          });
+        }
+      };
+
+      const ensureFuture = (path: google.maps.LatLngLiteral[]) => {
+        if (path.length < 2) {
+          futureGlowRef.current?.setMap(null);
+          futureGlowRef.current = null;
+          futureRef.current?.setMap(null);
+          futureRef.current = null;
+          return;
+        }
+        if (futureGlowRef.current) {
+          futureGlowRef.current.setPath(path);
+        } else {
+          futureGlowRef.current = new google.maps.Polyline({
+            path,
+            strokeColor: '#ffffff',
+            strokeOpacity: 0.85,
+            strokeWeight: 8,
+            zIndex: 4,
+            geodesic: true,
+            map: mapRef.current!,
+          });
+        }
+        if (futureRef.current) {
+          futureRef.current.setPath(path);
+        } else {
+          futureRef.current = new google.maps.Polyline({
+            path,
+            strokeColor: '#2563eb',
+            strokeOpacity: 0.95,
+            strokeWeight: 5,
+            zIndex: 5,
+            geodesic: true,
+            map: mapRef.current!,
+          });
+        }
+      };
+
+      ensureWalked(walkedPath);
+      ensureFuture(futurePath);
     };
 
     async function renderCombinedRoute() {

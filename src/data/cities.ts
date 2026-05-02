@@ -12,6 +12,7 @@ export const cities: City[] = [
     lng: 135.5023,
     type: 'metropolis',
     description: '関西の経済中心、食い倒れの街',
+    visitedInRealLife: true,
   },
   {
     id: 'JP-KYOTO',
@@ -23,6 +24,7 @@ export const cities: City[] = [
     lng: 135.7681,
     type: 'historic',
     description: '千年の都、神社仏閣の宝庫',
+    visitedInRealLife: true,
   },
   {
     id: 'JP-NAGOYA',
@@ -34,6 +36,7 @@ export const cities: City[] = [
     lng: 136.9066,
     type: 'metropolis',
     description: '中部の中心、味噌文化の街',
+    visitedInRealLife: true,
   },
   {
     id: 'JP-FUKUOKA',
@@ -45,6 +48,7 @@ export const cities: City[] = [
     lng: 130.4017,
     type: 'gourmet',
     description: '九州の玄関口、屋台とラーメン',
+    visitedInRealLife: true,
   },
   {
     id: 'JP-NAGASAKI',
@@ -56,6 +60,7 @@ export const cities: City[] = [
     lng: 129.8779,
     type: 'historic',
     description: '異国情緒漂う港町、坂道の街',
+    visitedInRealLife: true,
   },
   {
     id: 'JP-MIYAZAKI',
@@ -67,6 +72,7 @@ export const cities: City[] = [
     lng: 131.4202,
     type: 'tourist',
     description: '南国気候のリゾート地',
+    visitedInRealLife: true,
   },
   {
     id: 'JP-SAPPORO',
@@ -78,6 +84,7 @@ export const cities: City[] = [
     lng: 141.3545,
     type: 'metropolis',
     description: '北海道の中心、雪まつりの街',
+    visitedInRealLife: true,
   },
   {
     id: 'JP-YOKOHAMA',
@@ -89,6 +96,7 @@ export const cities: City[] = [
     lng: 139.6380,
     type: 'metropolis',
     description: '日本最大の港町、中華街',
+    visitedInRealLife: true,
   },
   {
     id: 'JP-KOBE',
@@ -100,6 +108,7 @@ export const cities: City[] = [
     lng: 135.1955,
     type: 'gourmet',
     description: '異国情緒漂う港町、神戸牛',
+    visitedInRealLife: true,
   },
   {
     id: 'JP-NARA',
@@ -111,6 +120,7 @@ export const cities: City[] = [
     lng: 135.8048,
     type: 'historic',
     description: '日本最古の都、大仏と鹿',
+    visitedInRealLife: true,
   },
   // Added to bridge ~150-200km gaps along JP→KR for walkable Directions.
   // All Japanese prefectures' capitals are user-visited IRL → 思い出ボーナス対象。
