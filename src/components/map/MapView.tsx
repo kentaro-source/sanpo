@@ -243,10 +243,20 @@ export function MapView() {
       }
 
       if (walkedPath.length >= 2) {
+        const walkedGlow = new google.maps.Polyline({
+          path: walkedPath,
+          strokeColor: '#ffffff',
+          strokeOpacity: 0.85,
+          strokeWeight: 8,
+          zIndex: 5,
+          geodesic: true,
+          map: mapRef.current,
+        });
+        realRoutePolylinesRef.current.push(walkedGlow);
         const walked = new google.maps.Polyline({
           path: walkedPath,
           strokeColor: '#10b981',
-          strokeOpacity: 0.95,
+          strokeOpacity: 0.98,
           strokeWeight: 5,
           zIndex: 6,
           geodesic: true,
@@ -255,11 +265,24 @@ export function MapView() {
         realRoutePolylinesRef.current.push(walked);
       }
       if (futurePath.length >= 2) {
+        // White underglow first, then the colored line on top — gives a
+        // strong silhouette against busy urban tiles where a plain line
+        // gets lost in the building/road clutter at zoom 16.
+        const futureGlow = new google.maps.Polyline({
+          path: futurePath,
+          strokeColor: '#ffffff',
+          strokeOpacity: 0.85,
+          strokeWeight: 8,
+          zIndex: 4,
+          geodesic: true,
+          map: mapRef.current,
+        });
+        realRoutePolylinesRef.current.push(futureGlow);
         const future = new google.maps.Polyline({
           path: futurePath,
-          strokeColor: '#64748b',
-          strokeOpacity: 0.85,
-          strokeWeight: 4,
+          strokeColor: '#2563eb', // blue, high contrast against everything
+          strokeOpacity: 0.95,
+          strokeWeight: 5,
           zIndex: 5,
           geodesic: true,
           map: mapRef.current,
@@ -674,5 +697,26 @@ export function MapView() {
     return <div style={{ padding: 16, color: '#64748b' }}>地図を読み込み中...</div>;
   }
 
-  return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />;
+  const recenter = () => {
+    const map = mapRef.current;
+    if (!map) return;
+    map.panTo(position);
+    // Snap back to a usable street-level zoom in case the user pinched out.
+    if ((map.getZoom() ?? 16) < 14) map.setZoom(16);
+  };
+
+  return (
+    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+      <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      <button
+        type="button"
+        className="map-recenter"
+        onClick={recenter}
+        aria-label="現在地に戻る"
+        title="現在地に戻る"
+      >
+        📍
+      </button>
+    </div>
+  );
 }
