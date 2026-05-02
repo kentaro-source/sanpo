@@ -42,20 +42,21 @@ export const segmentClassifications: SegmentClassification[] = [
       'JP-KUMAMOTO',    // ~90 km
       'JP-MIYAZAKI',    // ~140 km (故郷)
       'JP-NAGASAKI',    // ~170 km
-      // back up Kyushu west coast — re-enter Fukuoka would loop, so
-      // we go Nagasaki → Busan via Tsushima ferry directly.
-      'KR-BUSAN',       // SEA (関釜フェリー)
-      'KR-CHEONGJU',    // ~215 km
+      // Nagasaki → Busan は対馬経由フェリー(SEA)
+      'KR-BUSAN',       // SEA ~260 km
+      'KR-DAEGU',       // ~80 km
+      'KR-DAEJEON',     // ~130 km
+      'KR-CHEONGJU',    // ~35 km
     ],
     // Indices into [origin=Tokyo, ...waypoints, dest=Seoul]:
-    //   0=Tokyo, 1=Yokohama, 2=Hamamatsu, 3=Nagoya, 4=Kyoto, 5=Osaka,
-    //   6=Kobe, 7=Hiroshima, 8=Kitakyushu, 9=Fukuoka, 10=Kumamoto,
-    //   11=Miyazaki, 12=Nagasaki, 13=Busan, 14=Cheongju, 15=Seoul
-    // Only Nagasaki→Busan (12→13) is the sea crossing. Everything
-    // else is pedestrian/road land.
+    //   0=Tokyo,  1=Yokohama,  2=Hamamatsu,  3=Nagoya,  4=Kyoto,
+    //   5=Osaka,  6=Kobe,      7=Hiroshima,  8=Kitakyushu, 9=Fukuoka,
+    //   10=Kumamoto, 11=Miyazaki, 12=Nagasaki, 13=Busan, 14=Daegu,
+    //   15=Daejeon, 16=Cheongju, 17=Seoul
+    // Only Nagasaki→Busan (12→13) is the sea crossing.
     seaSegments: [[12, 13]],
     notes:
-      '東京→横浜→浜松→名古屋→京都→大阪→神戸→広島→北九州→福岡→熊本→宮崎(故郷)→長崎→[対馬経由フェリー]→プサン→清州→ソウル',
+      '東京→横浜→浜松→名古屋→京都→大阪→神戸→広島→北九州→福岡→熊本→宮崎(故郷)→長崎→[対馬経由フェリー]→プサン→大邱→大田→清州→ソウル',
   },
   {
     fromCapitalId: 'KR',
@@ -67,8 +68,20 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'KP',
     toCapitalId: 'CN',
     routeType: 'mixed',
-    waypointCityIds: ['RU-VLADIVOSTOK', 'RU-KHABAROVSK', 'CN-DALIAN'],
-    notes: '平壌→ロシア沿海→満州→大連→[渤海フェリー]→天津→北京',
+    waypointCityIds: [
+      'RU-VLADIVOSTOK', // ~640 km (closed DPRK-Russia border, fallback straight)
+      'RU-KHABAROVSK',  // ~600 km (driving in Russia)
+      'CN-HARBIN',      // ~900 km (closed China-Russia border, fallback straight)
+      'CN-SHENYANG',    // ~530 km (driving in China)
+      'CN-DALIAN',      // ~360 km (driving)
+      'CN-TIANJIN',     // ~720 km (Bohai SEA ferry)
+    ],
+    // [origin=Pyongyang, 1=Vladivostok, 2=Khabarovsk, 3=Harbin, 4=Shenyang,
+    //  5=Dalian, 6=Tianjin, 7=Beijing]
+    // 0→1 DPRK-RU border closed; 2→3 China-Russia border closed; 5→6 Bohai ferry.
+    seaSegments: [[0, 1], [2, 3], [5, 6]],
+    notes:
+      '平壌→[国境]→ウラジオストク→ハバロフスク→[国境]→ハルビン→瀋陽→大連→[渤海フェリー]→天津→北京',
   },
   {
     fromCapitalId: 'CN',

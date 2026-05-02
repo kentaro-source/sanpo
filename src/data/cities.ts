@@ -113,6 +113,7 @@ export const cities: City[] = [
     description: '日本最古の都、大仏と鹿',
   },
   // Added to bridge ~150-200km gaps along JP→KR for walkable Directions.
+  // All Japanese prefectures' capitals are user-visited IRL → 思い出ボーナス対象。
   {
     id: 'JP-HAMAMATSU',
     name: 'Hamamatsu',
@@ -123,6 +124,7 @@ export const cities: City[] = [
     lng: 137.7261,
     type: 'gourmet',
     description: '東海道の中継地、うなぎ',
+    visitedInRealLife: true,
   },
   {
     id: 'JP-HIROSHIMA',
@@ -134,6 +136,7 @@ export const cities: City[] = [
     lng: 132.4553,
     type: 'historic',
     description: '原爆ドーム・宮島、お好み焼き',
+    visitedInRealLife: true,
   },
   {
     id: 'JP-KITAKYUSHU',
@@ -145,6 +148,7 @@ export const cities: City[] = [
     lng: 130.8751,
     type: 'tourist',
     description: '関門海峡の本州側ゲート',
+    visitedInRealLife: true,
   },
   {
     id: 'JP-KUMAMOTO',
@@ -156,6 +160,7 @@ export const cities: City[] = [
     lng: 130.7079,
     type: 'historic',
     description: '熊本城、阿蘇山',
+    visitedInRealLife: true,
   },
 
   // === 韓国 (South Korea) ===
@@ -213,6 +218,18 @@ export const cities: City[] = [
     lng: 129.2247,
     type: 'historic',
     description: '新羅千年の都、屋根なき博物館',
+  },
+  // Bridge between Daegu and Cheongju so each pair stays under 200km.
+  {
+    id: 'KR-DAEJEON',
+    name: 'Daejeon',
+    nameJa: '大田',
+    countryId: 'KR',
+    countryJa: '韓国',
+    lat: 36.3504,
+    lng: 127.3845,
+    type: 'metropolis',
+    description: '韓国中部の科学都市',
   },
 
   // === 中国 (China) ===
@@ -358,6 +375,40 @@ export const cities: City[] = [
     lng: 91.1000,
     type: 'historic',
     description: 'チベット仏教の聖地、ポタラ宮',
+  },
+  // Northeast China bridge cities for the KP→Beijing chain.
+  {
+    id: 'CN-HARBIN',
+    name: 'Harbin',
+    nameJa: 'ハルビン',
+    countryId: 'CN',
+    countryJa: '中国',
+    lat: 45.8038,
+    lng: 126.5349,
+    type: 'historic',
+    description: '満州・氷雪祭りの街',
+  },
+  {
+    id: 'CN-SHENYANG',
+    name: 'Shenyang',
+    nameJa: '瀋陽',
+    countryId: 'CN',
+    countryJa: '中国',
+    lat: 41.8057,
+    lng: 123.4315,
+    type: 'historic',
+    description: '清王朝発祥の地',
+  },
+  {
+    id: 'CN-TIANJIN',
+    name: 'Tianjin',
+    nameJa: '天津',
+    countryId: 'CN',
+    countryJa: '中国',
+    lat: 39.3434,
+    lng: 117.3616,
+    type: 'metropolis',
+    description: '渤海フェリーの北京側ゲート',
   },
 
   // === 台湾 (Taiwan) - capitals.ts未収録の場合のため。仕様にあるためTW想定 ===
