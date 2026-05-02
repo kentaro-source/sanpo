@@ -47,7 +47,6 @@ export function ProgressInfo() {
       <div className="progress-next">
         {nextCapital ? (
           <>
-            <span className="progress-label">向かう街</span>
             <ol className="progress-stops">
               {upcomingStops.map((stop, i) => {
                 const expanded = expandedIdx === i;

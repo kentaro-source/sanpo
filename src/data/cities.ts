@@ -184,6 +184,7 @@ export const cities: City[] = [
     lng: 129.0756,
     type: 'metropolis',
     description: '韓国第二の都市、海雲台ビーチ',
+    visitedInRealLife: true,
   },
   {
     id: 'KR-CHEONGJU',
@@ -195,6 +196,7 @@ export const cities: City[] = [
     lng: 127.4890,
     type: 'historic',
     description: '世界最古の金属活字本の故郷',
+    visitedInRealLife: true,
   },
   {
     id: 'KR-INCHEON',
@@ -253,6 +255,7 @@ export const cities: City[] = [
     lng: 121.4737,
     type: 'metropolis',
     description: '東方のパリ、外灘の摩天楼',
+    visitedInRealLife: true,
   },
   {
     id: 'CN-DALIAN',
@@ -264,6 +267,7 @@ export const cities: City[] = [
     lng: 121.6147,
     type: 'metropolis',
     description: '遼東半島の港湾都市、日本の面影',
+    visitedInRealLife: true,
   },
   {
     id: 'CN-ZHUHAI',
@@ -275,6 +279,7 @@ export const cities: City[] = [
     lng: 113.5767,
     type: 'tourist',
     description: 'マカオに隣接するリゾート都市',
+    visitedInRealLife: true,
   },
   {
     id: 'CN-HONGKONG',
@@ -536,6 +541,7 @@ export const cities: City[] = [
     lng: 121.5654,
     type: 'metropolis',
     description: '台湾の首都、夜市と故宮博物院',
+    visitedInRealLife: true,
   },
   {
     id: 'TW-TAINAN',
@@ -547,6 +553,7 @@ export const cities: City[] = [
     lng: 120.2270,
     type: 'historic',
     description: '台湾最古の都市、グルメの宝庫',
+    visitedInRealLife: true,
   },
   {
     id: 'TW-TAICHUNG',
@@ -558,6 +565,7 @@ export const cities: City[] = [
     lng: 120.6736,
     type: 'metropolis',
     description: 'タピオカ発祥、芸術の街',
+    visitedInRealLife: true,
   },
   {
     id: 'TW-KAOHSIUNG',
@@ -569,6 +577,7 @@ export const cities: City[] = [
     lng: 120.3014,
     type: 'metropolis',
     description: '南台湾最大の港湾都市',
+    visitedInRealLife: true,
   },
 
   // === ベトナム (Vietnam) ===
@@ -605,6 +614,7 @@ export const cities: City[] = [
     lng: 108.3380,
     type: 'historic',
     description: 'ランタンが灯る世界遺産の港町',
+    visitedInRealLife: true,
   },
   {
     id: 'VN-HOCHIMINH',
@@ -652,6 +662,7 @@ export const cities: City[] = [
     lng: 103.8448,
     type: 'historic',
     description: 'アンコールワットへの玄関口',
+    visitedInRealLife: true,
   },
 
   // === タイ (Thailand) ===
@@ -734,6 +745,7 @@ export const cities: City[] = [
     lng: 96.1735,
     type: 'metropolis',
     description: 'ミャンマー最大都市、シュエダゴン',
+    visitedInRealLife: true,
   },
   {
     id: 'MM-BAGAN',
@@ -769,6 +781,7 @@ export const cities: City[] = [
     lng: 102.2501,
     type: 'historic',
     description: '海峡貿易で栄えた世界遺産の街',
+    visitedInRealLife: true,
   },
   {
     id: 'MY-PENANG',
@@ -804,6 +817,7 @@ export const cities: City[] = [
     lng: 123.8854,
     type: 'tourist',
     description: '青い海のリゾート、語学留学の街',
+    visitedInRealLife: true,
   },
   {
     id: 'PH-DAVAO',
@@ -863,6 +877,7 @@ export const cities: City[] = [
     lng: 88.3639,
     type: 'historic',
     description: 'ベンガルの文化首都、英国植民地の面影',
+    visitedInRealLife: true,
   },
   {
     id: 'IN-MUMBAI',
@@ -1034,6 +1049,7 @@ export const cities: City[] = [
     lng: 76.8512,
     type: 'metropolis',
     description: '天山山脈の麓、旧首都',
+    visitedInRealLife: true,
   },
   {
     id: 'KZ-KARAGANDA',
@@ -1117,6 +1133,7 @@ export const cities: City[] = [
     lng: 131.8869,
     type: 'metropolis',
     description: '極東ロシアの玄関口、軍港',
+    visitedInRealLife: true,
   },
   {
     id: 'RU-KHABAROVSK',
@@ -1128,6 +1145,7 @@ export const cities: City[] = [
     lng: 135.0838,
     type: 'metropolis',
     description: 'アムール川の大都市',
+    visitedInRealLife: true,
   },
   {
     id: 'RU-STPETERSBURG',
@@ -1473,6 +1491,7 @@ export const cities: City[] = [
     lng: -18.1262,
     type: 'tourist',
     description: '北の首都、フィヨルドの街',
+    visitedInRealLife: true,
   },
 
   // === イギリス (UK) ===
@@ -1635,6 +1654,7 @@ export const cities: City[] = [
     lng: 9.1900,
     type: 'metropolis',
     description: 'イタリア最大の商業・ファッション都市',
+    visitedInRealLife: true,
   },
   {
     id: 'IT-VENICE',
@@ -1646,6 +1666,7 @@ export const cities: City[] = [
     lng: 12.3155,
     type: 'historic',
     description: '水の都、ゴンドラの世界遺産',
+    visitedInRealLife: true,
   },
   {
     id: 'IT-FLORENCE',
@@ -1657,6 +1678,7 @@ export const cities: City[] = [
     lng: 11.2558,
     type: 'historic',
     description: 'ルネサンス芸術の花咲く街',
+    visitedInRealLife: true,
   },
   {
     id: 'IT-NAPLES',
@@ -2204,6 +2226,7 @@ export const cities: City[] = [
     lng: -115.1398,
     type: 'tourist',
     description: '砂漠のエンタメ・カジノ都市',
+    visitedInRealLife: true,
   },
   {
     id: 'US-SEATTLE',
@@ -2481,6 +2504,7 @@ export const cities: City[] = [
     lng: 151.2093,
     type: 'metropolis',
     description: 'オペラハウスとハーバーの街',
+    visitedInRealLife: true,
   },
   {
     id: 'AU-MELBOURNE',
@@ -2492,6 +2516,7 @@ export const cities: City[] = [
     lng: 144.9631,
     type: 'metropolis',
     description: 'カフェ文化と芸術の都',
+    visitedInRealLife: true,
   },
   {
     id: 'AU-PERTH',
@@ -2503,6 +2528,7 @@ export const cities: City[] = [
     lng: 115.8605,
     type: 'metropolis',
     description: 'インド洋に面した世界一孤立した都市',
+    visitedInRealLife: true,
   },
   {
     id: 'AU-GOLDCOAST',
@@ -2514,6 +2540,7 @@ export const cities: City[] = [
     lng: 153.4000,
     type: 'tourist',
     description: 'サーフィンと白砂のビーチ天国',
+    visitedInRealLife: true,
   },
   {
     id: 'AU-BRISBANE',
