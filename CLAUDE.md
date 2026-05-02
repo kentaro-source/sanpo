@@ -1,6 +1,78 @@
 # Sanpo - 歩いて世界一周アプリ
 
-## 🚀 引継ぎサマリ (2026-05-02 後半セッション)
+## 🚀 引継ぎサマリ (2026-05-02 第3セッション末)
+
+別PCで再開する Claude / 数ヶ月後の自分が**最初に読むべき要点**:
+
+1. **このリポジトリ**: https://github.com/kentaro-source/sanpo (public)
+2. **本番URL**: https://kentaro-source.github.io/sanpo/ (push で自動デプロイ、約30秒)
+3. **ローカル**: `git clone https://github.com/kentaro-source/sanpo.git C:\dev\sanpo` → `npm install` → `npm run dev`
+4. **API キー**: `.env.local` に `VITE_GOOGLE_MAPS_API_KEY=AIzaSyAl8HkXqKTy1_PDDU7-XX4cLQNYfXwrwl8` のみ。Fit/Worker は UI 非表示化したので不要
+5. **storage v9 (capitals.ts v4)**: Caucasus(GE/AM/AZ) を ME 直後 (positions 44-46) に移動。AZ→EG / ST→RU を mixed + waypoint anchor にして大陸ジャンプを最低限に
+
+### 主要な変更(このセッション末時点で本番反映済)
+
+**ゲームバランス**:
+- `KM_PER_STEP = 0.001` (1m/歩。「1歩は1歩」)
+- `stepsPerDie = 1000` (1000歩=1チップ)
+- `maxDice = 100` (チップ上限、海越え用に多めに貯められる)
+- `BOOST_WINDOW_MS = 30 * 60 * 1000` (Sic Bo 勝ち/負け 全て 30分固定。倍率による窓長変動なし)
+- 倍率は `boosts: Boost[]` として multiplicative にスタック(連勝で ×2×6 = ×12 等)
+- 首都/都市ボーナス: 「通過/到着」区別撤廃 → 一律。実生活訪問なら 首都 +5 / 都市 +3、未訪問は +2 / +1。`combineDice()` で cap × 1.5 まで bonus 枠 over-cap 許容
+
+**歩数源**:
+- DeviceMotion ベースのペドメーター(`src/services/pedometer.ts`、`src/hooks/usePedometer.ts`)が foreground の唯一の歩数源
+- Fit UI は完全非表示。`useGoogleFitConnection` フックは残置(将来の Capacitor 移行用)
+- ピーク検出閾値 13 m/s²、cooldown 380ms(150歩/分上限)
+- `attributedTodaySteps` で全ソース合算管理、二重計上防止
+
+**ルート/地図**:
+- waypoint city ペアを ~200km 以下にして Walking モード Directions API を成立させる方針
+- 整備済セグメント: Asia (JP→...→TM)、ME(IR→...→CY、ざっくり)、Caucasus、AZ→EG/ST→RU の最小アンカー
+- まだ細かく整備されてない: Russia/Europe、Africa(EG→ST 内部)、Americas、Oceania
+- Directions API は WALKING → 失敗時 DRIVING fallback、両方失敗で straight line(`seaSegments` 明示)
+- Polyline は walked(緑+白halo) / future(青+白halo) で setPath 更新、フリッカー無し
+- RDP eps 0.0001°(~10m) で道路精度
+- マーカーは可視 9 セグメント周辺の都市のみ生成(perf)
+- 📍 ボタン(地図右下) で現在地センタリング。auto-pan は撤廃済
+
+**localStorage キー**:
+- `sanpo-game-state` (version 9)
+- `sanpo-progress-watchdog` (version-independent backup、distanceKm/totalSteps/visitedCapitals/visitedCities/claimedMilestones/completedLaps/stepsTowardNextDie/availableDice/attributedTodaySteps/attributedDayStart 保持)
+- `sanpo-google-fit-token` / `sanpo-google-fit-ever-consented` / `sanpo-fit-user-key` (Fit関連、無効化中)
+- `sanpo-pedometer-enabled` (ペドメーター ON/OFF、デフォルト ON)
+- `sanpo-directions-cache-v1` (Directions API 30日キャッシュ、⟳ で消さない設計に変更)
+
+### ⟳ ボタンが触るもの
+- SW unregister
+- Cache Storage 全削除
+- localStorage は触らない(game-state, watchdog, Fit token, directions cache 全部保持)
+
+### 次やる作業の優先順位
+
+1. **大陸内ルートの細分化(残約170セグメント)**:
+   - Russia/Europe(RU→FI→...→MT)
+   - Africa 内部(EG→LY→...→ST)
+   - Americas(MT→CA→...→EC、特にカリブ諸島)
+   - Oceania(AU→NZ→...→TV)
+   - 各セグメントで waypoint city ペアを ~200km 以下にして Walking 成立を狙う
+2. **MA-ES(ジブラルタル海峡)接続**: 議論済だが大幅な capitals.ts 再構成が必要なため保留中
+3. **Capacitor 化**(B案、未着手): foreground 用途は pedometer で対応済だが、background 同期(画面OFFで歩いた時)は引続き未対応。Health Connect 直叩きで根本解決可
+
+### Watchdog の役割重要性
+storage version をバンプすると古い save が version mismatch で drop されるが、watchdog がコア progress (distanceKm + step counts + visited lists + tokens) を独立保存するので、ユーザー進行は失われない。新フィールド追加時は watchdog にも入れること(直近で `stepsTowardNextDie` 等を取り逃して 300歩リセット事故が発生した)。
+
+### 未対応既知バグ/制約
+- Player marker は polyline 投影で道路上に snap するが、polyline がまだ非同期ロード中の最初の数秒は great-circle 補間 → ロード後にカクッと位置補正される
+- AM↔AZ など国境閉鎖区間は Directions が失敗 → 直線 fallback
+- ジオメトリ rebuild は segment 越えのみだが、capitals.ts を変更すると全 segment 再構築でキャッシュ無いと数十秒
+- Pedometer は foreground のみ。Android で画面OFF時は歩数が貯まらない。Fit Cloud → Health Connect の遅延問題は依然未解消(Capacitor 化で根本対応予定)
+
+git の identity は `kentaro-source` / `kentaro-source@users.noreply.github.com` を**ローカルのみ**に set 推奨(global は触らない)。
+
+---
+
+## 🗂 旧引継ぎサマリ (2026-05-02 後半セッション、参考)
 
 別PCで再開する Claude / 数ヶ月後の自分が**最初に読むべき要点**:
 
