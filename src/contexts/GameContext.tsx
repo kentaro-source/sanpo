@@ -283,51 +283,40 @@ function startOfDayMs(now: number): number {
  * reset today-accumulators. Returns a partial player update to merge
  * into the next state. Idempotent — safe to call on every action.
  */
-/** One-shot backfill for users upgrading to the dailyHistory feature
- *  on a save that already has Sic Bo activity from earlier days. We can
- *  reconstruct sicBoWins/Losses for past days from sicBoHistory's
- *  timestamps; steps / km / capitals / cities are unrecoverable
- *  (no per-day baselines were stored), so those stay zero. */
-function backfillSicBoDays(player: PlayerState, now: number): PlayerState {
-  if (!player.sicBoHistory || player.sicBoHistory.length === 0) return player;
-  const todayMs = startOfDayMs(now);
-  const existing = new Set((player.dailyHistory ?? []).map((d) => d.dayStart));
-  const groups = new Map<number, { wins: number; losses: number }>();
-  for (const r of player.sicBoHistory) {
-    const day = startOfDayMs(r.timestamp);
-    if (day >= todayMs) continue; // today still tracked live
-    if (existing.has(day)) continue; // already recorded
-    const g = groups.get(day) ?? { wins: 0, losses: 0 };
-    if (r.totalAdvance > 0) g.wins++;
-    else g.losses++;
-    groups.set(day, g);
+/** One-shot 5/2 backfill (only). The dailyHistory feature shipped on
+ *  5/3, so 5/2 — the day the user already had Sic Bo activity —
+ *  would otherwise be missing. Hardcoded one entry, no general rule. */
+function backfillMay2(player: PlayerState): PlayerState {
+  const may2 = new Date(2026, 4, 2); // months are 0-indexed; May = 4
+  may2.setHours(0, 0, 0, 0);
+  const dayMs = may2.getTime();
+  if ((player.dailyHistory ?? []).some((d) => d.dayStart === dayMs)) {
+    return player;
   }
-  if (groups.size === 0) return player;
-  // Heuristic km/steps backfill: anything not attributed to today goes
-  // to the LATEST past day that has activity. Multi-day backfills lose
-  // fidelity (we can't distribute), but the common case (player who
-  // just upgraded) has at most one prior day so this is faithful.
-  const latestPastDay = Math.max(...groups.keys());
+  let wins = 0;
+  let losses = 0;
+  for (const r of player.sicBoHistory ?? []) {
+    if (startOfDayMs(r.timestamp) === dayMs) {
+      if (r.totalAdvance > 0) wins++;
+      else losses++;
+    }
+  }
   const pastKm = Math.max(0, player.distanceKm - (player.todayKm ?? 0));
-  // User-supplied rough estimate for the pre-feature day rather than
-  // guessing from totalStepsEntered (which is tainted by pedometer
-  // false-positives during the early sessions).
-  const PAST_STEPS_FALLBACK = 2465;
-  const added: DailyRecord[] = [...groups.entries()]
-    .map(([dayStart, g]) => ({
-      dayStart,
-      steps: dayStart === latestPastDay ? PAST_STEPS_FALLBACK : 0,
-      km: dayStart === latestPastDay ? pastKm : 0,
-      sicBoWins: g.wins,
-      sicBoLosses: g.losses,
-      newCapitals: 0,
-      newCities: 0,
-    }))
-    .sort((a, b) => a.dayStart - b.dayStart);
-  const merged = [...(player.dailyHistory ?? []), ...added]
-    .sort((a, b) => a.dayStart - b.dayStart)
-    .slice(-MAX_DAILY_HISTORY);
-  return { ...player, dailyHistory: merged };
+  const record: DailyRecord = {
+    dayStart: dayMs,
+    steps: 3500,
+    km: pastKm,
+    sicBoWins: wins,
+    sicBoLosses: losses,
+    newCapitals: 0,
+    newCities: 0,
+  };
+  return {
+    ...player,
+    dailyHistory: [...(player.dailyHistory ?? []), record].sort(
+      (a, b) => a.dayStart - b.dayStart,
+    ),
+  };
 }
 
 function closeOutDayIfNeeded(
@@ -402,7 +391,7 @@ function getInitialState(): GameState {
   if (loaded) {
     // One-shot backfill: reconstruct dailyHistory entries for past days
     // that have Sic Bo activity but predate the dailyHistory feature.
-    return { ...loaded, player: backfillSicBoDays(loaded.player, Date.now()) };
+    return { ...loaded, player: backfillMay2(loaded.player) };
   }
   // Loader returned null. Try the watchdog (progress side-channel) before
   // resetting the player to Tokyo Station. The user reported "たびたび
