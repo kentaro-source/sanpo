@@ -123,12 +123,19 @@ export function useGame() {
       }
     }
 
-    // Active multiplier window state (for UI).
+    // Active multiplier stack (v7) — effective multiplier = product of
+    // unexpired Boost entries.
     const now = Date.now();
-    const multiplierActive =
-      player.multiplierUntil > now && player.currentMultiplier !== 1.0;
-    const multiplierMsLeft = multiplierActive
-      ? player.multiplierUntil - now
+    const liveBoosts = (player.boosts ?? []).filter((b) => b.expiresAt > now);
+    let effectiveMult = 1;
+    for (const b of liveBoosts) {
+      if (Number.isFinite(b.multiplier)) effectiveMult *= b.multiplier;
+    }
+    if (!Number.isFinite(effectiveMult) || effectiveMult <= 0) effectiveMult = 1;
+    const multiplierActive = liveBoosts.length > 0 && effectiveMult !== 1;
+    // Time until the SOONEST boost expires (when stack starts shrinking).
+    const multiplierMsLeft = liveBoosts.length
+      ? Math.max(0, Math.min(...liveBoosts.map((b) => b.expiresAt)) - now)
       : 0;
 
     return {
@@ -146,12 +153,13 @@ export function useGame() {
       upcomingStops,
       multiplierActive,
       multiplierMsLeft,
+      effectiveMultiplier: effectiveMult,
+      activeBoosts: liveBoosts,
     };
   }, [
     player.distanceKm,
     player.visitedCapitals.length,
-    player.multiplierUntil,
-    player.currentMultiplier,
+    player.boosts,
   ]);
 
   const addSteps = (steps: number) => dispatch({ type: 'ADD_STEPS', steps });

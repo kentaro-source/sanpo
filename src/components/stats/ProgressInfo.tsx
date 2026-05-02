@@ -28,13 +28,18 @@ export function ProgressInfo() {
     localKm,
     multiplierActive,
     multiplierMsLeft,
+    effectiveMultiplier,
+    activeBoosts,
   } = useGame();
 
   return (
     <div className="progress-info">
       {multiplierActive && (
         <div className="progress-multiplier">
-          ⚡ ×{player.currentMultiplier} 加速中（残り {formatDuration(multiplierMsLeft)}）
+          ⚡ ×{effectiveMultiplier.toFixed(effectiveMultiplier < 10 ? 1 : 0)}{' '}
+          加速中
+          {activeBoosts.length > 1 && ` (${activeBoosts.length}本)`}{' '}
+          （次の失効まで {formatDuration(multiplierMsLeft)}）
         </div>
       )}
       <div className="progress-next">

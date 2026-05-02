@@ -7,11 +7,17 @@ import type {
   BetSlot,
   SicBoRoll,
   BonusEvent,
+  Boost,
 } from '../types';
 import { routeData } from '../data';
 import { cities } from '../data/cities';
 import { squareIndexAtKm } from '../data/generateRoute';
-import { loadGameState, saveGameState, clearGameState } from '../utils/storage';
+import {
+  loadGameState,
+  saveGameState,
+  clearGameState,
+  buildRecoveredState,
+} from '../utils/storage';
 import {
   rollDice,
   isTriple,
@@ -32,8 +38,33 @@ const MILESTONES: Array<{ steps: number; tokens: number; label: string }> = [
 
 const MAX_RECENT_BONUSES = 8;
 
-// Distance gained per step at 1.0x multiplier.
-const KM_PER_STEP = 0.1; // 100m per step
+// Distance gained per step at 1.0× effective multiplier.
+// 1m/step on purpose: walking is intentionally slow at base rate
+// ("1歩は1歩としてカウント"), and Sic Bo wins are the way to actually
+// accelerate by stacking multiplier windows.
+const KM_PER_STEP = 0.001;
+
+/**
+ * Effective speed multiplier at time `now` = product of all unexpired
+ * Boost entries. Empty / all expired = 1.0×.
+ */
+function effectiveMultiplier(boosts: Boost[] | undefined, now: number): number {
+  if (!boosts || boosts.length === 0) return 1.0;
+  let m = 1;
+  for (const b of boosts) {
+    if (b.expiresAt > now && Number.isFinite(b.multiplier)) {
+      m *= b.multiplier;
+    }
+  }
+  return Number.isFinite(m) && m > 0 ? m : 1.0;
+}
+
+/** Drop expired Boost entries. Returns the same array reference if nothing changed. */
+function pruneExpiredBoosts(boosts: Boost[] | undefined, now: number): Boost[] {
+  if (!boosts || boosts.length === 0) return [];
+  const live = boosts.filter((b) => b.expiresAt > now);
+  return live.length === boosts.length ? boosts : live;
+}
 
 /**
  * Convert N steps walked at the current point in time into km moved,
@@ -44,35 +75,17 @@ function stepsToKm(
   steps: number,
   player: PlayerState,
   now: number,
-): { km: number; remainingMultiplierUntil: number; remainingMultiplier: number } {
-  // Defensive defaults: any of these could be undefined/null/NaN if state
-  // got corrupted (e.g. JSON.stringify(NaN)→"null" during a save). Without
-  // these defaults, arithmetic propagates NaN and distanceKm permanently
-  // sticks at zero.
-  const multiplier =
-    Number.isFinite(player.currentMultiplier) ? player.currentMultiplier : 1.0;
-  const multiplierUntil =
-    Number.isFinite(player.multiplierUntil) ? player.multiplierUntil : 0;
-
+): { km: number; prunedBoosts: Boost[] } {
   if (steps <= 0) {
-    return {
-      km: 0,
-      remainingMultiplierUntil: multiplierUntil,
-      remainingMultiplier: multiplier,
-    };
+    return { km: 0, prunedBoosts: pruneExpiredBoosts(player.boosts, now) };
   }
-  if (multiplierUntil <= now) {
-    return {
-      km: steps * KM_PER_STEP,
-      remainingMultiplierUntil: 0,
-      remainingMultiplier: 1.0,
-    };
-  }
-  return {
-    km: steps * KM_PER_STEP * multiplier,
-    remainingMultiplierUntil: multiplierUntil,
-    remainingMultiplier: multiplier,
-  };
+  // Effective multiplier is the product of all currently-active boosts.
+  // Note: this is a per-call snapshot — if a boost expires mid-step-batch
+  // we DON'T split the batch (steps come in chunks of 10s of seconds, so
+  // close enough). Pruning happens after.
+  const m = effectiveMultiplier(player.boosts, now);
+  const prunedBoosts = pruneExpiredBoosts(player.boosts, now);
+  return { km: steps * KM_PER_STEP * m, prunedBoosts };
 }
 
 /**
@@ -214,8 +227,9 @@ function createInitialPlayer(): PlayerState {
   return {
     distanceKm: 0,
     currentSquareIndex: 0,
-    currentMultiplier: 1.0,
-    multiplierUntil: 0,
+    currentMultiplier: 1.0, // legacy field, not consulted at runtime
+    multiplierUntil: 0, // legacy field
+    boosts: [],
     availableDice: 0,
     totalStepsEntered: 0,
     stepsTowardNextDie: 0,
@@ -234,12 +248,21 @@ function createInitialState(): GameState {
   return {
     player: createInitialPlayer(),
     config: DEFAULT_CONFIG,
-    version: 6,
+    version: 7,
   };
 }
 
 function getInitialState(): GameState {
-  return loadGameState() ?? createInitialState();
+  const loaded = loadGameState();
+  if (loaded) return loaded;
+  // Loader returned null. Try the watchdog (progress side-channel) before
+  // resetting the player to Tokyo Station. The user reported "たびたび
+  // 東京駅に戻る" — most likely cause is a CURRENT_VERSION bump dropping
+  // the saved state on a deploy. Watchdog preserves distanceKm + visited
+  // lists across schema changes.
+  const fresh = createInitialState();
+  const recovered = buildRecoveredState(fresh);
+  return recovered ?? fresh;
 }
 
 // Legacy applyAdvance(squares-based) removed. Crossings now detected
@@ -263,7 +286,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const newDice = Math.floor(totalSteps / state.config.stepsPerDie);
       const remainder = totalSteps % state.config.stepsPerDie;
 
-      // Convert steps to km via current multiplier window.
+      // Convert steps to km via the stacked-boost multiplier.
       const conv = stepsToKm(action.steps, state.player, now);
       const oldKm = state.player.distanceKm;
       const newKm = oldKm + conv.km;
@@ -294,8 +317,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           ...state.player,
           distanceKm: newKm,
           currentSquareIndex: squareIndexAtKm(routeData, newKm),
-          currentMultiplier: conv.remainingMultiplier,
-          multiplierUntil: conv.remainingMultiplierUntil,
+          boosts: conv.prunedBoosts,
           totalStepsEntered: newStepTotal,
           availableDice: Math.min(
             state.player.availableDice + newDice + ms.tokens + cross.bonusTokens,
@@ -381,8 +403,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           ...state.player,
           distanceKm: newKm,
           currentSquareIndex: squareIndexAtKm(routeData, newKm),
-          currentMultiplier: conv.remainingMultiplier,
-          multiplierUntil: conv.remainingMultiplierUntil,
+          boosts: conv.prunedBoosts,
           totalStepsEntered: newStepTotal,
           availableDice: Math.min(
             state.player.availableDice + newDice + ms.tokens + cross.bonusTokens,
@@ -459,12 +480,20 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const triple = isTriple(dice);
       const tripleValue = triple ? dice[0] : undefined;
 
-      // New: evaluate the bet → multiplier window. Doesn't advance the
-      // player directly; instead sets player.currentMultiplier and
-      // player.multiplierUntil so future steps benefit/suffer.
+      // Evaluate the bet → new boost window. Stacks on top of any active
+      // boosts (multiplicatively): chaining wins compounds the speedup,
+      // which is the whole point per the user's "倍を積み上げて" model.
       const result = evaluateBetWindow(bets, dice);
       const now = Date.now();
-      const multiplierUntil = now + result.windowMs;
+      const newBoost: Boost = {
+        multiplier: result.multiplier,
+        expiresAt: now + result.windowMs,
+        createdAt: now,
+      };
+      const stackedBoosts = [
+        ...pruneExpiredBoosts(state.player.boosts, now),
+        newBoost,
+      ];
 
       const sicBoRoll: SicBoRoll = {
         dice,
@@ -504,9 +533,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           ...state.player,
           // Bet tokens are spent, no advance.
           availableDice: Math.max(0, state.player.availableDice - totalBet),
-          // Overwrite any active multiplier.
-          currentMultiplier: result.multiplier,
-          multiplierUntil,
+          // Stack the new boost on top of any active ones (instead of
+          // the v6 single-slot overwrite).
+          boosts: stackedBoosts,
           sicBoHistory: [...(state.player.sicBoHistory ?? []), sicBoRoll],
           recentBonuses: [event, ...(state.player.recentBonuses ?? [])].slice(0, MAX_RECENT_BONUSES),
           lastUpdated: now,

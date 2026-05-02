@@ -115,6 +115,14 @@ export interface SicBoRoll {
   toSquare: number;
 }
 
+export interface Boost {
+  multiplier: number;
+  /** Unix ms when this entry expires and stops contributing. */
+  expiresAt: number;
+  /** Wall-clock when this boost was created (for UI ordering). */
+  createdAt: number;
+}
+
 export interface PlayerState {
   /** Distance from start of route (km). Continuous position. */
   distanceKm: number;
@@ -123,10 +131,22 @@ export interface PlayerState {
    * via routeData.squares cumulativeKm instead.
    */
   currentSquareIndex: number;
-  /** Active speed multiplier (1.0 = base, 2.0 = ×2, 0.5 = penalty, etc.). */
+  /**
+   * @deprecated Single-window model from v6. Now superseded by `boosts`.
+   * Kept on the type so old (v6) saves still load without TS errors.
+   * Effective multiplier at runtime = product of unexpired entries in `boosts`.
+   */
   currentMultiplier: number;
-  /** Unix ms when the multiplier window expires. 0 = no window. */
+  /** @deprecated See currentMultiplier. */
   multiplierUntil: number;
+  /**
+   * Stack of active speed-multiplier windows. Each Sic Bo win/loss
+   * appends one entry; the effective multiplier at any moment is
+   * the product of all entries whose `expiresAt > now`. This lets the
+   * player chain multiple wins for compounding speedup without losing
+   * the prior window the way the v6 single-slot model did.
+   */
+  boosts?: Boost[];
   /** Last seen step count for diff-based input (legacy add-steps still uses stepsTowardNextDie). */
   availableDice: number;
   totalStepsEntered: number;
