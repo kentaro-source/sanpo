@@ -159,12 +159,12 @@ export function MapView() {
     };
     const simplifyPath = (path: LL[]) => {
       if (path.length <= 4) return path;
-      // ~100 m tolerance. The previous 0.02° (~2 km) was a great-circle
-      // simplifier — it dropped every highway curve smaller than 2 km
-      // lateral, so at zoom 16 the polyline looked like a Tokyo→Miyazaki
-      // straight line. 0.001° still wipes out dense urban zigzag in the
-      // raw Directions response without erasing visible curves.
-      return rdp(path, 0.001);
+      // ~10 m tolerance. 0.001° (~100m) was still visible as slight
+      // road-misalignment at zoom 17+ — the user noticed '道から微妙に
+      // ずれている' on the Tokyo Station view. 0.0001° keeps the
+      // polyline pixel-aligned with road geometry at street level
+      // while still trimming redundant near-collinear points.
+      return rdp(path, 0.0001);
     };
 
     // Clear existing
