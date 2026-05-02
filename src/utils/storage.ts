@@ -3,12 +3,12 @@ import type { GameState, PlayerState } from '../types';
 const STORAGE_KEY = 'sanpo-game-state';
 const WATCHDOG_KEY = 'sanpo-progress-watchdog';
 
-// Version 8: per-day step attribution renamed from todayStepsBaseline
-// (Fit-only) to attributedTodaySteps (sum across all sources). Required
-// to coexist with the in-browser pedometer that adds steps in real time
-// while Fit Cloud lags behind. Watchdog preserves distanceKm across the
-// version bump.
-const CURRENT_VERSION = 8;
+// Version 9: capitals.ts reordered — Caucasus (GE, AM, AZ) moved from
+// the Europe block (positions 98-100) to immediately after Cyprus
+// (positions 44-46) so the chain flows naturally from the Middle East
+// into the Caucasus. Square indices and segment boundaries shift; old
+// saves drop through the version check, watchdog preserves distanceKm.
+const CURRENT_VERSION = 9;
 
 /** Replace any NaN/null/undefined number field with a safe default. */
 function sanitizeNum(v: unknown, fallback: number): number {

@@ -280,7 +280,7 @@ function createInitialState(): GameState {
   return {
     player: createInitialPlayer(),
     config: DEFAULT_CONFIG,
-    version: 8,
+    version: 9,
   };
 }
 

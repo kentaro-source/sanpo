@@ -453,6 +453,41 @@ export const capitals: Capital[] = [
   },
 
   // ============================================================
+  // 2.5. CAUCASUS (3 countries) — moved here from Europe block.
+  // Geographically adjacent to Middle East (Türkiye/Iran neighbors).
+  // ============================================================
+  {
+    id: 'GE',
+    name: 'Tbilisi',
+    nameJa: 'トビリシ',
+    country: 'Georgia',
+    countryJa: 'ジョージア',
+    lat: 41.7151,
+    lng: 44.8271,
+    region: 'europe',
+  },
+  {
+    id: 'AM',
+    name: 'Yerevan',
+    nameJa: 'エレバン',
+    country: 'Armenia',
+    countryJa: 'アルメニア',
+    lat: 40.1792,
+    lng: 44.4991,
+    region: 'europe',
+  },
+  {
+    id: 'AZ',
+    name: 'Baku',
+    nameJa: 'バクー',
+    country: 'Azerbaijan',
+    countryJa: 'アゼルバイジャン',
+    lat: 40.4093,
+    lng: 49.8671,
+    region: 'europe',
+  },
+
+  // ============================================================
   // 3. AFRICA (54 countries)
   // ============================================================
   {
@@ -997,38 +1032,8 @@ export const capitals: Capital[] = [
   },
 
   // ============================================================
-  // 4. EUROPE (47 countries)
+  // 4. EUROPE (44 countries) — Caucasus moved up to ME-adjacent block.
   // ============================================================
-  {
-    id: 'GE',
-    name: 'Tbilisi',
-    nameJa: 'トビリシ',
-    country: 'Georgia',
-    countryJa: 'ジョージア',
-    lat: 41.7151,
-    lng: 44.8271,
-    region: 'europe',
-  },
-  {
-    id: 'AM',
-    name: 'Yerevan',
-    nameJa: 'エレバン',
-    country: 'Armenia',
-    countryJa: 'アルメニア',
-    lat: 40.1792,
-    lng: 44.4991,
-    region: 'europe',
-  },
-  {
-    id: 'AZ',
-    name: 'Baku',
-    nameJa: 'バクー',
-    country: 'Azerbaijan',
-    countryJa: 'アゼルバイジャン',
-    lat: 40.4093,
-    lng: 49.8671,
-    region: 'europe',
-  },
   {
     id: 'RU',
     name: 'Moscow',

@@ -485,6 +485,22 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'AZ',
     routeType: 'land',
   },
+  // After v9 reorder, AZ is followed by EG (Africa starts) instead of RU.
+  // The chain crosses Iran/Saudi/Red Sea — no realistic walking; fantasy.
+  {
+    fromCapitalId: 'AZ',
+    toCapitalId: 'EG',
+    routeType: 'fantasy',
+    notes: 'バクー→[3,500km 中東上空]→カイロ',
+  },
+  // West Africa → Russia: ST(サントメ・西アフリカ)→Moscow. ~5,500km
+  // across Atlantic + Europe. Fantasy.
+  {
+    fromCapitalId: 'ST',
+    toCapitalId: 'RU',
+    routeType: 'fantasy',
+    notes: 'サントメ→[5,500km 大西洋上空]→モスクワ',
+  },
 ];
 
 export function findSegmentClassification(
