@@ -278,7 +278,7 @@ export function SicBoModal({ open, onClose }: Props) {
 
             {(player.sicBoHistory?.length ?? 0) > 0 && (
               <div className="sicbo-history">
-                <div className="sicbo-history-label">前回までの履歴</div>
+                <div className="sicbo-history-label">LAST 5</div>
                 <ol className="sicbo-history-list">
                   {(player.sicBoHistory ?? [])
                     .slice(-5)
@@ -291,13 +291,13 @@ export function SicBoModal({ open, onClose }: Props) {
                           className={`sicbo-history-row ${won ? 'won' : 'lost'}`}
                         >
                           <span className="sicbo-history-dice">
-                            <Die face={h.dice[0]} size={20} />
-                            <Die face={h.dice[1]} size={20} />
-                            <Die face={h.dice[2]} size={20} />
+                            <Die face={h.dice[0]} size={32} />
+                            <Die face={h.dice[1]} size={32} />
+                            <Die face={h.dice[2]} size={32} />
                           </span>
                           <span className="sicbo-history-sum">{h.sum}</span>
                           <span className="sicbo-history-result">
-                            {won ? `×${h.totalAdvance}` : 'ハズレ'}
+                            {won ? `×${h.totalAdvance}` : 'MISS'}
                           </span>
                         </li>
                       );

@@ -17,6 +17,8 @@ export interface UpcomingStop {
   /** English / romanized name (for the InfoWindow-style detail row). */
   name?: string;
   countryJa?: string;
+  /** ISO 3166-1 alpha-2 country code (for flag emoji rendering). */
+  countryCode?: string;
   visitedInRealLife?: boolean;
   /** One-line trivia / description (cities only; capitals get country). */
   description?: string;
@@ -112,6 +114,7 @@ export function useGame() {
             nameJa: cap.nameJa,
             name: cap.name,
             countryJa: cap.countryJa,
+            countryCode: cap.id,
             visitedInRealLife: isRealLifeVisitedCapital(cap.id),
             description: `${cap.country} の首都`,
           });
@@ -132,6 +135,7 @@ export function useGame() {
             nameJa: city.nameJa,
             name: city.name,
             countryJa: city.countryJa,
+            countryCode: city.countryId,
             visitedInRealLife: city.visitedInRealLife,
             description: city.description,
           });

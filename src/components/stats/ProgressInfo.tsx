@@ -10,6 +10,15 @@ function formatKm(km: number): string {
   return `${km.toFixed(2)}km`;
 }
 
+/** Convert ISO 3166-1 alpha-2 country code to its flag emoji. */
+function flagEmoji(cc: string): string {
+  if (!cc || cc.length !== 2) return '';
+  const A = 'A'.charCodeAt(0);
+  return [...cc.toUpperCase()]
+    .map((c) => String.fromCodePoint(0x1f1e6 + c.charCodeAt(0) - A))
+    .join('');
+}
+
 function formatDuration(ms: number): string {
   const totalMin = Math.floor(ms / 60_000);
   const h = Math.floor(totalMin / 60);
@@ -61,6 +70,11 @@ export function ProgressInfo() {
                     <div className="progress-stop-row">
                       <span className="progress-stop-name">
                         {stop.kind === 'capital' ? '🏛 ' : '📍 '}
+                        {stop.countryCode && (
+                          <span className="progress-stop-flag">
+                            {flagEmoji(stop.countryCode)}{' '}
+                          </span>
+                        )}
                         {stop.nameJa}
                         {stop.countryJa && stop.kind === 'capital' && (
                           <span className="progress-country">({stop.countryJa})</span>

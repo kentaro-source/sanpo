@@ -1357,10 +1357,10 @@
 
 .sicbo-history-label {
   font-size: 11px;
-  color: rgba(255, 255, 255, 0.55);
+  color: #6b4830;
   letter-spacing: 0.05em;
   margin-bottom: 6px;
-  text-transform: uppercase;
+  font-weight: 600;
 }
 
 .sicbo-history-list {
@@ -1375,36 +1375,36 @@
 .sicbo-history-row {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  padding: 2px 4px;
-  border-radius: 3px;
-  background: rgba(255, 255, 255, 0.04);
+  gap: 10px;
+  font-size: 14px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.04);
 }
 
 .sicbo-history-row.won {
-  color: #fbbf24;
+  color: #c1272d;
 }
 
 .sicbo-history-row.lost {
-  color: rgba(255, 255, 255, 0.6);
+  color: #94a3b8;
 }
 
 .sicbo-history-dice {
   display: inline-flex;
-  gap: 3px;
+  gap: 4px;
 }
 
 .sicbo-history-sum {
   font-weight: 600;
-  min-width: 18px;
+  min-width: 22px;
   text-align: right;
 }
 
 .sicbo-history-result {
   margin-left: auto;
   font-weight: 700;
-  font-size: 11px;
+  font-size: 13px;
 }
 
 .sicbo-clear {
