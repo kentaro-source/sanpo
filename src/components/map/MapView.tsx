@@ -58,6 +58,7 @@ export function MapView() {
   const squareMarkersRef = useRef<google.maps.Marker[]>([]);
   const currentMarkerRef = useRef<google.maps.Marker | null>(null);
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
+  const initialCenterDoneRef = useRef(false);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -421,6 +422,35 @@ export function MapView() {
       // can re-render on each step without rebuilding from Directions.
       builtPathRef.current = { allPoints, cumKm };
       renderFromBuilt(builtPathRef.current);
+
+      // First-render center alignment: now that the polyline is built we
+      // know the actual road position for the player's km. Pan the map
+      // there so launch doesn't sit ~5km off (great-circle artifact).
+      if (!initialCenterDoneRef.current && mapRef.current) {
+        const km = player.distanceKm;
+        let snapped: google.maps.LatLngLiteral | null = null;
+        const lo = cumKm[0];
+        const hi = cumKm[cumKm.length - 1];
+        if (km >= lo - 0.001 && km <= hi + 0.001) {
+          let idx = -1;
+          for (let i = 0; i < cumKm.length; i++) {
+            if (cumKm[i] >= km) { idx = i; break; }
+          }
+          if (idx <= 0) snapped = allPoints[0];
+          else if (idx === -1) snapped = allPoints[allPoints.length - 1];
+          else {
+            const a = allPoints[idx - 1];
+            const b = allPoints[idx];
+            const segKm = cumKm[idx] - cumKm[idx - 1];
+            const f = segKm > 0 ? Math.max(0, Math.min(1, (km - cumKm[idx - 1]) / segKm)) : 0;
+            snapped = { lat: a.lat + (b.lat - a.lat) * f, lng: a.lng + (b.lng - a.lng) * f };
+          }
+        }
+        if (snapped) {
+          mapRef.current.panTo(snapped);
+          initialCenterDoneRef.current = true;
+        }
+      }
     }
 
     renderCombinedRoute().catch((e) => {
@@ -814,6 +844,17 @@ export function MapView() {
     } else {
       currentMarkerRef.current.setPosition(markerPos);
     }
+
+    // First time we have a real polyline-snapped marker position (i.e.
+    // the route is loaded), pan the map there. The init effect above
+    // could only use the great-circle interpolation — that lands a few
+    // km off the actual road, e.g. somewhere around Roppongi when the
+    // player is on the Tokyo→Yokohama leg. This snap aligns map center
+    // with the actual marker once we know where the road runs.
+    if (!initialCenterDoneRef.current && builtPathRef.current && mapRef.current) {
+      mapRef.current.panTo(markerPos);
+      initialCenterDoneRef.current = true;
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded, position, player.distanceKm]);
 
@@ -855,8 +896,11 @@ export function MapView() {
   const recenter = () => {
     const map = mapRef.current;
     if (!map) return;
-    map.panTo(position);
-    // Snap back to a usable street-level zoom in case the user pinched out.
+    // Use the marker's currently rendered position (already polyline-
+    // snapped) rather than the great-circle `position`, otherwise tap
+    // 📍 sends you 5km off where the marker actually sits.
+    const target = currentMarkerRef.current?.getPosition();
+    map.panTo(target ?? position);
     if ((map.getZoom() ?? 16) < 14) map.setZoom(16);
   };
 
