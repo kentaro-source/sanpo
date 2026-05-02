@@ -56,6 +56,7 @@ export function MapView() {
   const cityMarkersRef = useRef<google.maps.Marker[]>([]);
   const squareMarkersRef = useRef<google.maps.Marker[]>([]);
   const currentMarkerRef = useRef<google.maps.Marker | null>(null);
+  const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -523,6 +524,18 @@ export function MapView() {
       visibleIndices.add(idx);
     }
 
+    if (!infoWindowRef.current) {
+      infoWindowRef.current = new google.maps.InfoWindow({ maxWidth: 280 });
+    }
+    const escapeHtml = (s: string) =>
+      s.replace(/[&<>"']/g, (c) =>
+        c === '&' ? '&amp;'
+          : c === '<' ? '&lt;'
+          : c === '>' ? '&gt;'
+          : c === '"' ? '&quot;'
+          : '&#39;'
+      );
+
     for (let i = 0; i < routeData.capitals.length; i++) {
       if (!visibleIndices.has(i)) continue;
       const capital = routeData.capitals[i];
@@ -539,6 +552,19 @@ export function MapView() {
           strokeColor: visited ? '#059669' : '#64748b',
           strokeWeight: 1.5,
         },
+      });
+      m.addListener('click', () => {
+        const visitedTag = visited
+          ? '<span style="color:#10b981;font-weight:600">✓ 訪問済</span>'
+          : '<span style="color:#94a3b8">未訪問</span>';
+        const html =
+          `<div style="font-size:13px;line-height:1.5">` +
+          `<div style="font-weight:700;font-size:14px">🏛 ${escapeHtml(capital.nameJa)}</div>` +
+          `<div style="color:#64748b;font-size:11px;margin-top:2px">${escapeHtml(capital.countryJa)} / ${escapeHtml(capital.country)} 首都</div>` +
+          `<div style="margin-top:6px">${visitedTag}</div>` +
+          `</div>`;
+        infoWindowRef.current!.setContent(html);
+        infoWindowRef.current!.open({ map: mapRef.current!, anchor: m });
       });
       capitalMarkersRef.current.push(m);
     }
@@ -569,13 +595,20 @@ export function MapView() {
 
     const ensureCreated = () => {
       if (cityMarkersRef.current.length > 0) return;
+      const escapeHtml = (s: string) =>
+        s.replace(/[&<>"']/g, (c) =>
+          c === '&' ? '&amp;'
+            : c === '<' ? '&lt;'
+            : c === '>' ? '&gt;'
+            : c === '"' ? '&quot;'
+            : '&#39;'
+        );
       for (const city of wanted) {
         const color = TYPE_COLORS[city.type] ?? '#6b7280';
         const m = new google.maps.Marker({
           position: { lat: city.lat, lng: city.lng },
           map: mapRef.current,
-          clickable: false,
-          title: `${city.nameJa} (${city.countryJa}) - ${city.description}`,
+          title: `${city.nameJa} (${city.countryJa})`,
           icon: {
             path: google.maps.SymbolPath.CIRCLE,
             scale: 3,
@@ -584,6 +617,25 @@ export function MapView() {
             strokeColor: 'white',
             strokeWeight: 0.8,
           },
+        });
+        m.addListener('click', () => {
+          if (!infoWindowRef.current) {
+            infoWindowRef.current = new google.maps.InfoWindow({ maxWidth: 280 });
+          }
+          const irlTag = city.visitedInRealLife
+            ? '<span style="color:#ec4899;font-weight:600">★ 実生活で訪問済</span>'
+            : '';
+          const html =
+            `<div style="font-size:13px;line-height:1.5">` +
+            `<div style="font-weight:700;font-size:14px">📍 ${escapeHtml(city.nameJa)}</div>` +
+            `<div style="color:#64748b;font-size:11px;margin-top:2px">${escapeHtml(city.countryJa)} / ${escapeHtml(city.name)}</div>` +
+            (city.description
+              ? `<div style="margin-top:6px;color:#334155">${escapeHtml(city.description)}</div>`
+              : '') +
+            (irlTag ? `<div style="margin-top:6px">${irlTag}</div>` : '') +
+            `</div>`;
+          infoWindowRef.current.setContent(html);
+          infoWindowRef.current.open({ map: mapRef.current!, anchor: m });
         });
         cityMarkersRef.current.push(m);
       }

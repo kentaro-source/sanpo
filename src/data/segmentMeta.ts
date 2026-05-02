@@ -83,14 +83,15 @@ export const segmentClassifications: SegmentClassification[] = [
       'RU-VLADIVOSTOK', // ~600 km (closed DPRK-Russia border, fallback straight)
       'RU-KHABAROVSK',  // ~600 km (driving in Russia)
       'CN-HARBIN',      // ~900 km (closed China-Russia border, fallback straight)
-      'CN-SHENYANG',    // ~530 km (driving in China)
+      'CN-CHANGCHUN',   // ~250 km (driving in China)
+      'CN-SHENYANG',    // ~280 km (driving)
       'CN-DALIAN',      // ~360 km (driving)
       'CN-TIANJIN',     // ~720 km (Bohai SEA ferry)
     ],
     // [origin=Pyongyang, 1=Hamhung, 2=Wonsan, 3=Vladivostok, 4=Khabarovsk,
-    //  5=Harbin, 6=Shenyang, 7=Dalian, 8=Tianjin, 9=Beijing]
-    // 2→3 DPRK-RU border closed; 4→5 China-Russia border closed; 7→8 Bohai ferry.
-    seaSegments: [[2, 3], [4, 5], [7, 8]],
+    //  5=Harbin, 6=Changchun, 7=Shenyang, 8=Dalian, 9=Tianjin, 10=Beijing]
+    // 2→3 DPRK-RU border closed; 4→5 China-Russia border closed; 8→9 Bohai ferry.
+    seaSegments: [[2, 3], [4, 5], [8, 9]],
     notes:
       '平壌→咸興→元山→[国境]→ウラジオストク→ハバロフスク→[国境]→ハルビン→瀋陽→大連→[渤海フェリー]→天津→北京',
   },
@@ -807,62 +808,65 @@ export const segmentClassifications: SegmentClassification[] = [
     notes: 'ブダペスト→[国境]→ブラチスラバ（直行 ~165km）',
   },
 
-  // Bratislava → Prague via Brno.
+  // Bratislava → Prague via Brno + Jihlava.
   {
     fromCapitalId: 'SK',
     toCapitalId: 'CZ',
     routeType: 'land',
     waypointCityIds: [
-      'CZ-BRNO', // ~135 km from Bratislava, SK-CZ border
-      // Brno → Prague ~205 km (Driving fallback)
+      'CZ-BRNO',     // ~135 km from Bratislava, SK-CZ border
+      'CZ-JIHLAVA',  // ~95 km
+      // Jihlava → Prague ~135 km
     ],
-    notes: 'ブラチスラバ→[国境]→ブルノ→プラハ',
+    notes: 'ブラチスラバ→[国境]→ブルノ→イフラヴァ→プラハ',
   },
 
-  // Prague → Warsaw via Liberec → Wrocław → Łódź.
+  // Prague → Warsaw via Liberec → Wrocław → Częstochowa → Łódź.
   {
     fromCapitalId: 'CZ',
     toCapitalId: 'PL',
     routeType: 'land',
     waypointCityIds: [
-      'CZ-LIBEREC',  // ~110 km from Prague
-      'PL-WROCLAW',  // ~170 km, CZ-PL border
-      'PL-LODZ',     // ~220 km (Driving fallback)
+      'CZ-LIBEREC',       // ~110 km from Prague
+      'PL-WROCLAW',       // ~170 km, CZ-PL border
+      'PL-CZESTOCHOWA',   // ~190 km
+      'PL-LODZ',          // ~140 km
       // Łódź → Warsaw ~135 km
     ],
-    notes: 'プラハ→リベレツ→[国境]→ヴロツワフ→ウッチ→ワルシャワ',
+    notes: 'プラハ→リベレツ→[国境]→ヴロツワフ→チェンストホヴァ→ウッチ→ワルシャワ',
   },
 
-  // Warsaw → Berlin via Łódź → Poznań.
+  // Warsaw → Berlin via Łódź → Konin → Poznań.
   {
     fromCapitalId: 'PL',
     toCapitalId: 'DE',
     routeType: 'land',
     waypointCityIds: [
       'PL-LODZ',    // ~135 km from Warsaw
-      'PL-POZNAN',  // ~210 km (Driving fallback)
+      'PL-KONIN',   // ~120 km
+      'PL-POZNAN',  // ~95 km
       // Poznań → Berlin ~270 km, PL-DE border (Driving fallback)
     ],
-    notes: 'ワルシャワ→ウッチ→ポズナン→[国境]→ベルリン',
+    notes: 'ワルシャワ→ウッチ→コニン→ポズナン→[国境]→ベルリン',
   },
 
   // ===== Batch 6: Northern Europe (DE → IS), 4 segments =====
 
-  // Berlin → Copenhagen via Hamburg + Lübeck + Flensburg + Odense.
-  // Crosses to Denmark over land then bridges Storebælt to Zealand.
+  // Berlin → Copenhagen via Wolfsburg + Hamburg + Lübeck + Flensburg + Odense.
   {
     fromCapitalId: 'DE',
     toCapitalId: 'DK',
     routeType: 'land',
     waypointCityIds: [
-      'DE-HAMBURG',    // ~290 km from Berlin (Driving fallback)
+      'DE-WOLFSBURG',  // ~230 km from Berlin (slight Driving fallback)
+      'DE-HAMBURG',    // ~190 km
       'DE-LUEBECK',    // ~70 km
       'DE-FLENSBURG',  // ~150 km
       'DK-ODENSE',     // ~190 km, DE-DK border (Funen via Jutland)
       // Odense → Copenhagen ~165 km via Storebæltsbro
     ],
     notes:
-      'ベルリン→ハンブルク→リューベック→フレンスブルク→[国境・ユトランド]→オーデンセ→[ストアベルト橋]→コペンハーゲン',
+      'ベルリン→ヴォルフスブルク→ハンブルク→リューベック→フレンスブルク→[国境・ユトランド]→オーデンセ→[ストアベルト橋]→コペンハーゲン',
   },
 
   // Copenhagen → Oslo — direct DFDS overnight ferry across the Skagerrak.
@@ -962,17 +966,18 @@ export const segmentClassifications: SegmentClassification[] = [
     notes: 'ブリュッセル→[国境]→ルクセンブルク（直行 ~220km）',
   },
 
-  // Luxembourg → Paris via Metz + Reims.
+  // Luxembourg → Paris via Metz + Reims + Troyes loop.
   {
     fromCapitalId: 'LU',
     toCapitalId: 'FR',
     routeType: 'land',
     waypointCityIds: [
-      'FR-METZ',   // ~70 km from Luxembourg, LU-FR border
-      'FR-REIMS',  // ~190 km
-      // Reims → Paris ~140 km
+      'FR-METZ',    // ~70 km from Luxembourg, LU-FR border
+      'FR-REIMS',   // ~190 km
+      'FR-TROYES',  // ~125 km southeast (Champagne)
+      // Troyes → Paris ~165 km
     ],
-    notes: 'ルクセンブルク→[国境]→メス→ランス→パリ',
+    notes: 'ルクセンブルク→[国境]→メス→ランス→トロワ→パリ',
   },
 
   // Paris → Monaco via Dijon → Lyon → Avignon → Marseille → Nice (E15/A6/A7/A8).
@@ -1498,7 +1503,7 @@ export const segmentClassifications: SegmentClassification[] = [
     notes: 'ジョージタウン→リンデン→[国境]→パラマリボ',
   },
 
-  // Paramaribo → Brasília via Macapá → Manaus → Porto Velho → Palmas.
+  // Paramaribo → Brasília via Macapá → Manaus → Rio Branco → Porto Velho → Palmas.
   {
     fromCapitalId: 'SR',
     toCapitalId: 'BR',
@@ -1506,13 +1511,14 @@ export const segmentClassifications: SegmentClassification[] = [
     waypointCityIds: [
       'BR-MACAPA',     // ~880 km, SR-FR-BR borders (estuary)
       'BR-MANAUS',     // ~1330 km along the Amazon (river/Driving fallback)
-      'BR-PORTOVELHO', // ~880 km along BR-319 jungle highway (Driving fallback)
+      'BR-RIOBRANCO',  // ~1170 km southwest into Acre (Driving fallback)
+      'BR-PORTOVELHO', // ~510 km
       'BR-PALMAS',     // ~1320 km (Driving fallback through Cerrado)
       // Palmas → Brasília ~700 km (Driving fallback)
     ],
     seaSegments: [[0, 1]], // Paramaribo → Macapá traverses estuary
     notes:
-      'パラマリボ→[国境・アマゾン河口]→マカパ→マナウス→ポルト・ヴェーリョ→パルマス→ブラジリア',
+      'パラマリボ→[国境・アマゾン河口]→マカパ→マナウス→リオ・ブランコ→ポルト・ヴェーリョ→パルマス→ブラジリア',
   },
 
   // Brasília → Asunción via Goiânia + Campo Grande + Ciudad del Este.
@@ -1552,20 +1558,21 @@ export const segmentClassifications: SegmentClassification[] = [
     notes: 'モンテビデオ→[ブケブス フェリー ~210km]→ブエノスアイレス',
   },
 
-  // Buenos Aires → Santiago via Rosario (passed) → Córdoba → San Luis → Mendoza.
+  // Buenos Aires → Santiago via Rosario → Córdoba → Río Cuarto → San Luis → Mendoza.
   {
     fromCapitalId: 'AR',
     toCapitalId: 'CL',
     routeType: 'land',
     waypointCityIds: [
-      'AR-ROSARIO',  // ~300 km from Buenos Aires (slight Driving fallback)
-      'AR-CORDOBA',  // ~400 km (Driving fallback through Pampas)
-      'AR-SANLUIS',  // ~410 km (Driving fallback)
-      'AR-MENDOZA',  // ~265 km (slight Driving fallback)
+      'AR-ROSARIO',     // ~300 km from Buenos Aires (slight Driving fallback)
+      'AR-CORDOBA',     // ~400 km (Driving fallback through Pampas)
+      'AR-RIOCUARTO',   // ~210 km
+      'AR-SANLUIS',     // ~210 km
+      'AR-MENDOZA',     // ~265 km (slight Driving fallback)
       // Mendoza → Santiago ~360 km via Cristo Redentor pass (Driving fallback)
     ],
     notes:
-      'ブエノスアイレス→ロサリオ→コルドバ→サン・ルイス→メンドーサ→[アンデス峠]→サンティアゴ',
+      'ブエノスアイレス→ロサリオ→コルドバ→リオ・クアルト→サン・ルイス→メンドーサ→[アンデス峠]→サンティアゴ',
   },
 
   // Santiago → La Paz via Viña del Mar → La Serena → Copiapó → Antofagasta → Calama → Uyuni → Oruro.
@@ -1575,7 +1582,8 @@ export const segmentClassifications: SegmentClassification[] = [
     routeType: 'land',
     waypointCityIds: [
       'CL-VINADELMAR', // ~120 km from Santiago
-      'CL-LASERENA',   // ~370 km (Driving fallback up the coast)
+      'CL-OVALLE',     // ~245 km (slight Driving fallback up the coast)
+      'CL-LASERENA',   // ~125 km
       'CL-COPIAPO',    // ~330 km (Driving fallback through Atacama)
       'CL-ANTOFAGASTA',// ~560 km (heavy Driving fallback through driest desert)
       'CL-CALAMA',     // ~210 km (slight Driving fallback)
@@ -1770,27 +1778,28 @@ export const segmentClassifications: SegmentClassification[] = [
       'EG-ALEXANDRIA',    // ~220 km from Cairo (slight Driving fallback)
       'EG-MARSAMATRUH',   // ~290 km (Driving fallback along coast)
       'LY-TOBRUK',        // ~290 km, EG-LY border (Driving fallback)
-      'LY-BENGHAZI',      // ~480 km (Driving fallback through Cyrenaica)
-      // Benghazi → Tripoli ~1000 km (Driving fallback)
+      'LY-AJDABIYA',      // ~330 km (Driving fallback)
+      'LY-BENGHAZI',      // ~150 km
+      // Benghazi → Tripoli ~1000 km along the Sirte coast (Driving fallback)
     ],
     notes:
       'カイロ→アレクサンドリア→マルサ・マトルーフ→[国境]→トブルク→ベンガジ→トリポリ',
   },
 
-  // Tripoli → Tunis via Sabratha + Misrata reverse-coast then Sfax + Sousse.
+  // Tripoli → Tunis via Sabratha + Ghadames (Sahara oasis detour) → coast.
   {
     fromCapitalId: 'LY',
     toCapitalId: 'TN',
     routeType: 'land',
     waypointCityIds: [
-      'LY-SABRATHA', // ~80 km from Tripoli (slight)
-      // Tripoli is east of Sabratha so we go west toward Tunis from Sabratha
-      'TN-SFAX',     // ~415 km, LY-TN border crossing (Driving fallback)
-      'TN-SOUSSE',   // ~140 km
+      'LY-SABRATHA',  // ~80 km from Tripoli
+      'LY-GHADAMES',  // ~430 km south to Sahara oasis (Driving fallback)
+      'TN-SFAX',      // ~360 km north to Tunisian coast (Driving fallback)
+      'TN-SOUSSE',    // ~140 km
       // Sousse → Tunis ~140 km
     ],
     notes:
-      'トリポリ→サブラタ→[国境]→スファックス→スース→チュニス',
+      'トリポリ→サブラタ→ガダーミス→[国境]→スファックス→スース→チュニス',
   },
 
   // Tunis → Algiers via Sousse (passed) → Annaba → Constantine.
@@ -1831,17 +1840,18 @@ export const segmentClassifications: SegmentClassification[] = [
       'ラバト→カサブランカ→アガディール→[西サハラ]→ラユーン→[国境]→ヌアディブー→ヌアクショット',
   },
 
-  // Nouakchott → Bamako via Néma + Atar (oasis spine of the Sahel).
+  // Nouakchott → Bamako via Atar + Néma + Ayoun el Atrous.
   {
     fromCapitalId: 'MR',
     toCapitalId: 'ML',
     routeType: 'land',
     waypointCityIds: [
-      'MR-ATAR',  // ~440 km from Nouakchott (Driving fallback into desert)
-      'MR-NEMA',  // ~860 km southeast diagonal across the Sahel (Driving fallback)
-      // Néma → Bamako ~840 km, MR-ML border (Driving fallback)
+      'MR-ATAR',           // ~440 km from Nouakchott (Driving fallback into desert)
+      'MR-NEMA',           // ~860 km southeast diagonal (heavy Driving fallback)
+      'MR-AYOUNELATROUS',  // ~250 km southwest, last MR town before ML
+      // Ayoun el Atrous → Bamako ~600 km, MR-ML border (Driving fallback)
     ],
-    notes: 'ヌアクショット→[サハラ・サヘル]→アタール→ネマ→[国境]→バマコ',
+    notes: 'ヌアクショット→[サハラ・サヘル]→アタール→ネマ→アユン・エル・アトロウス→[国境]→バマコ',
   },
 
   // Bamako → Niamey via Mopti + Timbuktu + Gao on the Niger River.
