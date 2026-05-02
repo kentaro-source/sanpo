@@ -93,11 +93,13 @@ export function useGame() {
 
     const upcomingStops: UpcomingStop[] = [];
     // Tuned down from 6 → 4 so each row in ProgressInfo is taller and
-    // easier to tap without accidental neighbor hits.
+    // easier to tap without accidental neighbor hits. The last slot is
+    // always reserved for the next capital so the player can always
+    // see "where this leg ends" even when many cities crowd in front.
     const MAX_STOPS = 4;
+    const MAX_CITIES = MAX_STOPS - 1;
     let prevDelta = 0;
     for (const s of stopsWithDelta) {
-      if (upcomingStops.length >= MAX_STOPS) break;
       if (s.kind === 'capital') {
         const cap = capitals.find((c) => c.id === s.id);
         if (cap) {
@@ -115,6 +117,9 @@ export function useGame() {
           break; // stop chain ends at next capital
         }
       } else {
+        // Skip cities once we've filled the city slots — keep the
+        // remaining iterations searching for the next capital.
+        if (upcomingStops.length >= MAX_CITIES) continue;
         const city = cities.find((c) => c.id === s.id);
         if (city) {
           upcomingStops.push({
