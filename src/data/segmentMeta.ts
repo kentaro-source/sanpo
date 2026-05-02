@@ -49,6 +49,7 @@ export const segmentClassifications: SegmentClassification[] = [
       'KR-DAEGU',        // ~80 km
       'KR-DAEJEON',      // ~130 km
       'KR-CHEONGJU',     // ~35 km
+      'KR-SUWON',        // ~85 km — Hwaseong fortress UNESCO site
     ],
     // Indices into [origin=Tokyo, ...waypoints, dest=Seoul]:
     //   0=Tokyo,  1=Yokohama,  2=Hamamatsu,  3=Nagoya,  4=Kyoto,
@@ -60,30 +61,38 @@ export const segmentClassifications: SegmentClassification[] = [
     notes:
       '東京→横浜→浜松→名古屋→京都→大阪→神戸→広島→北九州→熊本→宮崎(故郷)→長崎→福岡→[博多-プサン フェリー]→プサン→大邱→大田→清州→ソウル',
   },
+  // Seoul → Pyongyang via Kaesong (open via the now-defunct Kaesong
+  // Industrial Region road in the post-war geography).
   {
     fromCapitalId: 'KR',
     toCapitalId: 'KP',
     routeType: 'land',
-    notes: '38度線越え（実際は不通）',
+    waypointCityIds: [
+      'KP-KAESONG', // ~75 km from Seoul, just past the DMZ
+      // Kaesong → Pyongyang ~125 km
+    ],
+    notes: 'ソウル→[38度線・実際は不通]→開城→平壌',
   },
   {
     fromCapitalId: 'KP',
     toCapitalId: 'CN',
     routeType: 'mixed',
     waypointCityIds: [
-      'RU-VLADIVOSTOK', // ~640 km (closed DPRK-Russia border, fallback straight)
+      'KP-HAMHUNG',     // ~280 km from Pyongyang up the east coast
+      'KP-WONSAN',      // ~180 km — back south briefly, east coast port
+      'RU-VLADIVOSTOK', // ~600 km (closed DPRK-Russia border, fallback straight)
       'RU-KHABAROVSK',  // ~600 km (driving in Russia)
       'CN-HARBIN',      // ~900 km (closed China-Russia border, fallback straight)
       'CN-SHENYANG',    // ~530 km (driving in China)
       'CN-DALIAN',      // ~360 km (driving)
       'CN-TIANJIN',     // ~720 km (Bohai SEA ferry)
     ],
-    // [origin=Pyongyang, 1=Vladivostok, 2=Khabarovsk, 3=Harbin, 4=Shenyang,
-    //  5=Dalian, 6=Tianjin, 7=Beijing]
-    // 0→1 DPRK-RU border closed; 2→3 China-Russia border closed; 5→6 Bohai ferry.
-    seaSegments: [[0, 1], [2, 3], [5, 6]],
+    // [origin=Pyongyang, 1=Hamhung, 2=Wonsan, 3=Vladivostok, 4=Khabarovsk,
+    //  5=Harbin, 6=Shenyang, 7=Dalian, 8=Tianjin, 9=Beijing]
+    // 2→3 DPRK-RU border closed; 4→5 China-Russia border closed; 7→8 Bohai ferry.
+    seaSegments: [[2, 3], [4, 5], [7, 8]],
     notes:
-      '平壌→[国境]→ウラジオストク→ハバロフスク→[国境]→ハルビン→瀋陽→大連→[渤海フェリー]→天津→北京',
+      '平壌→咸興→元山→[国境]→ウラジオストク→ハバロフスク→[国境]→ハルビン→瀋陽→大連→[渤海フェリー]→天津→北京',
   },
   {
     fromCapitalId: 'CN',
@@ -319,15 +328,22 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'PK',
     toCapitalId: 'AF',
     routeType: 'land',
-    waypointCityIds: ['PK-PESHAWAR'],
-    notes: 'イスラマバード→ペシャワール→[カイバル峠]→カブール',
+    waypointCityIds: [
+      'PK-PESHAWAR',     // ~190 km from Islamabad
+      'AF-KANDAHAR',     // ~640 km via Khyber + Kabul detour skipped (Driving fallback)
+      'AF-HERAT',        // ~565 km west across Afghanistan (Driving fallback)
+      // Herat → Kabul ~625 km loops back east (Driving fallback)
+    ],
+    notes:
+      'イスラマバード→ペシャワール→[カイバル峠]→カンダハール→ヘラート→カブール',
   },
   {
     fromCapitalId: 'AF',
     toCapitalId: 'TJ',
     routeType: 'land',
-    // Kabul→Dushanbe ~570km via Hindu Kush. Border is open but rugged.
-    notes: 'カブール→[ヒンドゥークシュ]→ドゥシャンベ',
+    // Kabul→Mazar-i-Sharif→Dushanbe via Salang Pass and the Pyanj River.
+    waypointCityIds: ['AF-MAZARESHARIF'],
+    notes: 'カブール→[サラン峠]→マザーリシャリーフ→[国境・パンジ川]→ドゥシャンベ',
   },
   {
     fromCapitalId: 'TJ',
@@ -379,7 +395,8 @@ export const segmentClassifications: SegmentClassification[] = [
     routeType: 'land',
     waypointCityIds: [
       'IR-MASHHAD', // ~250 km — crosses TM-IR border
-      // Mashhad → Tehran ~700 km
+      'IR-RASHT',   // ~880 km west via Caspian coast (heavy Driving fallback)
+      // Rasht → Tehran ~330 km (Driving fallback)
     ],
     notes: 'アシガバート→[国境]→マシュハド→テヘラン',
   },
@@ -387,7 +404,14 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'IR',
     toCapitalId: 'IQ',
     routeType: 'land',
-    notes: 'テヘラン→バグダード',
+    waypointCityIds: [
+      'IR-ISFAHAN', // ~440 km from Tehran (Driving fallback)
+      'IR-SHIRAZ',  // ~480 km south (Driving fallback)
+      'IR-AHVAZ',   // ~570 km, Khuzestan plain (Driving fallback)
+      // Ahvaz → Baghdad ~440 km, IR-IQ border (Driving fallback)
+    ],
+    notes:
+      'テヘラン→イスファハーン→シーラーズ→アフヴァーズ→[国境]→バグダード',
   },
   {
     fromCapitalId: 'IQ',
@@ -425,7 +449,12 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'OM',
     toCapitalId: 'YE',
     routeType: 'land',
-    notes: 'アラビア半島南部',
+    waypointCityIds: [
+      'YE-ADEN', // ~1370 km from Muscat through Hadhramaut (heavy Driving fallback)
+      'YE-TAIZ', // ~190 km
+      // Taiz → Sana'a ~265 km (Driving fallback)
+    ],
+    notes: 'マスカット→[アラビア半島南海岸]→アデン→タイズ→サナア',
   },
   {
     fromCapitalId: 'YE',
@@ -461,8 +490,14 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'SY',
     toCapitalId: 'TR',
     routeType: 'land',
-    waypointCityIds: ['TR-CAPPADOCIA'],
-    notes: 'ダマスカス→カッパドキア経由→アンカラ',
+    waypointCityIds: [
+      'SY-HOMS',          // ~160 km from Damascus
+      'SY-ALEPPO',        // ~190 km
+      // Aleppo → Cappadocia ~600 km, SY-TR border (Driving fallback)
+      'TR-CAPPADOCIA',    // long Anatolian stretch
+      // Cappadocia → Ankara ~280 km (slight Driving fallback)
+    ],
+    notes: 'ダマスカス→ホムス→アレッポ→[国境]→カッパドキア→アンカラ',
   },
   {
     fromCapitalId: 'TR',
@@ -1281,17 +1316,21 @@ export const segmentClassifications: SegmentClassification[] = [
     notes: 'パナマシティ→コロン→[カリブ海 ~1500km]→ハバナ',
   },
 
-  // Havana → Kingston via Santiago de Cuba.
+  // Havana → Kingston via Cienfuegos + Camagüey + Holguín + Santiago.
   {
     fromCapitalId: 'CU',
     toCapitalId: 'JM',
     routeType: 'mixed',
     waypointCityIds: [
-      'CU-SANTIAGODECUBA', // ~870 km within Cuba (Driving fallback)
+      'CU-CIENFUEGOS',     // ~250 km from Havana along south coast
+      'CU-CAMAGUEY',       // ~330 km (Driving fallback)
+      'CU-HOLGUIN',        // ~270 km (Driving fallback)
+      'CU-SANTIAGODECUBA', // ~140 km
       // Santiago de Cuba → Kingston ~280 km Caribbean
     ],
-    seaSegments: [[1, 2]],
-    notes: 'ハバナ→サンティアゴ・デ・クーバ→[カリブ海]→キングストン',
+    seaSegments: [[4, 5]],
+    notes:
+      'ハバナ→シエンフエゴス→カマグエイ→オルギン→サンティアゴ・デ・クーバ→[カリブ海]→キングストン',
   },
 
   // Kingston → Port-au-Prince — direct sea.
