@@ -1,8 +1,14 @@
 import { useState, useMemo } from 'react';
 import type { BetSlot, SicBoBetType } from '../../types';
 import { useGame } from '../../hooks/useGame';
-import { evaluateAllBets, betLabelJa, payoutFor } from '../../utils/sicbo';
-import { rollDice } from '../../utils/sicbo';
+import {
+  betLabelJa,
+  payoutFor,
+  rollDice,
+  evaluateBetWindow,
+  betWon,
+  windowMsForMultiplier,
+} from '../../utils/sicbo';
 import {
   playDiceRoll,
   playWin,
@@ -28,8 +34,11 @@ export function SicBoModal({ open, onClose }: Props) {
   const [, setShownDice] = useState<[number, number, number]>([1, 1, 1]);
   const [resultRoll, setResultRoll] = useState<{
     dice: [number, number, number];
-    advance: number;
-    perBet: { bet: BetSlot; advance: number }[];
+    won: boolean;
+    multiplier: number;
+    windowMs: number;
+    /** Each individual bet's win state and the multiplier it would have triggered. */
+    perBet: { bet: BetSlot; won: boolean; payout: number }[];
   } | null>(null);
 
   const totalTokens = useMemo(
@@ -93,19 +102,31 @@ export function SicBoModal({ open, onClose }: Props) {
       const dice = rollDice();
       setShownDice(dice);
 
-      const evalResult = evaluateAllBets(betArr, dice);
+      // Evaluate using the SAME function the reducer uses, so the on-screen
+      // result matches what actually applies to the player's boost stack.
+      // (Previously this called evaluateAllBets, a legacy stub that always
+      // returned 0 advance — so a winning ×2 sum-13 大 bet still rendered
+      // as 'ハズレ' even though the boost itself was applied correctly.)
+      const window = evaluateBetWindow(betArr, dice);
+      const perBet = betArr.map((bet) => ({
+        bet,
+        won: betWon(bet, dice),
+        payout: payoutFor(bet.type),
+      }));
       rollSicBo(betArr, dice);
 
       setResultRoll({
         dice,
-        advance: evalResult.total,
-        perBet: evalResult.perBet,
+        won: window.won,
+        multiplier: window.multiplier,
+        windowMs: window.windowMs,
+        perBet,
       });
       setPhase('result');
 
-      if (evalResult.total >= 200) {
+      if (window.won && window.multiplier >= 100) {
         setTimeout(() => playJackpot(), 200);
-      } else if (evalResult.total > 0) {
+      } else if (window.won) {
         setTimeout(() => playWin(), 200);
       } else {
         setTimeout(() => playLose(), 200);
@@ -124,7 +145,7 @@ export function SicBoModal({ open, onClose }: Props) {
     setBets(new Map());
     setPhase('betting');
     setResultRoll(null);
-    if (resultRoll && resultRoll.advance > 0) {
+    if (resultRoll && resultRoll.won) {
       playTokenGain();
     }
   };
@@ -281,17 +302,23 @@ export function SicBoModal({ open, onClose }: Props) {
               ))}
             </div>
             <div className="sicbo-stage-sum">合計 {resultRoll.dice[0] + resultRoll.dice[1] + resultRoll.dice[2]}</div>
-            <div className={`sicbo-advance ${resultRoll.advance > 0 ? 'win' : 'lose'}`}>
-              {resultRoll.advance > 0 ? `${resultRoll.advance} マス進む！` : 'ハズレ'}
+            <div className={`sicbo-advance ${resultRoll.won ? 'win' : 'lose'}`}>
+              {resultRoll.won
+                ? `×${resultRoll.multiplier} 加速 ${formatWindowMs(resultRoll.windowMs)}！`
+                : `ハズレ … ×0.5 ${formatWindowMs(resultRoll.windowMs)}`}
             </div>
             <div className="sicbo-bet-results">
               {resultRoll.perBet.map((r, i) => (
                 <div
                   key={i}
-                  className={`sicbo-bet-result ${r.advance > 0 ? 'win' : 'lose'}`}
+                  className={`sicbo-bet-result ${r.won ? 'win' : 'lose'}`}
                 >
                   <span>{betLabelJa(r.bet.type)}（{r.bet.amount}トークン）</span>
-                  <span>{r.advance > 0 ? `${r.advance} マス進む` : 'ハズレ'}</span>
+                  <span>
+                    {r.won
+                      ? `×${r.payout} ${formatWindowMs(windowMsForMultiplier(r.payout))}`
+                      : 'ハズレ'}
+                  </span>
                 </div>
               ))}
             </div>
@@ -318,6 +345,17 @@ export function SicBoModal({ open, onClose }: Props) {
 function massLabel(count: number, mult: number): string {
   const tokens = count > 0 ? count : 1;
   return `+${tokens * mult}`;
+}
+
+/** Format ms duration as "24h" / "4h30m" / "16分". */
+function formatWindowMs(ms: number): string {
+  const totalMin = Math.round(ms / 60_000);
+  if (totalMin >= 60) {
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return m > 0 ? `${h}h${m}m` : `${h}h`;
+  }
+  return `${totalMin}分`;
 }
 
 interface BigCellProps {
