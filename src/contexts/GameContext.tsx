@@ -13,6 +13,10 @@ import { routeData } from '../data';
 import { cities } from '../data/cities';
 import { squareIndexAtKm } from '../data/generateRoute';
 import {
+  isRealLifeVisitedCapital,
+  isRealLifeVisitedCity,
+} from '../data/realLifeVisited';
+import {
   loadGameState,
   saveGameState,
   clearGameState,
@@ -129,16 +133,19 @@ function detectCrossings(
       if (capKm > localStart && capKm <= localEnd) {
         if (!newCapitalsSet.has(cap.id)) {
           newCapitalsSet.add(cap.id);
-          // +2 if this is the landing position, +1 for pass-through.
-          const isLanding = Math.abs(localEnd - capKm) < 0.5; // 500m tolerance
-          const tokens = isLanding ? 2 : 1;
+          // No landing/pass-through distinction: in the continuous distance
+          // model the player crosses every capital exactly once with no
+          // mechanic to "stop on" one. Real-life-visited capitals award
+          // a bigger bonus for the 思い出 effect.
+          const irl = isRealLifeVisitedCapital(cap.id);
+          const tokens = irl ? 5 : 2;
           bonusTokens += tokens;
           events.push({
-            kind: isLanding ? 'capital-landing' : 'capital',
+            kind: irl ? 'capital-landing' : 'capital',
             amount: tokens,
-            label: isLanding
-              ? `🏛 ${cap.nameJa}（${cap.countryJa}）到着！`
-              : `🏛 ${cap.nameJa}を通過`,
+            label: irl
+              ? `★ ${cap.nameJa}（${cap.countryJa}）懐かしの首都！`
+              : `🏛 ${cap.nameJa}（${cap.countryJa}）通過`,
             timestamp: now,
           });
         }
@@ -169,8 +176,8 @@ function detectCrossings(
   for (const cid of newCityIds) {
     const city = cities.find((c) => c.id === cid);
     if (!city) continue;
-    const irl = city.visitedInRealLife === true;
-    const tokens = irl ? 2 : 1;
+    const irl = city.visitedInRealLife === true || isRealLifeVisitedCity(cid);
+    const tokens = irl ? 3 : 1;
     bonusTokens += tokens;
     events.push({
       kind: irl ? 'city-irl' : 'city',
@@ -220,8 +227,34 @@ function checkMilestones(
 
 const DEFAULT_CONFIG: GameConfig = {
   stepsPerDie: 1000, // v8: 5000→1000 — more frequent betting to suit slow walking
-  maxDice: 5,
+  maxDice: 100,      // v8: 5→100 — lets the player hoard for sea-crossing 爆速 sessions
 };
+
+/** Hard ceiling for total tokens including capital/city bonus overflow. */
+const TOKEN_HARD_CEILING_FACTOR = 1.5;
+
+/**
+ * Combine carried tokens, walking-earned tokens, and bonus tokens.
+ *
+ * - Walking-earned tokens respect maxDice (don't waste cap-busting walks
+ *   that produce more tokens than the cap allows).
+ * - Bonus tokens (capital/city/milestone) IGNORE the soft cap because the
+ *   user shouldn't lose meaningful one-shot rewards just for happening to
+ *   be at cap when they cross a capital.
+ * - A hard ceiling at maxDice × N prevents unbounded hoarding.
+ * - We never lower an already-carried high count just because walking
+ *   would exceed the cap; carried > cap is allowed (left over from
+ *   previous bonuses) and walking simply doesn't add to it.
+ */
+function combineDice(
+  carried: number,
+  walking: number,
+  bonus: number,
+  cap: number,
+): number {
+  const walkedTo = Math.min(carried + walking, Math.max(cap, carried));
+  return Math.min(walkedTo + bonus, cap * TOKEN_HARD_CEILING_FACTOR);
+}
 
 function createInitialPlayer(): PlayerState {
   return {
@@ -330,8 +363,10 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           currentSquareIndex: squareIndexAtKm(routeData, newKm),
           boosts: conv.prunedBoosts,
           totalStepsEntered: newStepTotal,
-          availableDice: Math.min(
-            state.player.availableDice + newDice + ms.tokens + cross.bonusTokens,
+          availableDice: combineDice(
+            state.player.availableDice,
+            newDice,
+            ms.tokens + cross.bonusTokens,
             state.config.maxDice,
           ),
           stepsTowardNextDie: remainder,
@@ -416,8 +451,10 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           currentSquareIndex: squareIndexAtKm(routeData, newKm),
           boosts: conv.prunedBoosts,
           totalStepsEntered: newStepTotal,
-          availableDice: Math.min(
-            state.player.availableDice + newDice + ms.tokens + cross.bonusTokens,
+          availableDice: combineDice(
+            state.player.availableDice,
+            newDice,
+            ms.tokens + cross.bonusTokens,
             state.config.maxDice,
           ),
           stepsTowardNextDie: remainder,

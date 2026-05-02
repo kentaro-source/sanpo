@@ -108,6 +108,11 @@ export function loadGameState(): GameState | null {
         if (parsed.config && parsed.config.stepsPerDie >= 5000) {
           parsed.config.stepsPerDie = 1000;
         }
+        // Token-cap history: 5 (v1-v8 initial) → 50 → 100 (v8 mid-session bumps).
+        // Anyone still under 100 didn't get the new bonus economy yet — bump.
+        if (parsed.config && parsed.config.maxDice < 100) {
+          parsed.config.maxDice = 100;
+        }
         const p = parsed.player;
         p.distanceKm = sanitizeNum(p.distanceKm, 0);
         p.currentMultiplier = sanitizeNum(p.currentMultiplier, 1.0);

@@ -36,16 +36,20 @@ export const SICBO_PAYOUTS: Record<string, number> = {
 };
 
 /**
- * Boost budget = multiplier × hours.
- * Tuned so 大/小 (×2) wins for 24h. Higher multipliers get shorter windows.
- *   ×2  → 24h   (大/小/単/双)
- *   ×6  → 8h    (合計10/11)
- *   ×12 → 4h    (合計7/14)
- *   ×30 → 96min (合計5/16, 任意ゾロ目)
- *   ×60 → 48min (合計4/17)
- *   ×180 → 16min (特定ゾロ目)
+ * Boost budget = multiplier × hours. Down from v7's 48 to v8's 8 since
+ * (a) maxDice 5→100 and bonus chips bypass the cap let the player
+ * chain many bets per session, and (b) practical sessions are minutes
+ * to a couple of hours, so long windows mostly went unused anyway.
+ * The 大/小 ×2 anchor lands at 4h — long enough to cover an average
+ * walking session with one bet, short enough that chained wins matter.
+ *   ×2   → 4h     (大/小/単/双)
+ *   ×6   → 1h20m  (合計10/11)
+ *   ×12  → 40m    (合計7/14)
+ *   ×30  → 16m    (合計5/16, 任意ゾロ目)
+ *   ×60  → 8m     (合計4/17)
+ *   ×180 → ~3m    (特定ゾロ目)
  */
-export const BOOST_BUDGET_HOURS = 48;
+export const BOOST_BUDGET_HOURS = 8;
 
 /** Window duration (in ms) for a winning multiplier of `mult`. */
 export function windowMsForMultiplier(mult: number): number {
