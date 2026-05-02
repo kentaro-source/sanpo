@@ -544,16 +544,32 @@ export function MapView() {
     }
   }, [loaded, player.visitedCapitals, currentSquare.segmentIndex]);
 
-  // City markers: only created when zooming in close enough to actually see them.
-  // Lazy-create on first qualifying zoom to keep initial load fast.
+  // City markers: only those used as waypoints on the currently visible
+  // 9-segment window around the player. Previously created ALL ~200
+  // city markers at once, which was getting heavy as the city count
+  // grew (user: 'マーカー置きすぎたら地図が重くならない？').
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!mapRef.current || !loaded) return;
 
-    let created = false;
+    cityMarkersRef.current.forEach((m) => m.setMap(null));
+    cityMarkersRef.current = [];
+
+    const SEGMENTS_BEHIND = 3;
+    const SEGMENTS_AHEAD = 5;
+    const totalSegs = segmentClassifications.length;
+    const currentSegIdx = currentSquare.segmentIndex;
+    const startIdx = Math.max(0, currentSegIdx - SEGMENTS_BEHIND);
+    const endIdx = Math.min(totalSegs - 1, currentSegIdx + SEGMENTS_AHEAD);
+    const wantIds = new Set<string>();
+    for (let idx = startIdx; idx <= endIdx; idx++) {
+      const seg = segmentClassifications[idx];
+      for (const cid of seg?.waypointCityIds ?? []) wantIds.add(cid);
+    }
+    const wanted = cities.filter((c) => wantIds.has(c.id));
+
     const ensureCreated = () => {
-      if (created) return;
-      created = true;
-      for (const city of cities) {
+      if (cityMarkersRef.current.length > 0) return;
+      for (const city of wanted) {
         const color = TYPE_COLORS[city.type] ?? '#6b7280';
         const m = new google.maps.Marker({
           position: { lat: city.lat, lng: city.lng },
@@ -576,17 +592,21 @@ export function MapView() {
     const updateCityVisibility = () => {
       const zoom = mapRef.current?.getZoom() ?? 4;
       const shouldShow = zoom >= 7;
-      if (shouldShow && !created) ensureCreated();
+      if (shouldShow && cityMarkersRef.current.length === 0) ensureCreated();
       for (const m of cityMarkersRef.current) m.setVisible(shouldShow);
     };
-    mapRef.current.addListener('zoom_changed', updateCityVisibility);
+    const listener = mapRef.current.addListener(
+      'zoom_changed',
+      updateCityVisibility,
+    );
     updateCityVisibility();
 
     return () => {
+      google.maps.event.removeListener(listener);
       cityMarkersRef.current.forEach((m) => m.setMap(null));
       cityMarkersRef.current = [];
     };
-  }, [loaded]);
+  }, [loaded, currentSquare.segmentIndex]);
 
   // Square dots: lazy-create only when zoomed close enough to actually see them.
   // Sampling 1/5 keeps marker count manageable when they do exist.
@@ -673,13 +693,52 @@ export function MapView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [player.currentSquareIndex, loaded]);
 
-  // Render / move current position marker
+  // Render / move current position marker — projected onto the actual
+  // road polyline (built async from Directions API) when available, so
+  // the marker stays glued to the route line. Falls back to the great-
+  // circle position from useGame if the polyline hasn't built yet.
   useEffect(() => {
     if (!mapRef.current) return;
 
+    const built = builtPathRef.current;
+    let markerPos: google.maps.LatLngLiteral = position;
+    if (built && built.cumKm.length > 1) {
+      const km = player.distanceKm;
+      const cumKm = built.cumKm;
+      const pts = built.allPoints;
+      // Only snap to polyline if the player's km lies within the visible
+      // window's km range; otherwise great-circle is the best we have.
+      const lo = cumKm[0];
+      const hi = cumKm[cumKm.length - 1];
+      if (km >= lo - 0.001 && km <= hi + 0.001) {
+        let idx = -1;
+        for (let i = 0; i < cumKm.length; i++) {
+          if (cumKm[i] >= km) {
+            idx = i;
+            break;
+          }
+        }
+        if (idx === 0) {
+          markerPos = pts[0];
+        } else if (idx === -1) {
+          markerPos = pts[pts.length - 1];
+        } else {
+          const a = pts[idx - 1];
+          const b = pts[idx];
+          const segKm = cumKm[idx] - cumKm[idx - 1];
+          const frac = segKm > 0 ? (km - cumKm[idx - 1]) / segKm : 0;
+          const f = Math.max(0, Math.min(1, frac));
+          markerPos = {
+            lat: a.lat + (b.lat - a.lat) * f,
+            lng: a.lng + (b.lng - a.lng) * f,
+          };
+        }
+      }
+    }
+
     if (!currentMarkerRef.current) {
       currentMarkerRef.current = new google.maps.Marker({
-        position,
+        position: markerPos,
         map: mapRef.current,
         zIndex: 1000,
         icon: {
@@ -692,9 +751,10 @@ export function MapView() {
         },
       });
     } else {
-      currentMarkerRef.current.setPosition(position);
+      currentMarkerRef.current.setPosition(markerPos);
     }
-  }, [loaded, position]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, position, player.distanceKm]);
 
   // Auto-pan was removed — it fought the user's manual pinch/zoom: every
   // step's distanceKm change re-fired this effect, and if the marker had
