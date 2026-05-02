@@ -36,6 +36,16 @@ interface ProgressWatchdog {
   visitedCities: string[];
   claimedMilestones: number[];
   completedLaps: number;
+  // v9 expansion — also preserve in-flight progress bar / token state
+  // so that a CURRENT_VERSION bump doesn't reset the player's
+  // 'progress to next chip', their available tokens, or today's
+  // accumulated step attribution. Without these fields the user
+  // visibly loses progress on every schema bump even though the
+  // distance was preserved.
+  stepsTowardNextDie?: number;
+  availableDice?: number;
+  attributedTodaySteps?: number;
+  attributedDayStart?: number;
   /** Wall-clock when this snapshot was written. Used to break ties. */
   updatedAt: number;
 }
@@ -60,6 +70,10 @@ function readWatchdog(): ProgressWatchdog | null {
           )
         : [],
       completedLaps: sanitizeNum(parsed.completedLaps, 0),
+      stepsTowardNextDie: sanitizeNum(parsed.stepsTowardNextDie, 0),
+      availableDice: sanitizeNum(parsed.availableDice, 0),
+      attributedTodaySteps: sanitizeNum(parsed.attributedTodaySteps, 0),
+      attributedDayStart: sanitizeNum(parsed.attributedDayStart, 0),
       updatedAt: sanitizeNum(parsed.updatedAt, 0),
     };
   } catch {
@@ -76,6 +90,10 @@ function writeWatchdog(player: PlayerState): void {
       visitedCities: player.visitedCities ?? [],
       claimedMilestones: player.claimedMilestones ?? [],
       completedLaps: sanitizeNum(player.completedLaps, 0),
+      stepsTowardNextDie: sanitizeNum(player.stepsTowardNextDie, 0),
+      availableDice: sanitizeNum(player.availableDice, 0),
+      attributedTodaySteps: sanitizeNum(player.attributedTodaySteps, 0),
+      attributedDayStart: sanitizeNum(player.attributedDayStart, 0),
       updatedAt: Date.now(),
     };
     localStorage.setItem(WATCHDOG_KEY, JSON.stringify(w));
@@ -153,7 +171,15 @@ export function buildRecoveredState(
   fallbackState: GameState,
 ): GameState | null {
   const w = readWatchdog();
-  if (!w || w.distanceKm <= 0) return null;
+  // Recover even if distanceKm = 0 — totalSteps / token state still matter
+  // for the player. Only bail if there's literally nothing in the watchdog.
+  if (!w) return null;
+  const hasAnyProgress =
+    w.distanceKm > 0 ||
+    w.totalStepsEntered > 0 ||
+    w.stepsTowardNextDie > 0 ||
+    w.availableDice > 0;
+  if (!hasAnyProgress) return null;
   return {
     ...fallbackState,
     player: {
@@ -167,6 +193,10 @@ export function buildRecoveredState(
       visitedCities: w.visitedCities,
       claimedMilestones: w.claimedMilestones,
       completedLaps: w.completedLaps,
+      stepsTowardNextDie: w.stepsTowardNextDie ?? 0,
+      availableDice: w.availableDice ?? 0,
+      attributedTodaySteps: w.attributedTodaySteps,
+      attributedDayStart: w.attributedDayStart,
     },
   };
 }
