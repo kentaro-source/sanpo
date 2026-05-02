@@ -1271,6 +1271,17 @@ export const cities: City[] = [
     type: 'historic',
     description: 'イラン東北部、シーア派聖地',
   },
+  {
+    id: 'IR-TABRIZ',
+    name: 'Tabriz',
+    nameJa: 'タブリーズ',
+    countryId: 'IR',
+    countryJa: 'イラン',
+    lat: 38.0962,
+    lng: 46.2738,
+    type: 'historic',
+    description: 'イラン北西部、AZバクーの陸続き隣接都市',
+  },
 
   // === エジプト (Egypt) ===
   {
@@ -1403,6 +1414,19 @@ export const cities: City[] = [
     lng: 3.3792,
     type: 'metropolis',
     description: 'アフリカ最大級の港湾大都市',
+  },
+
+  // === カーボベルデ (Cape Verde) ===
+  {
+    id: 'CV-MINDELO',
+    name: 'Mindelo',
+    nameJa: 'ミンデロ',
+    countryId: 'CV',
+    countryJa: 'カーボベルデ',
+    lat: 16.8867,
+    lng: -25.0017,
+    type: 'tourist',
+    description: 'カーボベルデ第二都市、大西洋の島港町',
   },
 
   // === アイスランド (Iceland) ===

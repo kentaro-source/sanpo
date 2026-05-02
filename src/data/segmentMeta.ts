@@ -486,20 +486,26 @@ export const segmentClassifications: SegmentClassification[] = [
     routeType: 'land',
   },
   // After v9 reorder, AZ is followed by EG (Africa starts) instead of RU.
-  // The chain crosses Iran/Saudi/Red Sea — no realistic walking; fantasy.
+  // Anchor on the Iranian-side neighbor before the long fantasy hop to
+  // Egypt — walking AZ→TABRIZ ~380 km is realistic, the rest is implied.
   {
     fromCapitalId: 'AZ',
     toCapitalId: 'EG',
-    routeType: 'fantasy',
-    notes: 'バクー→[3,500km 中東上空]→カイロ',
+    routeType: 'mixed',
+    waypointCityIds: ['IR-TABRIZ'],
+    seaSegments: [[1, 2]], // TABRIZ → Cairo: 3,000 km, fantasy
+    notes: 'バクー→タブリーズ→[~3,000km 中東上空]→カイロ',
   },
-  // West Africa → Russia: ST(サントメ・西アフリカ)→Moscow. ~5,500km
-  // across Atlantic + Europe. Fantasy.
+  // West Africa → Russia: ST→CV-MINDELO (~600 km Atlantic) → Moscow.
+  // Anchor on Cape Verde so at least the first leg has continental
+  // context; the last hop is unavoidable.
   {
     fromCapitalId: 'ST',
     toCapitalId: 'RU',
-    routeType: 'fantasy',
-    notes: 'サントメ→[5,500km 大西洋上空]→モスクワ',
+    routeType: 'mixed',
+    waypointCityIds: ['CV-MINDELO'],
+    seaSegments: [[0, 1], [1, 2]], // Both legs are over water.
+    notes: 'サントメ→[600km 大西洋]→ミンデロ(カーボベルデ)→[~5,000km 大西洋・欧州上空]→モスクワ',
   },
 ];
 
