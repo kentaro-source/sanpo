@@ -515,18 +515,25 @@ export const segmentClassifications: SegmentClassification[] = [
   // Sofia→Thessaloniki) lean on the Driving fallback at ~270-310 km.
 
   // Moscow → Helsinki via the historical M10/E105 corridor.
+  // Refined to keep all consecutive pairs ≤ ~200 km for Walking mode.
   {
     fromCapitalId: 'RU',
     toCapitalId: 'FI',
     routeType: 'mixed',
     waypointCityIds: [
-      'RU-TVER',           // ~170 km from Moscow
-      'RU-VELIKYNOVGOROD', // ~370 km (driving fallback)
-      'RU-STPETERSBURG',   // ~180 km
-      'RU-VYBORG',         // ~140 km
-      // Vyborg → Helsinki crosses the RU-FI border (~225 km, driving)
+      'RU-TVER',             // ~170 km from Moscow
+      'RU-TORZHOK',          // ~60 km
+      'RU-VYSHNIYVOLOCHEK',  // ~70 km
+      'RU-VELIKYNOVGOROD',   // ~225 km (slight Driving fallback)
+      'RU-STPETERSBURG',     // ~180 km
+      'RU-VYBORG',           // ~140 km
+      // Vyborg → Lappeenranta crosses the RU-FI border (~60 km)
+      'FI-LAPPEENRANTA',     // ~60 km
+      'FI-PORVOO',           // ~190 km
+      // Porvoo → Helsinki ~50 km
     ],
-    notes: 'モスクワ→トヴェリ→ヴェリーキー・ノヴゴロド→サンクトペテルブルク→ヴィボルグ→[国境]→ヘルシンキ',
+    notes:
+      'モスクワ→トヴェリ→トルジョーク→ヴィシニー・ヴォロチョーク→ヴェリーキー・ノヴゴロド→サンクトペテルブルク→ヴィボルグ→[国境]→ラッペーンランタ→ポルヴォー→ヘルシンキ',
   },
 
   // Helsinki ↔ Tallinn — direct Tallink/Eckerö ferry across Gulf of Finland (~85 km).
@@ -582,13 +589,19 @@ export const segmentClassifications: SegmentClassification[] = [
     notes: 'ミンスク→ボブルイスク→ゴメリ→[国境]→チェルニーヒウ→キーウ',
   },
 
-  // Kyiv → Chișinău via Vinnytsia. Both sub-legs ~270 km, driving.
+  // Kyiv → Chișinău via Bila Tserkva → Uman → Vinnytsia → Mohyliv-Podilskyi.
   {
     fromCapitalId: 'UA',
     toCapitalId: 'MD',
     routeType: 'land',
-    waypointCityIds: ['UA-VINNYTSIA'], // ~265km, then ~270km to Chișinău
-    notes: 'キーウ→ヴィーンヌィツャ→キシニョフ',
+    waypointCityIds: [
+      'UA-BILATSERKVA',       // ~85 km from Kyiv
+      'UA-UMAN',              // ~150 km
+      'UA-VINNYTSIA',         // ~135 km
+      'UA-MOHYLIVPODILSKYI',  // ~170 km, MD border
+      // Mohyliv-Podilskyi → Chișinău ~110 km
+    ],
+    notes: 'キーウ→ビーラ・ツェルクヴァ→ウーマニ→ヴィーンヌィツャ→モヒリウ＝ポジーリシキー→[国境]→キシニョフ',
   },
 
   // Chișinău → Bucharest via Iași + Bacău + Buzău.
@@ -618,18 +631,181 @@ export const segmentClassifications: SegmentClassification[] = [
     notes: 'ブカレスト→[ドナウ・友好橋]→ルセ→プレヴェン→ソフィア',
   },
 
-  // Sofia → Athens via Thessaloniki + Larissa + Lamia (E79/E75 corridor).
+  // Sofia → Athens via Blagoevgrad → Serres → Thessaloniki → Larissa → Lamia → Thebes.
   {
     fromCapitalId: 'BG',
     toCapitalId: 'GR',
     routeType: 'land',
     waypointCityIds: [
-      'GR-THESSALONIKI', // ~310 km from Sofia (driving fallback)
+      'BG-BLAGOEVGRAD',  // ~100 km from Sofia
+      'GR-SERRES',       // ~120 km, GR border crossing
+      'GR-THESSALONIKI', // ~95 km
       'GR-LARISSA',      // ~155 km
       'GR-LAMIA',        // ~145 km
-      // Lamia → Athens ~210 km (driving fallback at the tail)
+      'GR-THEBES',       // ~110 km
+      // Thebes → Athens ~80 km
     ],
-    notes: 'ソフィア→[国境]→テッサロニキ→ラリサ→ラミア→アテネ',
+    notes:
+      'ソフィア→ブラゴエヴグラト→[国境]→セレス→テッサロニキ→ラリサ→ラミア→テーベ→アテネ',
+  },
+
+  // ===== Batch 5: Balkans + Central Europe (GR → DE), 12 segments =====
+  // Athens crawls north through the Balkans into Belgrade → Sarajevo →
+  // Zagreb → Ljubljana, then central-Europe across Maribor → Budapest →
+  // Bratislava → Brno → Prague → Liberec → Wrocław → Łódź → Warsaw →
+  // Poznań → Berlin. Most pairs ≤ 200 km; the few exceptions
+  // (Sarajevo→Banja Luka, Brno→Prague, Polish corridor) accept the
+  // Driving fallback that's already baked into the route renderer.
+
+  // Athens → Skopje. Climb back north through the Greek spine, cross
+  // into North Macedonia at Bitola.
+  {
+    fromCapitalId: 'GR',
+    toCapitalId: 'MK',
+    routeType: 'mixed',
+    waypointCityIds: [
+      'GR-LAMIA',        // ~210 km from Athens (Driving fallback)
+      'GR-LARISSA',      // ~145 km
+      'GR-THESSALONIKI', // ~155 km
+      // Thessaloniki → Bitola ~190 km, GR-MK border
+      'MK-BITOLA',       // ~190 km
+      'MK-PRILEP',       // ~45 km
+      // Prilep → Skopje ~130 km
+    ],
+    notes:
+      'アテネ→ラミア→ラリサ→テッサロニキ→[国境]→ビトラ→プリレプ→スコピエ',
+  },
+
+  // Skopje → Tirana via Tetovo (Mavrovo highway).
+  {
+    fromCapitalId: 'MK',
+    toCapitalId: 'AL',
+    routeType: 'land',
+    waypointCityIds: [
+      'MK-TETOVO', // ~45 km from Skopje
+      // Tetovo → Tirana ~100 km, MK-AL border
+    ],
+    notes: 'スコピエ→テトヴォ→[国境]→ティラナ',
+  },
+
+  // Tirana → Podgorica via Shkodër (along the Adriatic side).
+  {
+    fromCapitalId: 'AL',
+    toCapitalId: 'ME',
+    routeType: 'land',
+    waypointCityIds: [
+      'AL-SHKODER', // ~95 km from Tirana
+      // Shkodër → Podgorica ~60 km, AL-ME border
+    ],
+    notes: 'ティラナ→シュコドラ→[国境]→ポドゴリツァ',
+  },
+
+  // Podgorica → Belgrade via the Tara/Lim mountain corridor.
+  {
+    fromCapitalId: 'ME',
+    toCapitalId: 'RS',
+    routeType: 'land',
+    waypointCityIds: [
+      'ME-PLJEVLJA', // ~165 km from Podgorica (mountainous)
+      'RS-UZICE',    // ~120 km, ME-RS border
+      'RS-CACAK',    // ~80 km
+      // Čačak → Belgrade ~135 km
+    ],
+    notes: 'ポドゴリツァ→プリェヴリャ→[国境]→ウジツェ→チャチャク→ベオグラード',
+  },
+
+  // Belgrade → Sarajevo via Tuzla.
+  {
+    fromCapitalId: 'RS',
+    toCapitalId: 'BA',
+    routeType: 'land',
+    waypointCityIds: [
+      'BA-TUZLA', // ~190 km from Belgrade, RS-BA border
+      // Tuzla → Sarajevo ~140 km
+    ],
+    notes: 'ベオグラード→[国境]→トゥズラ→サラエボ',
+  },
+
+  // Sarajevo → Zagreb via Zenica → Banja Luka.
+  {
+    fromCapitalId: 'BA',
+    toCapitalId: 'HR',
+    routeType: 'land',
+    waypointCityIds: [
+      'BA-ZENICA',    // ~70 km from Sarajevo
+      'BA-BANJALUKA', // ~155 km
+      // Banja Luka → Zagreb ~190 km, BA-HR border
+    ],
+    notes: 'サラエボ→ゼニツァ→バニャ・ルカ→[国境]→ザグレブ',
+  },
+
+  // Zagreb → Ljubljana — direct.
+  {
+    fromCapitalId: 'HR',
+    toCapitalId: 'SI',
+    routeType: 'land',
+    notes: 'ザグレブ→[国境]→リュブリャナ（直行 ~140km）',
+  },
+
+  // Ljubljana → Budapest via Maribor → Nagykanizsa → Veszprém.
+  {
+    fromCapitalId: 'SI',
+    toCapitalId: 'HU',
+    routeType: 'land',
+    waypointCityIds: [
+      'SI-MARIBOR',      // ~110 km from Ljubljana
+      'HU-NAGYKANIZSA',  // ~130 km, SI-HU border
+      'HU-VESZPREM',     // ~130 km
+      // Veszprém → Budapest ~110 km
+    ],
+    notes: 'リュブリャナ→マリボル→[国境]→ナジカニジャ→ヴェスプレーム→ブダペスト',
+  },
+
+  // Budapest → Bratislava — direct.
+  {
+    fromCapitalId: 'HU',
+    toCapitalId: 'SK',
+    routeType: 'land',
+    notes: 'ブダペスト→[国境]→ブラチスラバ（直行 ~165km）',
+  },
+
+  // Bratislava → Prague via Brno.
+  {
+    fromCapitalId: 'SK',
+    toCapitalId: 'CZ',
+    routeType: 'land',
+    waypointCityIds: [
+      'CZ-BRNO', // ~135 km from Bratislava, SK-CZ border
+      // Brno → Prague ~205 km (Driving fallback)
+    ],
+    notes: 'ブラチスラバ→[国境]→ブルノ→プラハ',
+  },
+
+  // Prague → Warsaw via Liberec → Wrocław → Łódź.
+  {
+    fromCapitalId: 'CZ',
+    toCapitalId: 'PL',
+    routeType: 'land',
+    waypointCityIds: [
+      'CZ-LIBEREC',  // ~110 km from Prague
+      'PL-WROCLAW',  // ~170 km, CZ-PL border
+      'PL-LODZ',     // ~220 km (Driving fallback)
+      // Łódź → Warsaw ~135 km
+    ],
+    notes: 'プラハ→リベレツ→[国境]→ヴロツワフ→ウッチ→ワルシャワ',
+  },
+
+  // Warsaw → Berlin via Łódź → Poznań.
+  {
+    fromCapitalId: 'PL',
+    toCapitalId: 'DE',
+    routeType: 'land',
+    waypointCityIds: [
+      'PL-LODZ',    // ~135 km from Warsaw
+      'PL-POZNAN',  // ~210 km (Driving fallback)
+      // Poznań → Berlin ~270 km, PL-DE border (Driving fallback)
+    ],
+    notes: 'ワルシャワ→ウッチ→ポズナン→[国境]→ベルリン',
   },
 ];
 
