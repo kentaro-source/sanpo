@@ -123,22 +123,39 @@ export function MapView() {
       const ddy = p.lng - py;
       return Math.sqrt(ddx * ddx + ddy * ddy);
     };
+    // Iterative Douglas-Peucker. The recursive version blew the call
+    // stack ('Maximum call stack size exceeded') on long polylines —
+    // worst case recursion depth is O(N) when the geometry approaches
+    // a near-straight chain, and Directions paths can hit several
+    // thousand points across the visible window.
     const rdp = (pts: LL[], eps: number): LL[] => {
-      if (pts.length < 3) return pts;
-      let maxD = 0;
-      let maxI = 0;
-      const a = pts[0];
-      const b = pts[pts.length - 1];
-      for (let i = 1; i < pts.length - 1; i++) {
-        const d = perpDist(pts[i], a, b);
-        if (d > maxD) { maxD = d; maxI = i; }
+      if (pts.length < 3) return [...pts];
+      const keep = new Uint8Array(pts.length);
+      keep[0] = 1;
+      keep[pts.length - 1] = 1;
+      const stack: [number, number][] = [[0, pts.length - 1]];
+      while (stack.length > 0) {
+        const [start, end] = stack.pop()!;
+        if (end - start < 2) continue;
+        let maxD = 0;
+        let maxI = -1;
+        const a = pts[start];
+        const b = pts[end];
+        for (let i = start + 1; i < end; i++) {
+          const d = perpDist(pts[i], a, b);
+          if (d > maxD) { maxD = d; maxI = i; }
+        }
+        if (maxD > eps && maxI > -1) {
+          keep[maxI] = 1;
+          stack.push([start, maxI]);
+          stack.push([maxI, end]);
+        }
       }
-      if (maxD > eps) {
-        const left = rdp(pts.slice(0, maxI + 1), eps);
-        const right = rdp(pts.slice(maxI), eps);
-        return [...left.slice(0, -1), ...right];
+      const result: LL[] = [];
+      for (let i = 0; i < pts.length; i++) {
+        if (keep[i]) result.push(pts[i]);
       }
-      return [a, b];
+      return result;
     };
     const simplifyPath = (path: LL[]) => {
       if (path.length <= 4) return path;
@@ -306,8 +323,13 @@ export function MapView() {
               if (cancelled) return;
               pathSeg = road ?? [points[i], points[i + 1]];
             }
-            if (i === 0) built.push(...pathSeg);
-            else built.push(...pathSeg.slice(1));
+            // Spread-push (`built.push(...pathSeg)`) blows the call stack
+            // for long paths because each spread arg becomes a function
+            // argument and the limit is ~65k. Walk-pushing is safe.
+            const start = i === 0 ? 0 : 1;
+            for (let k = start; k < pathSeg.length; k++) {
+              built.push(pathSeg[k]);
+            }
           }
           segPath = simplifyPath(built);
         } else {
