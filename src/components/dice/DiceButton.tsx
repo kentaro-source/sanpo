@@ -13,10 +13,6 @@ export function DiceButton() {
     setOpen(true);
   };
 
-  const lastSicBo = player.sicBoHistory && player.sicBoHistory.length > 0
-    ? player.sicBoHistory[player.sicBoHistory.length - 1]
-    : null;
-
   return (
     <div className="dice-section">
       <button
@@ -29,15 +25,6 @@ export function DiceButton() {
           {player.availableDice <= 0 ? '歩いて🎲を貯める' : 'カジノでプレイ'}
         </span>
       </button>
-      {lastSicBo && (
-        <div className="last-roll">
-          前回: {lastSicBo.dice[0]}+{lastSicBo.dice[1]}+{lastSicBo.dice[2]}
-          {' = '}{lastSicBo.sum}
-          {lastSicBo.totalAdvance > 0
-            ? ` → +${lastSicBo.totalAdvance}マス`
-            : ' → ハズレ'}
-        </div>
-      )}
       <SicBoModal open={open} onClose={() => setOpen(false)} />
     </div>
   );

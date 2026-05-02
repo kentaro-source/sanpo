@@ -275,6 +275,36 @@ export function SicBoModal({ open, onClose }: Props) {
                 ROLL
               </button>
             </div>
+
+            {(player.sicBoHistory?.length ?? 0) > 0 && (
+              <div className="sicbo-history">
+                <div className="sicbo-history-label">前回までの履歴</div>
+                <ol className="sicbo-history-list">
+                  {(player.sicBoHistory ?? [])
+                    .slice(-5)
+                    .reverse()
+                    .map((h, i) => {
+                      const won = h.totalAdvance > 0;
+                      return (
+                        <li
+                          key={`${h.timestamp}-${i}`}
+                          className={`sicbo-history-row ${won ? 'won' : 'lost'}`}
+                        >
+                          <span className="sicbo-history-dice">
+                            <Die face={h.dice[0]} size={20} />
+                            <Die face={h.dice[1]} size={20} />
+                            <Die face={h.dice[2]} size={20} />
+                          </span>
+                          <span className="sicbo-history-sum">{h.sum}</span>
+                          <span className="sicbo-history-result">
+                            {won ? `×${h.totalAdvance}` : 'ハズレ'}
+                          </span>
+                        </li>
+                      );
+                    })}
+                </ol>
+              </div>
+            )}
           </>
         )}
 
