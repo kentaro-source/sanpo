@@ -36,33 +36,31 @@ export const SICBO_PAYOUTS: Record<string, number> = {
 };
 
 /**
- * Boost budget = multiplier × hours. Down from v7's 48 to v8's 8 since
- * (a) maxDice 5→100 and bonus chips bypass the cap let the player
- * chain many bets per session, and (b) practical sessions are minutes
- * to a couple of hours, so long windows mostly went unused anyway.
- * The 大/小 ×2 anchor lands at 4h — long enough to cover an average
- * walking session with one bet, short enough that chained wins matter.
- *   ×2   → 4h     (大/小/単/双)
- *   ×6   → 1h20m  (合計10/11)
- *   ×12  → 40m    (合計7/14)
- *   ×30  → 16m    (合計5/16, 任意ゾロ目)
- *   ×60  → 8m     (合計4/17)
- *   ×180 → ~3m    (特定ゾロ目)
+ * Fixed window for all wins/losses, regardless of multiplier.
+ *
+ * v8 simplification (replacing v7's budget = mult × time formula): the
+ * old model normalized total mult-hours per win, which made ×180 wins
+ * feel like a fast 'same-payoff-just-shorter' tap rather than a casino
+ * jackpot. Fixed window keeps the multiplier mostly proportional to
+ * win value, so ×180 wins are dramatically more impactful than ×2.
+ *
+ * 30 min chosen because (a) it matches a typical walking session, so
+ * the boost gets used up rather than expiring on a break, and (b) at
+ * ~1000歩/10min cadence three bets can overlap inside one window —
+ * enough stacking to feel rewarding without runaway compounding.
  */
-export const BOOST_BUDGET_HOURS = 8;
+export const BOOST_WINDOW_MS = 30 * 60 * 1000;
 
-/** Window duration (in ms) for a winning multiplier of `mult`. */
-export function windowMsForMultiplier(mult: number): number {
-  if (mult <= 0) return 0;
-  return Math.round((BOOST_BUDGET_HOURS / mult) * 60 * 60 * 1000);
+/** Window duration (in ms) for a winning multiplier. Constant under v8. */
+export function windowMsForMultiplier(_mult: number): number {
+  return BOOST_WINDOW_MS;
 }
 
 /** Penalty multiplier when the player loses a Sic Bo bet. */
 export const LOSS_MULTIPLIER = 0.5;
-/** Penalty window uses the same duration as a win at the bet's payout. */
-export function lossWindowMsForBet(payout: number): number {
-  // Symmetric: a 大 loss is 24h × 0.5, a triple loss is 16min × 0.5, etc.
-  return windowMsForMultiplier(payout);
+/** Penalty window — same fixed length as a win. */
+export function lossWindowMsForBet(_payout: number): number {
+  return BOOST_WINDOW_MS;
 }
 
 export function payoutFor(betType: SicBoBetType): number {
