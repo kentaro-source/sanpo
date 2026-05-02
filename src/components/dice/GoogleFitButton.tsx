@@ -35,14 +35,22 @@ export function GoogleFitButton() {
     setLastResult(null);
     try {
       const now = Date.now();
-      // Always fetch the absolute total for today. The reducer computes
-      // an idempotent delta against its baseline, which is robust against
-      // Fit data that arrives late (after our previous sync window).
+      // Always fetch the absolute total for today. Mirror the reducer's
+      // contribution logic exactly so the toast (+N 歩 同期) reflects what
+      // was ACTUALLY credited rather than the raw Fit delta. Without this,
+      // the first-Fit-sync-of-day case would show '+6732 同期' even though
+      // the reducer correctly attributes 0 steps.
       const startMs = startOfTodayMs();
       const todayTotal = await fetchStepsBetween(startMs, now);
-      const previousTotal = player.todayStepsBaseline ?? 0;
-      const sameDay = player.todayBaselineDayStart === startMs;
-      const delta = sameDay ? Math.max(0, todayTotal - previousTotal) : todayTotal;
+      const lastSyncMs = player.lastSyncTimestamp ?? 0;
+      const isFirstFitSyncToday = lastSyncMs < startMs;
+      const sameDay = player.attributedDayStart === startMs;
+      const attributedSoFar = sameDay
+        ? player.attributedTodaySteps ?? 0
+        : 0;
+      const delta = isFirstFitSyncToday
+        ? 0
+        : Math.max(0, todayTotal - attributedSoFar);
       syncFromGoogleFit(todayTotal, now);
       // Reset failure counter on a successful sync.
       consecutiveAuthFailuresRef.current = 0;
