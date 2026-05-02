@@ -507,6 +507,130 @@ export const segmentClassifications: SegmentClassification[] = [
     seaSegments: [[0, 1], [1, 2]], // Both legs are over water.
     notes: 'サントメ→[600km 大西洋]→ミンデロ(カーボベルデ)→[~5,000km 大西洋・欧州上空]→モスクワ',
   },
+
+  // ===== Batch 4: Eastern + Southern Europe (RU → GR), 10 segments =====
+  // Drives the player from Moscow through the Baltics, Belarus/Ukraine,
+  // Moldova, Romania, Bulgaria down to Athens. Most pairs ≤ 200 km;
+  // a handful (Veliky Novgorod, Šiauliai→Vilnius, Vinnytsia legs,
+  // Sofia→Thessaloniki) lean on the Driving fallback at ~270-310 km.
+
+  // Moscow → Helsinki via the historical M10/E105 corridor.
+  {
+    fromCapitalId: 'RU',
+    toCapitalId: 'FI',
+    routeType: 'mixed',
+    waypointCityIds: [
+      'RU-TVER',           // ~170 km from Moscow
+      'RU-VELIKYNOVGOROD', // ~370 km (driving fallback)
+      'RU-STPETERSBURG',   // ~180 km
+      'RU-VYBORG',         // ~140 km
+      // Vyborg → Helsinki crosses the RU-FI border (~225 km, driving)
+    ],
+    notes: 'モスクワ→トヴェリ→ヴェリーキー・ノヴゴロド→サンクトペテルブルク→ヴィボルグ→[国境]→ヘルシンキ',
+  },
+
+  // Helsinki ↔ Tallinn — direct Tallink/Eckerö ferry across Gulf of Finland (~85 km).
+  {
+    fromCapitalId: 'FI',
+    toCapitalId: 'EE',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]], // Whole leg is sea.
+    notes: 'ヘルシンキ→[フィンランド湾フェリー 85km]→タリン',
+  },
+
+  // Tallinn → Riga via Pärnu on the Via Baltica (E67).
+  {
+    fromCapitalId: 'EE',
+    toCapitalId: 'LV',
+    routeType: 'land',
+    waypointCityIds: ['EE-PARNU'], // Tallinn~135km Pärnu, Pärnu~175km Riga
+    notes: 'タリン→パルヌ→リガ（バルト海沿岸ハイウェイ）',
+  },
+
+  // Riga → Vilnius via Šiauliai + Panevėžys.
+  {
+    fromCapitalId: 'LV',
+    toCapitalId: 'LT',
+    routeType: 'land',
+    waypointCityIds: [
+      'LT-SIAULIAI',   // ~135 km from Riga
+      'LT-PANEVEZYS',  // ~80 km
+      // Panevėžys → Vilnius ~140 km
+    ],
+    notes: 'リガ→シャウレイ→パネヴェジース→ビリニュス',
+  },
+
+  // Vilnius ↔ Minsk — direct, no intermediate city of game-relevance.
+  {
+    fromCapitalId: 'LT',
+    toCapitalId: 'BY',
+    routeType: 'land',
+    notes: 'ビリニュス→ミンスク（直行 ~180km）',
+  },
+
+  // Minsk → Kyiv via Bobruisk + Gomel + Chernihiv.
+  {
+    fromCapitalId: 'BY',
+    toCapitalId: 'UA',
+    routeType: 'land',
+    waypointCityIds: [
+      'BY-BOBRUISK',    // ~140 km from Minsk
+      'BY-GOMEL',       // ~170 km
+      'UA-CHERNIHIV',   // ~110 km (BY-UA border crossing)
+      // Chernihiv → Kyiv ~150 km
+    ],
+    notes: 'ミンスク→ボブルイスク→ゴメリ→[国境]→チェルニーヒウ→キーウ',
+  },
+
+  // Kyiv → Chișinău via Vinnytsia. Both sub-legs ~270 km, driving.
+  {
+    fromCapitalId: 'UA',
+    toCapitalId: 'MD',
+    routeType: 'land',
+    waypointCityIds: ['UA-VINNYTSIA'], // ~265km, then ~270km to Chișinău
+    notes: 'キーウ→ヴィーンヌィツャ→キシニョフ',
+  },
+
+  // Chișinău → Bucharest via Iași + Bacău + Buzău.
+  {
+    fromCapitalId: 'MD',
+    toCapitalId: 'RO',
+    routeType: 'land',
+    waypointCityIds: [
+      'RO-IASI',   // ~110 km (MD-RO border)
+      'RO-BACAU',  // ~130 km
+      'RO-BUZAU',  // ~160 km
+      // Buzău → Bucharest ~110 km
+    ],
+    notes: 'キシニョフ→[国境]→ヤシ→バクー→ブザウ→ブカレスト',
+  },
+
+  // Bucharest → Sofia via Ruse (Friendship Bridge) + Pleven.
+  {
+    fromCapitalId: 'RO',
+    toCapitalId: 'BG',
+    routeType: 'land',
+    waypointCityIds: [
+      'BG-RUSE',    // ~75 km, Danube crossing at the Friendship Bridge
+      'BG-PLEVEN',  // ~150 km
+      // Pleven → Sofia ~175 km
+    ],
+    notes: 'ブカレスト→[ドナウ・友好橋]→ルセ→プレヴェン→ソフィア',
+  },
+
+  // Sofia → Athens via Thessaloniki + Larissa + Lamia (E79/E75 corridor).
+  {
+    fromCapitalId: 'BG',
+    toCapitalId: 'GR',
+    routeType: 'land',
+    waypointCityIds: [
+      'GR-THESSALONIKI', // ~310 km from Sofia (driving fallback)
+      'GR-LARISSA',      // ~155 km
+      'GR-LAMIA',        // ~145 km
+      // Lamia → Athens ~210 km (driving fallback at the tail)
+    ],
+    notes: 'ソフィア→[国境]→テッサロニキ→ラリサ→ラミア→アテネ',
+  },
 ];
 
 export function findSegmentClassification(
