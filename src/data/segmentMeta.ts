@@ -229,39 +229,67 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'LA',
     toCapitalId: 'MM',
     routeType: 'land',
-    notes: 'ラオス→タイ北部→ミャンマー（短い国境）',
+    // ヴィエンチャン→ネピドー直接 ~700km、タイ・ミャンマー国境を含む。
+    // 国境道路が機能しない場合 driving fallback で straight。
+    notes: 'ヴィエンチャン→[タイ北部経由]→ネピドー',
   },
   {
     fromCapitalId: 'MM',
     toCapitalId: 'BD',
-    routeType: 'land',
-    waypointCityIds: ['MM-YANGON'],
-    notes: 'ヤンゴン経由でミャンマー縦断→バングラ国境',
+    routeType: 'mixed',
+    waypointCityIds: [
+      'MM-YANGON',  // ~340 km from Naypyidaw
+      'MM-SITTWE',  // ~430 km Rakhine 海岸
+      // Sittwe → Dhaka ~330 km Bay of Bengal SEA
+    ],
+    // [origin=Naypyidaw, 1=Yangon, 2=Sittwe, 3=Dhaka]
+    seaSegments: [[2, 3]],
+    notes: 'ネピドー→ヤンゴン→シットウェー→[ベンガル湾]→ダッカ',
   },
   // === South Asia ===
   {
     fromCapitalId: 'BD',
     toCapitalId: 'BT',
     routeType: 'land',
-    waypointCityIds: ['IN-KOLKATA'],
-    notes: 'コルカタ南下経由→インド北上→ブータン',
+    waypointCityIds: [
+      'IN-SILIGURI', // ~370 km — ヒマラヤ山麓の通過地、ブータン国境近郊
+    ],
+    notes: 'ダッカ→シリグリ(印)→ティンプー(ブータン)',
   },
   {
     fromCapitalId: 'BT',
     toCapitalId: 'NP',
     routeType: 'land',
+    // Thimphu→Kathmandu 直接 ~430km、印北部経由。国境含むので driving fallback あり。
+    notes: 'ティンプー→[インド北部回廊]→カトマンズ',
   },
   {
     fromCapitalId: 'NP',
     toCapitalId: 'IN',
     routeType: 'land',
+    waypointCityIds: [
+      'IN-VARANASI', // ~350 km — ガンジス聖地
+      'IN-LUCKNOW',  // ~290 km
+      'IN-AGRA',     // ~330 km
+      // Agra → Delhi ~210 km
+    ],
+    notes: 'カトマンズ→バラナシ→ラクナウ→アーグラ→デリー',
   },
   {
     fromCapitalId: 'IN',
     toCapitalId: 'LK',
     routeType: 'mixed',
-    waypointCityIds: ['IN-MUMBAI', 'IN-CHENNAI'],
-    notes: 'ムンバイ→チェンナイ→ポーク海峡フェリー',
+    waypointCityIds: [
+      'IN-AGRA',      // (already passed in NP→IN but route loops here for sake of reaching south)
+      'IN-MUMBAI',    // ~1,200 km (driving across India)
+      'IN-HYDERABAD', // ~620 km
+      'IN-BANGALORE', // ~570 km
+      'IN-CHENNAI',   // ~350 km
+      // Chennai → Colombo ~480 km Palk Strait SEA
+    ],
+    // [origin=Delhi, 1=Agra, 2=Mumbai, 3=Hyderabad, 4=Bangalore, 5=Chennai, 6=Colombo]
+    seaSegments: [[5, 6]],
+    notes: 'デリー→アーグラ→ムンバイ→ハイデラバード→バンガロール→チェンナイ→[ポーク海峡]→コロンボ',
   },
   {
     fromCapitalId: 'LK',
