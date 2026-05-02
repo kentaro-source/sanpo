@@ -65,6 +65,7 @@
   color: #fbbf24;
 }
 
+.header-reset,
 .header-reload {
   margin-left: 8px;
   background: #334155;
@@ -82,8 +83,17 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-.header-reload:active {
+.header-reload:active,
+.header-reset:active {
   background: #475569;
+}
+
+/* Reset button is more dangerous → muted color so it doesn't compete
+   with the reload button visually. */
+.header-reset {
+  background: #475569;
+  color: #94a3b8;
+  font-size: 16px;
 }
 
 /* Map Container — fills space between header and the fixed panel at bottom */
