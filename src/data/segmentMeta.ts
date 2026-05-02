@@ -295,55 +295,90 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'LK',
     toCapitalId: 'MV',
     routeType: 'sea',
-    notes: 'インド洋',
+    notes: 'コロンボ→[インド洋]→マレ(直線)',
   },
   {
     fromCapitalId: 'MV',
     toCapitalId: 'PK',
     routeType: 'mixed',
-    notes: 'アラビア海→カラチ→ラホール→イスラマバード',
+    waypointCityIds: [
+      'PK-KARACHI',  // ~2,400 km Arabian Sea SEA
+      'PK-MULTAN',   // ~600 km
+      'PK-LAHORE',   // ~360 km
+      // Lahore → Islamabad ~280 km
+    ],
+    // [origin=Male, 1=Karachi, 2=Multan, 3=Lahore, 4=Islamabad]
+    seaSegments: [[0, 1]],
+    notes: 'マレ→[アラビア海]→カラチ→ムルターン→ラホール→イスラマバード',
   },
   // === Central Asia ===
   {
     fromCapitalId: 'PK',
     toCapitalId: 'AF',
     routeType: 'land',
-    notes: 'ペシャワール経由',
+    waypointCityIds: ['PK-PESHAWAR'],
+    notes: 'イスラマバード→ペシャワール→[カイバル峠]→カブール',
   },
   {
     fromCapitalId: 'AF',
     toCapitalId: 'TJ',
     routeType: 'land',
+    // Kabul→Dushanbe ~570km via Hindu Kush. Border is open but rugged.
+    notes: 'カブール→[ヒンドゥークシュ]→ドゥシャンベ',
   },
   {
     fromCapitalId: 'TJ',
     toCapitalId: 'KG',
     routeType: 'land',
+    waypointCityIds: [
+      'TJ-KHUJAND', // ~280 km north
+      'KG-OSH',     // ~330 km — crosses TJ-KG border
+      // Osh → Bishkek ~450 km via Tien Shan
+    ],
+    notes: 'ドゥシャンベ→ホジャンド→オシュ→[天山]→ビシュケク',
   },
   {
     fromCapitalId: 'KG',
     toCapitalId: 'KZ',
     routeType: 'land',
-    waypointCityIds: ['KZ-ALMATY'],
-    notes: 'ビシュケク→アルマトイ→アスタナ',
+    waypointCityIds: [
+      'KZ-ALMATY',     // ~240 km
+      'KZ-KARAGANDA',  // ~700 km
+      // Karaganda → Astana ~210 km
+    ],
+    notes: 'ビシュケク→アルマトイ(思い出)→カラガンダ→アスタナ',
   },
   {
     fromCapitalId: 'KZ',
     toCapitalId: 'UZ',
     routeType: 'land',
+    waypointCityIds: [
+      'KZ-SHYMKENT', // ~1,100 km south through Kazakhstan
+      // Shymkent → Tashkent ~120 km, crosses KZ-UZ border
+    ],
+    notes: 'アスタナ→シムケント→[国境]→タシュケント',
   },
   {
     fromCapitalId: 'UZ',
     toCapitalId: 'TM',
     routeType: 'land',
-    notes: 'サマルカンド→ブハラ',
+    waypointCityIds: [
+      'UZ-SAMARKAND', // ~280 km from Tashkent
+      'UZ-BUKHARA',   // ~270 km
+      // Bukhara → Ashgabat ~750 km, crosses UZ-TM border
+    ],
+    notes: 'タシュケント→サマルカンド→ブハラ→[国境]→アシガバート',
   },
   // === Middle East ===
   {
     fromCapitalId: 'TM',
     toCapitalId: 'IR',
     routeType: 'land',
-    notes: '隣接、自然な国境越え',
+    waypointCityIds: [
+      'IR-MASHHAD', // ~250 km — crosses TM-IR border
+      // Mashhad → Tehran ~700 km
+    ],
+    notes: 'アシガバート→[国境]→マシュハド→テヘラン',
   },
   {
     fromCapitalId: 'IR',
