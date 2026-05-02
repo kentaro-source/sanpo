@@ -177,8 +177,8 @@ export function buildRecoveredState(
   const hasAnyProgress =
     w.distanceKm > 0 ||
     w.totalStepsEntered > 0 ||
-    w.stepsTowardNextDie > 0 ||
-    w.availableDice > 0;
+    (w.stepsTowardNextDie ?? 0) > 0 ||
+    (w.availableDice ?? 0) > 0;
   if (!hasAnyProgress) return null;
   return {
     ...fallbackState,
