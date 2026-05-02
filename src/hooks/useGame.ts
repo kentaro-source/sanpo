@@ -13,8 +13,12 @@ export interface UpcomingStop {
   kmFromPrev: number;
   kind: 'capital' | 'city';
   nameJa: string;
+  /** English / romanized name (for the InfoWindow-style detail row). */
+  name?: string;
   countryJa?: string;
   visitedInRealLife?: boolean;
+  /** One-line trivia / description (cities only; capitals get country). */
+  description?: string;
 }
 
 export function useGame() {
@@ -88,7 +92,9 @@ export function useGame() {
       .sort((a, b) => a.delta - b.delta);
 
     const upcomingStops: UpcomingStop[] = [];
-    const MAX_STOPS = 6;
+    // Tuned down from 6 → 4 so each row in ProgressInfo is taller and
+    // easier to tap without accidental neighbor hits.
+    const MAX_STOPS = 4;
     let prevDelta = 0;
     for (const s of stopsWithDelta) {
       if (upcomingStops.length >= MAX_STOPS) break;
@@ -101,7 +107,9 @@ export function useGame() {
             kmFromPrev: s.delta - prevDelta,
             kind: 'capital',
             nameJa: cap.nameJa,
+            name: cap.name,
             countryJa: cap.countryJa,
+            description: `${cap.country} の首都`,
           });
           prevDelta = s.delta;
           break; // stop chain ends at next capital
@@ -115,8 +123,10 @@ export function useGame() {
             kmFromPrev: s.delta - prevDelta,
             kind: 'city',
             nameJa: city.nameJa,
+            name: city.name,
             countryJa: city.countryJa,
             visitedInRealLife: city.visitedInRealLife,
+            description: city.description,
           });
           prevDelta = s.delta;
         }

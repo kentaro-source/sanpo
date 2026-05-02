@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useGame } from '../../hooks/useGame';
 
 function formatKm(km: number): string {
@@ -31,6 +32,7 @@ export function ProgressInfo() {
     effectiveMultiplier,
     activeBoosts,
   } = useGame();
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
 
   return (
     <div className="progress-info">
@@ -45,28 +47,50 @@ export function ProgressInfo() {
       <div className="progress-next">
         {nextCapital ? (
           <>
-            <span className="progress-label">次の停車地</span>
+            <span className="progress-label">向かう街</span>
             <ol className="progress-stops">
-              {upcomingStops.map((stop, i) => (
-                <li
-                  key={`${stop.nameJa}-${i}`}
-                  className={`progress-stop progress-stop-${stop.kind}${
-                    stop.visitedInRealLife ? ' progress-stop-irl' : ''
-                  }`}
-                >
-                  <span className="progress-stop-name">
-                    {stop.kind === 'capital' ? '🏛 ' : '📍 '}
-                    {stop.nameJa}
-                    {stop.countryJa && stop.kind === 'capital' && (
-                      <span className="progress-country">({stop.countryJa})</span>
+              {upcomingStops.map((stop, i) => {
+                const expanded = expandedIdx === i;
+                return (
+                  <li
+                    key={`${stop.nameJa}-${i}`}
+                    className={`progress-stop progress-stop-${stop.kind}${
+                      stop.visitedInRealLife ? ' progress-stop-irl' : ''
+                    }${expanded ? ' progress-stop-expanded' : ''}`}
+                    onClick={() => setExpandedIdx(expanded ? null : i)}
+                  >
+                    <div className="progress-stop-row">
+                      <span className="progress-stop-name">
+                        {stop.kind === 'capital' ? '🏛 ' : '📍 '}
+                        {stop.nameJa}
+                        {stop.countryJa && stop.kind === 'capital' && (
+                          <span className="progress-country">({stop.countryJa})</span>
+                        )}
+                      </span>
+                      <span className="progress-stop-dist">
+                        {formatKm(stop.kmFromPrev)}
+                        <span className="progress-stop-total">/ 計{formatKm(stop.kmAway)}</span>
+                      </span>
+                    </div>
+                    {expanded && (
+                      <div className="progress-stop-detail">
+                        {stop.description && (
+                          <div className="progress-stop-desc">{stop.description}</div>
+                        )}
+                        <div className="progress-stop-meta">
+                          {stop.name && <span>{stop.name}</span>}
+                          {stop.countryJa && stop.kind === 'city' && (
+                            <span> · {stop.countryJa}</span>
+                          )}
+                          {stop.visitedInRealLife && (
+                            <span className="progress-stop-irl-tag"> · ★ 思い出の地</span>
+                          )}
+                        </div>
+                      </div>
                     )}
-                  </span>
-                  <span className="progress-stop-dist">
-                    {formatKm(stop.kmFromPrev)}
-                    <span className="progress-stop-total">/ 計{formatKm(stop.kmAway)}</span>
-                  </span>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ol>
           </>
         ) : (
