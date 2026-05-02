@@ -289,9 +289,9 @@ export function MapView() {
       if (walkedPath.length >= 2) {
         const walked = new google.maps.Polyline({
           path: walkedPath,
-          strokeColor: '#10b981', // green
-          strokeOpacity: 0.9,
-          strokeWeight: 4,
+          strokeColor: '#10b981', // bright green = "完走"
+          strokeOpacity: 0.95,
+          strokeWeight: 5,
           zIndex: 6,
           geodesic: true,
           map: mapRef.current,
@@ -299,13 +299,27 @@ export function MapView() {
         realRoutePolylinesRef.current.push(walked);
       }
       if (futurePath.length >= 2) {
+        // Dashed gray for the future path so the boundary between walked
+        // and not-walked is visually obvious even at a glance.
         const future = new google.maps.Polyline({
           path: futurePath,
-          strokeColor: '#94a3b8', // gray (not-yet-walked)
-          strokeOpacity: 0.7,
-          strokeWeight: 3,
+          strokeOpacity: 0,
+          strokeWeight: 0,
           zIndex: 5,
           geodesic: true,
+          icons: [
+            {
+              icon: {
+                path: 'M 0,-1 0,1',
+                strokeColor: '#94a3b8',
+                strokeOpacity: 0.85,
+                strokeWeight: 3,
+                scale: 3,
+              },
+              offset: '0',
+              repeat: '14px',
+            },
+          ],
           map: mapRef.current,
         });
         realRoutePolylinesRef.current.push(future);
