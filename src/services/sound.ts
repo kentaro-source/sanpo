@@ -77,22 +77,216 @@ function clack(when: number, durationMs = 60, gain = 0.18): void {
   src.stop(when + durationMs / 1000);
 }
 
-/** Continuous "shake" rumble for ~durationMs. */
-export function playDiceRoll(durationMs = 1200): void {
+/** Sharp ceramic "tick" — short noise burst, very high bandpass
+ *  (~3-5kHz) with a resonant filter so it has bell-like decay.
+ *  Sic Bo dice are tiny and they hit the porcelain bowl + each other,
+ *  producing high-pitched ticks rather than wooden thuds. */
+function ceramicTick(when: number, freq = 3500, gain = 0.12): void {
   const c = getCtx();
   if (!c) return;
+  const sr = c.sampleRate;
+  const durationMs = 30;
+  const len = Math.floor((durationMs / 1000) * sr);
+  const buf = c.createBuffer(1, len, sr);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 1.5);
+  }
+  const src = c.createBufferSource();
+  src.buffer = buf;
+  const bp = c.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = freq;
+  bp.Q.value = 18; // very resonant — gives that ceramic ping
+  const g = c.createGain();
+  g.gain.value = gain;
+  src.connect(bp);
+  bp.connect(g);
+  g.connect(c.destination);
+  src.start(when);
+  src.stop(when + durationMs / 1000);
+}
+
+/** Glass-lid rattle — the wooden/glass cover slamming against the
+ *  porcelain bowl as it's shaken. Slightly lower pitch than the dice
+ *  ticks, with more body. */
+function lidRattle(when: number): void {
+  const c = getCtx();
+  if (!c) return;
+  const sr = c.sampleRate;
+  const durationMs = 45;
+  const len = Math.floor((durationMs / 1000) * sr);
+  const buf = c.createBuffer(1, len, sr);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2);
+  }
+  const src = c.createBufferSource();
+  src.buffer = buf;
+  const bp = c.createBiquadFilter();
+  bp.type = 'bandpass';
+  bp.frequency.value = 1800 + Math.random() * 400;
+  bp.Q.value = 6;
+  const g = c.createGain();
+  g.gain.value = 0.09;
+  src.connect(bp);
+  bp.connect(g);
+  g.connect(c.destination);
+  src.start(when);
+  src.stop(when + durationMs / 1000);
+}
+
+/** Final "set down" thud when the bowl is placed on the table — one
+ *  wooden thump that ends the roll and signals "result coming." */
+function bowlSetDown(when: number): void {
+  const c = getCtx();
+  if (!c) return;
+  const sr = c.sampleRate;
+  const durationMs = 180;
+  const len = Math.floor((durationMs / 1000) * sr);
+  const buf = c.createBuffer(1, len, sr);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 3);
+  }
+  const src = c.createBufferSource();
+  src.buffer = buf;
+  const lp = c.createBiquadFilter();
+  lp.type = 'lowpass';
+  lp.frequency.value = 350;
+  const g = c.createGain();
+  g.gain.value = 0.45;
+  src.connect(lp);
+  lp.connect(g);
+  g.connect(c.destination);
+  src.start(when);
+  src.stop(when + durationMs / 1000);
+}
+
+/** Pre-recorded Sic Bo dice roll sample. Falls back to synthesis if
+ *  the file fails to load (e.g. in a stripped build). */
+const DICE_ROLL_URL = `${import.meta.env.BASE_URL}sounds/dice-roll.mp3`;
+let diceAudio: HTMLAudioElement | null = null;
+let diceSampleFailed = false;
+
+function getDiceAudio(): HTMLAudioElement | null {
+  if (diceSampleFailed) return null;
+  if (diceAudio) return diceAudio;
+  try {
+    const a = new Audio(DICE_ROLL_URL);
+    a.preload = 'auto';
+    a.addEventListener('error', () => {
+      diceSampleFailed = true;
+      diceAudio = null;
+    });
+    diceAudio = a;
+    return a;
+  } catch {
+    diceSampleFailed = true;
+    return null;
+  }
+}
+
+/** The freesound mp3 has the structure
+ *    0.0 - 1.0s: silence (room tone)
+ *    1.0 - 2.6s: dice tumbling in the bowl (peaks 0.18 - 0.67)
+ *    2.6 - 3.0s: brief settling pause
+ *    3.0 - 3.4s: bowl set-down impact (peak 1.0)
+ *    3.4 - 4.6s: tail silence
+ *  We start at the shake (skip the dead room tone) and stop just
+ *  after the thud — so the SicBoModal can transition from "shaker
+ *  bowl rocking" → "lid lifts, dice revealed" with the thud landing
+ *  exactly on the visual reveal. */
+const DICE_AUDIO_START_S = 1.0;
+const DICE_AUDIO_END_S = 3.4;
+/** Where in the playback the shake is over and the thud is about to
+ *  hit. Caller transitions to the result phase at this offset; the
+ *  audio keeps rolling for another ~400ms covering the thud. */
+const DICE_AUDIO_SHAKE_MS = 2000;
+let diceStopTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Sic Bo dice roll. Plays the real Freesound sample if available,
+ *  otherwise falls back to a synthesized layer of ceramic ticks +
+ *  lid rattles + bowl set-down (still a roll, just less authentic).
+ *
+ *  Returns the duration (in ms) the caller should wait before showing
+ *  the dice result, so the on-screen animation stays in sync with the
+ *  audio. Caps long samples at MAX_DICE_ROLL_MS. */
+export function playDiceRoll(durationMs = 1200): number {
+  const c = getCtx();
+  if (!c) return durationMs;
   unlockAudio();
+
+  // Cancel any pending stop from a previous roll.
+  if (diceStopTimer) {
+    clearTimeout(diceStopTimer);
+    diceStopTimer = null;
+  }
+
+  const a = getDiceAudio();
+  if (a && !diceSampleFailed) {
+    try {
+      a.currentTime = DICE_AUDIO_START_S;
+      a.volume = 1.0;
+      const p = a.play();
+      if (p && typeof p.then === 'function') {
+        p.catch(() => {
+          diceSampleFailed = true;
+          synthesizeDiceRoll(durationMs);
+        });
+      }
+      const totalAudioMs = Math.round((DICE_AUDIO_END_S - DICE_AUDIO_START_S) * 1000);
+      // Stop the audio after the thud finishes.
+      diceStopTimer = setTimeout(() => {
+        try { a.pause(); a.currentTime = 0; } catch { /* ignore */ }
+        diceStopTimer = null;
+      }, totalAudioMs);
+      // Caller animates the shaker for the SHAKE portion, then reveals
+      // the dice — the thud at audio end aligns with that reveal.
+      return DICE_AUDIO_SHAKE_MS;
+    } catch {
+      diceSampleFailed = true;
+    }
+  }
+  synthesizeDiceRoll(durationMs);
+  return durationMs;
+}
+
+/** Stop the currently-playing dice roll sample (no-op if nothing is
+ *  playing or if synthesis is being used). Useful when the user spams
+ *  ROLL and the previous roll's tail would overlap into the next. */
+export function stopDiceRoll(): void {
+  const a = diceAudio;
+  if (!a) return;
+  try {
+    a.pause();
+    a.currentTime = 0;
+  } catch {
+    // ignore
+  }
+}
+
+/** Backup synthesizer used when the mp3 sample isn't available. */
+function synthesizeDiceRoll(durationMs: number): void {
+  const c = getCtx();
+  if (!c) return;
   const start = c.currentTime;
-  // Schedule rapid clacks throughout the shake
-  const clackCount = Math.floor(durationMs / 60);
-  for (let i = 0; i < clackCount; i++) {
-    const t = start + (i / clackCount) * (durationMs / 1000);
-    clack(t, 35 + Math.random() * 30, 0.08 + Math.random() * 0.06);
+  const endSec = durationMs / 1000;
+  let t = 0;
+  while (t < endSec - 0.05) {
+    const when = start + t;
+    ceramicTick(when, 3000 + Math.random() * 2000, 0.08 + Math.random() * 0.05);
+    if (Math.random() < 0.35) {
+      ceramicTick(when + 0.008, 3500 + Math.random() * 1500, 0.06);
+    }
+    t += 0.018 + Math.random() * 0.025;
   }
-  // Final settling clacks (3 dice landing)
-  for (let i = 0; i < 3; i++) {
-    clack(start + durationMs / 1000 + i * 0.06, 70, 0.22);
+  let lidT = 0.05;
+  while (lidT < endSec - 0.1) {
+    lidRattle(start + lidT);
+    lidT += 0.08 + Math.random() * 0.06;
   }
+  bowlSetDown(start + endSec);
 }
 
 /** Win chime - ascending tones */

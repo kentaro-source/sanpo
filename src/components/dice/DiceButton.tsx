@@ -20,9 +20,9 @@ export function DiceButton() {
         onClick={handleOpen}
         disabled={player.availableDice <= 0}
       >
-        <span className="dice-emoji">🎲</span>
+        <span className="chip-icon chip-icon-lg" aria-hidden="true" />
         <span className="dice-label">
-          {player.availableDice <= 0 ? '歩いて🎲を貯める' : 'カジノでプレイ'}
+          {player.availableDice <= 0 ? '歩いてチップを貯める' : 'カジノでプレイ'}
         </span>
       </button>
       <SicBoModal open={open} onClose={() => setOpen(false)} />

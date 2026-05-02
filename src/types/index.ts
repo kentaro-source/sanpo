@@ -183,6 +183,34 @@ export interface PlayerState {
   visitedCities?: string[];
   // Recent bonus events for transient toast display. Newest first.
   recentBonuses?: BonusEvent[];
+  /**
+   * Per-day rollup of activity. New entries are pushed when the
+   * day boundary (attributedDayStart) advances. Capped at 60 days
+   * to keep storage tiny (~5KB worst case).
+   */
+  dailyHistory?: DailyRecord[];
+  /** Today-in-progress accumulators (reset to zero on day rollover). */
+  todayKm?: number;
+  todaySicBoWins?: number;
+  todaySicBoLosses?: number;
+  todayNewCapitals?: number;
+  todayNewCities?: number;
+}
+
+export interface DailyRecord {
+  /** Unix ms of midnight local time for this day. */
+  dayStart: number;
+  /** Steps walked that day (whatever source credited them). */
+  steps: number;
+  /** km of route progress made that day (after multiplier). */
+  km: number;
+  /** Sic Bo wins / losses count for the day. */
+  sicBoWins: number;
+  sicBoLosses: number;
+  /** Capitals newly visited that day. */
+  newCapitals: number;
+  /** Cities newly visited that day. */
+  newCities: number;
 }
 
 export type BonusEventKind = 'milestone' | 'city' | 'city-irl' | 'capital' | 'capital-landing';

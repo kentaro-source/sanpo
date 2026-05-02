@@ -19,6 +19,28 @@ function flagEmoji(cc: string): string {
     .join('');
 }
 
+/** Walking baseline speed: ~4 km/h. Multiplier scales this linearly. */
+const BASE_SPEED_KMH = 4;
+
+/** Pick a transport mode emoji that matches the effective km/h. */
+function speedMode(kmh: number): string {
+  if (kmh < 3) return '👶';      // baby crawl — Sic Bo loss penalty zone (×0.5 → 2km/h)
+  if (kmh < 6) return '🚶';      // walking — base ×1
+  if (kmh < 12) return '🏃';     // running
+  if (kmh < 25) return '🚴';     // cycling
+  if (kmh < 60) return '🛵';     // scooter
+  if (kmh < 120) return '🚗';    // car
+  if (kmh < 250) return '🚄';    // bullet train
+  if (kmh < 700) return '✈️';   // plane
+  return '🚀';                   // rocket
+}
+
+function formatSpeed(kmh: number): string {
+  if (kmh < 10) return `${kmh.toFixed(1)}km/h`;
+  if (kmh < 1000) return `${Math.round(kmh)}km/h`;
+  return `${Math.round(kmh).toLocaleString()}km/h`;
+}
+
 function formatDuration(ms: number): string {
   const totalMin = Math.floor(ms / 60_000);
   const h = Math.floor(totalMin / 60);
@@ -43,16 +65,25 @@ export function ProgressInfo() {
   } = useGame();
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
 
+  const speed = BASE_SPEED_KMH * effectiveMultiplier;
+  const isSlowdown = multiplierActive && effectiveMultiplier < 1;
+
   return (
     <div className="progress-info">
       {multiplierActive && (
-        <div className="progress-multiplier">
-          ⚡ ×{effectiveMultiplier.toFixed(effectiveMultiplier < 10 ? 1 : 0)}{' '}
-          加速中
+        <div className={`progress-multiplier ${isSlowdown ? 'slowdown' : ''}`}>
+          {isSlowdown ? '👶' : '⚡'} ×
+          {effectiveMultiplier.toFixed(effectiveMultiplier < 10 ? 1 : 0)}{' '}
+          {isSlowdown ? '減速中' : '加速中'}
           {activeBoosts.length > 1 && ` (${activeBoosts.length}本)`}{' '}
           （次の失効まで {formatDuration(multiplierMsLeft)}）
         </div>
       )}
+      <div className="progress-speed">
+        <span className="speed-mode">{speedMode(speed)}</span>
+        <span className="speed-value">{formatSpeed(speed)}</span>
+        <span className="speed-base">標準 {BASE_SPEED_KMH}km/h × {effectiveMultiplier.toFixed(effectiveMultiplier < 10 ? 1 : 0)}</span>
+      </div>
       <div className="progress-next">
         {nextCapital ? (
           <>

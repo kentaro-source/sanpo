@@ -77,7 +77,10 @@ export function MapView() {
     if (!loaded || !containerRef.current || mapRef.current) return;
 
     mapRef.current = new google.maps.Map(containerRef.current, {
-      center: { lat: currentSquare.lat, lng: currentSquare.lng },
+      // Use the smooth interpolated player position (more accurate than
+      // the start-of-square lat/lng), so on launch the map opens exactly
+      // where the player is along the route, not snapped to a square edge.
+      center: position,
       // Zoom 16 ≈ 2.4m/px. Sized for the v7 distance model where
       // KM_PER_STEP = 0.001 (1m/step). At ×1 walking 1 step ≈ 0.4px
       // — subtle but cumulative. At a stacked ×12 boost 1 step ≈ 5px,
@@ -819,6 +822,23 @@ export function MapView() {
   // drifted outside the inner box (because the user panned away to look
   // at a future stop) the map was yanked back to the player. Now the
   // map stays wherever the user put it; tap 📍 to recenter.
+
+  // Foreground recenter: when the page becomes visible again (user
+  // re-opens the app), pan back to the player's current position.
+  // This makes "open the app" always show "where I am now" without the
+  // problems the always-on auto-pan caused.
+  useEffect(() => {
+    if (!loaded) return;
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return;
+      const map = mapRef.current;
+      if (!map) return;
+      map.panTo(position);
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded]);
 
   if (error) {
     return (

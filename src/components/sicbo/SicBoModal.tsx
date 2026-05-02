@@ -11,9 +11,6 @@ import {
 } from '../../utils/sicbo';
 import {
   playDiceRoll,
-  playWin,
-  playLose,
-  playJackpot,
   playClick,
   playTokenGain,
 } from '../../services/sound';
@@ -84,7 +81,9 @@ export function SicBoModal({ open, onClose }: Props) {
     }));
 
     setPhase('rolling');
-    playDiceRoll(1200);
+    // Use the audio sample's actual duration so animation + sound end
+    // together (no more click-clack-then-2s-of-silence-then-result).
+    const rollMs = playDiceRoll(1200);
 
     let frame = 0;
     const interval = setInterval(() => {
@@ -94,7 +93,10 @@ export function SicBoModal({ open, onClose }: Props) {
         Math.floor(Math.random() * 6) + 1,
         Math.floor(Math.random() * 6) + 1,
       ]);
-      if (frame > 18) clearInterval(interval);
+      // Cap the rapid-die cycle near the audio end (~last 200ms feels
+      // like dice settling in the bowl).
+      const maxFrames = Math.max(8, Math.floor((rollMs - 200) / 60));
+      if (frame > maxFrames) clearInterval(interval);
     }, 60);
 
     setTimeout(() => {
@@ -124,14 +126,7 @@ export function SicBoModal({ open, onClose }: Props) {
       });
       setPhase('result');
 
-      if (window.won && window.multiplier >= 100) {
-        setTimeout(() => playJackpot(), 200);
-      } else if (window.won) {
-        setTimeout(() => playWin(), 200);
-      } else {
-        setTimeout(() => playLose(), 200);
-      }
-    }, 1200);
+    }, rollMs);
   };
 
   const handleClose = () => {

@@ -1,4 +1,5 @@
 import { useGame } from '../../hooks/useGame';
+import { HamburgerMenu } from './HamburgerMenu';
 
 // Build tag injected by vite.config.ts (define: __BUILD_TAG__)
 // Visible in the header so the user can confirm they're on the latest deploy.
@@ -36,22 +37,14 @@ export function Header() {
 
   return (
     <header className="header">
+      <HamburgerMenu onForceReload={hardReload} />
       <h1 className="header-title">せかいさんぽ</h1>
       <span className="header-build">v{BUILD_TAG}</span>
       <div className="header-meta">{visitedCount}/{totalCapitals}</div>
-      <div className="header-dice">
-        <span className="dice-icon">🎲</span>
+      <div className="header-dice" title="所持チップ">
+        <span className="chip-icon" aria-hidden="true" />
         <span className="dice-count">{player.availableDice}/{config.maxDice}</span>
       </div>
-      <button
-        type="button"
-        className="header-reload"
-        onClick={hardReload}
-        aria-label="強制更新"
-        title="強制更新"
-      >
-        ⟳
-      </button>
     </header>
   );
 }
