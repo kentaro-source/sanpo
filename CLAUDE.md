@@ -1,24 +1,31 @@
 # Sanpo - 歩いて世界一周アプリ
 
-## 🚀 引継ぎサマリ (2026-05-02)
+## 🚀 引継ぎサマリ (2026-05-02 後半セッション)
 
 別PCで再開する Claude / 数ヶ月後の自分が**最初に読むべき要点**:
 
 1. **このリポジトリ**: https://github.com/kentaro-source/sanpo (public)
 2. **本番URL**: https://kentaro-source.github.io/sanpo/ (push で自動デプロイ、約45秒)
 3. **ローカル**: `git clone https://github.com/kentaro-source/sanpo.git C:\dev\sanpo` → `npm install` → `npm run dev`
-4. **API キー**: `.env.local` に `VITE_GOOGLE_MAPS_API_KEY=...` + `VITE_FIT_WORKER_URL=https://sanpo-fit.kk891751.workers.dev` 必要
-5. **重大な仕様変更(2026-05-02)**: **マスベース → 距離ベース**にリファクタ完了（v6 ストレージ）。Sic Bo は「マスを進める」ではなく「次の N 時間の速度倍率を決める」勝負に。詳細は下記「2026-05-02 大型リファクタ」参照
-6. **Google Fit Worker 化(2026-05-02)**: Cloudflare Worker (`worker/`) で refresh token を保管。1時間ごとの再連携プロンプトを廃止。新 OAuth クライアント `283060166957-n7v8roliir9nbhiueiolbgimdftjfd1d...` (My First Project 配下、Fitness API 有効化済み)
-7. **既知の根本問題**: モダン Android (Pixel等) は端末歩数を Health Connect に書き、Fit クラウド DB へのミラーが極端に遅い／無いことがある。Fit REST API ではほぼリアルタイム取得が不可能。Fit アプリは HC を直接読むので増えるが、我々の REST 経由は増えない。**根本解決には Capacitor 化 + Health Connect プラグイン直叩き(B案、未着手)**
-8. **次やる作業の優先順位**:
-   - **0. Capacitor 化**(B案、ユーザーと合意済み・未着手) — Fit クラウド遅延を完全回避するための唯一の選択肢
-   - **A. セグメント分類バッチ4-11** — 残147/193(ロシア・欧州・アフリカ・米州・オセアニア)
-   - **B. 実道路距離プリコンピュート実行** — スクリプト完成済みだが API キー問題あり(下記参照)
+4. **API キー**: `.env.local` に `VITE_GOOGLE_MAPS_API_KEY=...` だけで OK(Fit は v8 後半で UI 非表示化したので worker URL 不要)
+5. **storage v8 + ペドメーター移行(2026-05-02 後半)**: `attributedTodaySteps` フィールド導入で歩数源跨ぎの二重計上を防御。Google Fit UI を完全非表示にし、in-browser DeviceMotion ペドメーターに一本化。Fit/Worker コードは将来 Capacitor 移行用に残置するが foreground 経由は不要。
+6. **Sic Bo 仕様調整(2026-05-02 後半)**: ブースト窓を全勝ち固定 30分(`BOOST_WINDOW_MS = 30 * 60 * 1000`、`utils/sicbo.ts`)、倍率は `boosts: Boost[]` で multiplicative にスタック、`maxDice: 100`、`stepsPerDie: 1000`、`KM_PER_STEP: 0.001`(1m/歩)、首都/都市ボーナスは「通過/到着」区別撤廃で実生活訪問なら +5/+3、未訪問なら +2/+1(cap × 1.5 までボーナス枠 over-cap 許容)。
+7. **次やる作業: 経由都市の追加で歩行可能ルート整備(全193セグメント)**:
+   - JP→KR でテンプレ確立済み(2026-05-02)。waypoint city ペアを **<200km 間隔**(Walking モード上限 ~300km の安全圏)で繋ぐ。Walking 失敗時は Driving、両方失敗(海越え/国境)時は `seaSegments` 明示で直線フォールバック。
+   - JP→KR 例: 東京→横浜→浜松→名古屋→京都→大阪→神戸→広島→北九州→福岡→熊本→宮崎→長崎→[フェリー]→プサン→清州→ソウル(14都市経由、各ペア ≤270km、海越えは Nagasaki↔Busan のみ)
+   - 残り192セグメント分、地域順に同じ要領で waypoint city 設計 + cities.ts に必要なら都市追加 + segmentMeta.ts の waypointCityIds 更新
+8. **既知の根本問題(継続)**: モダン Android は歩数を Health Connect に書き、Fit クラウドへのミラー遅延あり。Capacitor + Health Connect プラグイン未着手だが、ペドメーター一本化で foreground 体験は実用域。background は別途要対応。
+9. **その他重要な fix 履歴(セッション末尾)**:
+   - createInitialState の `version: 7` リテラル(CURRENT_VERSION=8 と不一致 → 毎 reload で reset)を 8 に修正
+   - RDP 再帰がスタック overflow → 反復実装に変更(`MapView.tsx`)
+   - `built.push(...pathSeg)` で V8 引数数上限(~65k)突破の RangeError → ループ push に変更
+   - RDP 簡略化 eps を 0.02°(~2km)→ 0.001°(~100m)に絞り、zoom16 で道路カーブが残るように
+   - 地図右下に 📍 現在地ボタン追加(`map-recenter` クラス)
+   - ルート線を「青+白アンダーグロー」で密集タイル上でも視認可能に
 
 git の identity は `kentaro-source` / `kentaro-source@users.noreply.github.com` をローカルセット推奨。
 
-**⟳ ボタン挙動の変遷**: 一時期 Fit 認証状態もクリアしていたが、デプロイのたびにユーザーが再連携要求される事故が発生 → 7888d73 で Fit 状態の clear を撤去。今は SW unregister + caches 削除 + directions cache 削除のみ。Fit 認証は保持。
+**⟳ ボタン挙動の変遷**: 一時期 Fit 認証状態もクリア → ユーザー再連携事故 → 7888d73 で Fit clear 撤去。`CLEAN_SLATE_KEY` ワンショット強制リセット機構を入れたが意図せず再発動して進行リセットの原因になり撤去(セッション末尾)。今は SW unregister + Cache Storage 削除 + `sanpo-directions-cache-v1`/`v2` 削除のみ。`sanpo-game-state` / `sanpo-progress-watchdog` は触らない。
 
 ## プロジェクト概要
 スマホの歩数計と連動して、歩くだけで世界193カ国の首都を一筆書きで巡るシミュレーション。
