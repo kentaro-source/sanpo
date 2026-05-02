@@ -299,27 +299,17 @@ export function MapView() {
         realRoutePolylinesRef.current.push(walked);
       }
       if (futurePath.length >= 2) {
-        // Dashed gray for the future path so the boundary between walked
-        // and not-walked is visually obvious even at a glance.
+        // Solid gray for the future path. The dashed icon-only version
+        // didn't render reliably on all devices (strokeWeight: 0 base
+        // suppressed the icon overlay on some browsers). Plain visible
+        // line is unambiguous and works everywhere.
         const future = new google.maps.Polyline({
           path: futurePath,
-          strokeOpacity: 0,
-          strokeWeight: 0,
+          strokeColor: '#64748b',
+          strokeOpacity: 0.85,
+          strokeWeight: 4,
           zIndex: 5,
           geodesic: true,
-          icons: [
-            {
-              icon: {
-                path: 'M 0,-1 0,1',
-                strokeColor: '#94a3b8',
-                strokeOpacity: 0.85,
-                strokeWeight: 3,
-                scale: 3,
-              },
-              offset: '0',
-              repeat: '14px',
-            },
-          ],
           map: mapRef.current,
         });
         realRoutePolylinesRef.current.push(future);
