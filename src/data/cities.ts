@@ -124,7 +124,7 @@ export const cities: City[] = [
     lng: 137.7261,
     type: 'gourmet',
     description: '東海道の中継地、うなぎ',
-    // 静岡県の都市だが県庁所在地ではない → 訪問は確定しない。
+    visitedInRealLife: true,
   },
   {
     id: 'JP-HIROSHIMA',
@@ -147,8 +147,8 @@ export const cities: City[] = [
     lat: 33.8835,
     lng: 130.8751,
     type: 'tourist',
-    description: '関門海峡の本州側ゲート',
-    // 福岡県の都市だが県庁所在地ではない → 訪問は確定しない。
+    description: '関門海峡、ユーザー居住歴あり',
+    visitedInRealLife: true,
   },
   {
     id: 'JP-KUMAMOTO',
