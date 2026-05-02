@@ -1677,6 +1677,419 @@ export const segmentClassifications: SegmentClassification[] = [
     seaSegments: [[0, 1]],
     notes: 'ンゲルルムッド→[太平洋 ~5000km]→フナフティ',
   },
+
+  // ===== Batch 14: Africa internal (EG → ST), 53 segments =====
+  // Most legs across the Sahara, Sahel, and Indian Ocean are too long
+  // for Walking; segments use Driving fallback or seaSegments and add
+  // recognizable anchor cities only where they reinforce the geography.
+
+  // Cairo → Tripoli via Alexandria + Benghazi along the Mediterranean.
+  {
+    fromCapitalId: 'EG',
+    toCapitalId: 'LY',
+    routeType: 'land',
+    waypointCityIds: [
+      'EG-ALEXANDRIA', // ~220 km from Cairo (Driving fallback)
+      'LY-BENGHAZI',   // ~1300 km, EG-LY border (Driving fallback)
+      // Benghazi → Tripoli ~1000 km (Driving fallback)
+    ],
+    notes: 'カイロ→アレクサンドリア→[国境]→ベンガジ→トリポリ',
+  },
+
+  {
+    fromCapitalId: 'LY',
+    toCapitalId: 'TN',
+    routeType: 'land',
+    notes: 'トリポリ→[国境]→チュニス（地中海岸 ~750km、Driving）',
+  },
+
+  {
+    fromCapitalId: 'TN',
+    toCapitalId: 'DZ',
+    routeType: 'land',
+    waypointCityIds: ['DZ-CONSTANTINE'],
+    notes: 'チュニス→[国境]→コンスタンティーヌ→アルジェ',
+  },
+
+  {
+    fromCapitalId: 'DZ',
+    toCapitalId: 'MA',
+    routeType: 'land',
+    waypointCityIds: ['MA-FES'],
+    notes: 'アルジェ→[国境]→フェズ→ラバト',
+  },
+
+  {
+    fromCapitalId: 'MA',
+    toCapitalId: 'MR',
+    routeType: 'land',
+    waypointCityIds: ['MA-CASABLANCA', 'MA-AGADIR'],
+    notes: 'ラバト→カサブランカ→アガディール→[西サハラ]→ヌアクショット',
+  },
+
+  {
+    fromCapitalId: 'MR',
+    toCapitalId: 'ML',
+    routeType: 'land',
+    notes: 'ヌアクショット→[サヘル ~1300km Driving]→バマコ',
+  },
+
+  {
+    fromCapitalId: 'ML',
+    toCapitalId: 'NE',
+    routeType: 'land',
+    waypointCityIds: ['ML-MOPTI'],
+    notes: 'バマコ→モプティ→[国境]→ニアメ',
+  },
+
+  {
+    fromCapitalId: 'NE',
+    toCapitalId: 'TD',
+    routeType: 'land',
+    notes: 'ニアメ→[サハラ ~2050km Driving]→ンジャメナ',
+  },
+
+  {
+    fromCapitalId: 'TD',
+    toCapitalId: 'SD',
+    routeType: 'land',
+    notes: 'ンジャメナ→[サヘル ~1700km Driving]→ハルツーム',
+  },
+
+  {
+    fromCapitalId: 'SD',
+    toCapitalId: 'SS',
+    routeType: 'land',
+    notes: 'ハルツーム→[~1200km Driving]→ジュバ',
+  },
+
+  {
+    fromCapitalId: 'SS',
+    toCapitalId: 'ER',
+    routeType: 'land',
+    waypointCityIds: ['ET-MEKELE'],
+    notes: 'ジュバ→[エチオピア経由]→メケレ→アスマラ',
+  },
+
+  {
+    fromCapitalId: 'ER',
+    toCapitalId: 'DJ',
+    routeType: 'land',
+    notes: 'アスマラ→[国境]→ジブチ（紅海岸 ~370km）',
+  },
+
+  {
+    fromCapitalId: 'DJ',
+    toCapitalId: 'ET',
+    routeType: 'land',
+    waypointCityIds: ['ET-DIREDAWA'],
+    notes: 'ジブチ→[国境]→ディレダワ→アディスアベバ',
+  },
+
+  {
+    fromCapitalId: 'ET',
+    toCapitalId: 'SO',
+    routeType: 'land',
+    notes: 'アディスアベバ→[エチオピア南東 ~1400km Driving]→モガディシュ',
+  },
+
+  {
+    fromCapitalId: 'SO',
+    toCapitalId: 'KE',
+    routeType: 'land',
+    notes: 'モガディシュ→[ソマリア沿岸 ~960km Driving]→ナイロビ',
+  },
+
+  {
+    fromCapitalId: 'KE',
+    toCapitalId: 'UG',
+    routeType: 'land',
+    notes: 'ナイロビ→[国境 ~660km]→カンパラ',
+  },
+
+  {
+    fromCapitalId: 'UG',
+    toCapitalId: 'RW',
+    routeType: 'land',
+    notes: 'カンパラ→[国境 ~580km]→キガリ',
+  },
+
+  {
+    fromCapitalId: 'RW',
+    toCapitalId: 'BI',
+    routeType: 'land',
+    notes: 'キガリ→[国境 ~250km]→ブジュンブラ',
+  },
+
+  {
+    fromCapitalId: 'BI',
+    toCapitalId: 'TZ',
+    routeType: 'land',
+    notes: 'ブジュンブラ→[タンザニア西部 ~1100km Driving]→ドドマ',
+  },
+
+  // Tanzania → Comoros → Madagascar → Mauritius → Seychelles — Indian Ocean.
+  {
+    fromCapitalId: 'TZ',
+    toCapitalId: 'KM',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]],
+    notes: 'ドドマ→[インド洋 ~1100km]→モロニ',
+  },
+
+  {
+    fromCapitalId: 'KM',
+    toCapitalId: 'MG',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]],
+    notes: 'モロニ→[インド洋 ~520km]→アンタナナリボ',
+  },
+
+  {
+    fromCapitalId: 'MG',
+    toCapitalId: 'MU',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]],
+    notes: 'アンタナナリボ→[インド洋 ~1100km]→ポートルイス',
+  },
+
+  {
+    fromCapitalId: 'MU',
+    toCapitalId: 'SC',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]],
+    notes: 'ポートルイス→[インド洋 ~2000km]→ヴィクトリア',
+  },
+
+  {
+    fromCapitalId: 'SC',
+    toCapitalId: 'MZ',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]],
+    notes: 'ヴィクトリア→[インド洋 ~3300km]→マプト',
+  },
+
+  {
+    fromCapitalId: 'MZ',
+    toCapitalId: 'MW',
+    routeType: 'land',
+    notes: 'マプト→[国境 ~1500km Driving]→リロングウェ',
+  },
+
+  {
+    fromCapitalId: 'MW',
+    toCapitalId: 'ZM',
+    routeType: 'land',
+    notes: 'リロングウェ→[国境 ~720km]→ルサカ',
+  },
+
+  {
+    fromCapitalId: 'ZM',
+    toCapitalId: 'ZW',
+    routeType: 'land',
+    notes: 'ルサカ→[国境 ~620km]→ハラレ',
+  },
+
+  {
+    fromCapitalId: 'ZW',
+    toCapitalId: 'BW',
+    routeType: 'land',
+    notes: 'ハラレ→[国境 ~870km Driving]→ハボロネ',
+  },
+
+  {
+    fromCapitalId: 'BW',
+    toCapitalId: 'NA',
+    routeType: 'land',
+    waypointCityIds: ['NA-WALVISBAY'],
+    notes: 'ハボロネ→[国境]→ウォルビスベイ→ウィントフック',
+  },
+
+  {
+    fromCapitalId: 'NA',
+    toCapitalId: 'ZA',
+    routeType: 'land',
+    waypointCityIds: ['ZA-JOHANNESBURG'],
+    notes: 'ウィントフック→[国境 ~1300km Driving]→ヨハネスブルク→プレトリア',
+  },
+
+  {
+    fromCapitalId: 'ZA',
+    toCapitalId: 'SZ',
+    routeType: 'land',
+    notes: 'プレトリア→[国境 ~330km]→ムババーネ',
+  },
+
+  {
+    fromCapitalId: 'SZ',
+    toCapitalId: 'LS',
+    routeType: 'land',
+    notes: 'ムババーネ→[南アフリカ経由 ~700km]→マセル',
+  },
+
+  // Lesotho → Angola — long traverse north through SA/NA into Angola.
+  {
+    fromCapitalId: 'LS',
+    toCapitalId: 'AO',
+    routeType: 'land',
+    waypointCityIds: ['ZA-CAPETOWN'],
+    notes: 'マセル→[南アフリカ経由]→ケープタウン→[~3000km Driving]→ルアンダ',
+  },
+
+  {
+    fromCapitalId: 'AO',
+    toCapitalId: 'CD',
+    routeType: 'land',
+    notes: 'ルアンダ→[国境 ~770km Driving]→キンシャサ',
+  },
+
+  // DRC → Republic of Congo — just a ferry across the Congo River.
+  {
+    fromCapitalId: 'CD',
+    toCapitalId: 'CG',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]], // Congo River crossing (~10 km)
+    notes: 'キンシャサ→[コンゴ川フェリー ~10km]→ブラザビル',
+  },
+
+  {
+    fromCapitalId: 'CG',
+    toCapitalId: 'GA',
+    routeType: 'land',
+    notes: 'ブラザビル→[国境 ~600km]→リーブルヴィル',
+  },
+
+  // Gabon → Equatorial Guinea — Bioko Island sea hop.
+  {
+    fromCapitalId: 'GA',
+    toCapitalId: 'GQ',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]], // Atlantic to Bioko Island
+    notes: 'リーブルヴィル→[ギニア湾 ~280km]→マラボ',
+  },
+
+  // GQ → Cameroon — back to mainland.
+  {
+    fromCapitalId: 'GQ',
+    toCapitalId: 'CM',
+    routeType: 'mixed',
+    waypointCityIds: ['CM-DOUALA'],
+    seaSegments: [[0, 1]], // Bioko → Douala sea
+    notes: 'マラボ→[ギニア湾]→ドゥアラ→ヤウンデ',
+  },
+
+  {
+    fromCapitalId: 'CM',
+    toCapitalId: 'CF',
+    routeType: 'land',
+    notes: 'ヤウンデ→[国境 ~970km Driving]→バンギ',
+  },
+
+  {
+    fromCapitalId: 'CF',
+    toCapitalId: 'NG',
+    routeType: 'land',
+    notes: 'バンギ→[カメルーン経由 ~1900km Driving]→アブジャ',
+  },
+
+  {
+    fromCapitalId: 'NG',
+    toCapitalId: 'BJ',
+    routeType: 'land',
+    waypointCityIds: ['NG-LAGOS'],
+    notes: 'アブジャ→ラゴス→[国境]→ポルトノボ',
+  },
+
+  {
+    fromCapitalId: 'BJ',
+    toCapitalId: 'TG',
+    routeType: 'land',
+    notes: 'ポルトノボ→[国境 ~140km]→ロメ',
+  },
+
+  {
+    fromCapitalId: 'TG',
+    toCapitalId: 'GH',
+    routeType: 'land',
+    notes: 'ロメ→[国境 ~190km]→アクラ',
+  },
+
+  {
+    fromCapitalId: 'GH',
+    toCapitalId: 'CI',
+    routeType: 'land',
+    waypointCityIds: ['GH-KUMASI', 'CI-ABIDJAN'],
+    notes: 'アクラ→クマシ→[国境]→アビジャン→ヤムスクロ',
+  },
+
+  {
+    fromCapitalId: 'CI',
+    toCapitalId: 'BF',
+    routeType: 'land',
+    notes: 'ヤムスクロ→[国境 ~1000km Driving]→ワガドゥグー',
+  },
+
+  {
+    fromCapitalId: 'BF',
+    toCapitalId: 'LR',
+    routeType: 'land',
+    notes: 'ワガドゥグー→[コートジボワール経由 ~1700km Driving]→モンロビア',
+  },
+
+  {
+    fromCapitalId: 'LR',
+    toCapitalId: 'SL',
+    routeType: 'land',
+    notes: 'モンロビア→[国境 ~570km Driving]→フリータウン',
+  },
+
+  {
+    fromCapitalId: 'SL',
+    toCapitalId: 'GN',
+    routeType: 'land',
+    notes: 'フリータウン→[国境 ~330km]→コナクリ',
+  },
+
+  {
+    fromCapitalId: 'GN',
+    toCapitalId: 'GW',
+    routeType: 'land',
+    notes: 'コナクリ→[国境 ~440km]→ビサウ',
+  },
+
+  {
+    fromCapitalId: 'GW',
+    toCapitalId: 'GM',
+    routeType: 'land',
+    notes: 'ビサウ→[セネガル経由 ~430km]→バンジュール',
+  },
+
+  {
+    fromCapitalId: 'GM',
+    toCapitalId: 'SN',
+    routeType: 'land',
+    notes: 'バンジュール→[国境 ~310km]→ダカール',
+  },
+
+  // Senegal → Cape Verde — Atlantic ferry.
+  {
+    fromCapitalId: 'SN',
+    toCapitalId: 'CV',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]],
+    notes: 'ダカール→[大西洋 ~620km]→プライア',
+  },
+
+  // Cape Verde → São Tomé — Atlantic crossing (CV-MINDELO already
+  // appears as the anchor on the ST→RU jump in batch 3).
+  {
+    fromCapitalId: 'CV',
+    toCapitalId: 'ST',
+    routeType: 'mixed',
+    waypointCityIds: ['CV-MINDELO'],
+    seaSegments: [[0, 1], [1, 2]],
+    notes: 'プライア→ミンデロ→[ギニア湾 ~3000km]→サントメ',
+  },
 ];
 
 export function findSegmentClassification(
