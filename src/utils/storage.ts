@@ -3,11 +3,12 @@ import type { GameState, PlayerState } from '../types';
 const STORAGE_KEY = 'sanpo-game-state';
 const WATCHDOG_KEY = 'sanpo-progress-watchdog';
 
-// Version 7: Sic Bo wins now STACK as a list of Boost entries instead of
-// the single currentMultiplier/multiplierUntil slot from v6. Base
-// KM_PER_STEP also dropped from 0.1 to 0.001 (1m/step), making walking
-// intentionally slow so stacked boosts matter strategically.
-const CURRENT_VERSION = 7;
+// Version 8: per-day step attribution renamed from todayStepsBaseline
+// (Fit-only) to attributedTodaySteps (sum across all sources). Required
+// to coexist with the in-browser pedometer that adds steps in real time
+// while Fit Cloud lags behind. Watchdog preserves distanceKm across the
+// version bump.
+const CURRENT_VERSION = 8;
 
 /** Replace any NaN/null/undefined number field with a safe default. */
 function sanitizeNum(v: unknown, fallback: number): number {

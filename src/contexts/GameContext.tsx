@@ -286,6 +286,17 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const newDice = Math.floor(totalSteps / state.config.stepsPerDie);
       const remainder = totalSteps % state.config.stepsPerDie;
 
+      // Track per-day contribution so a later Fit sync doesn't double-count
+      // steps the pedometer (or manual input) already credited.
+      const dayStart = (() => {
+        const d = new Date(now);
+        d.setHours(0, 0, 0, 0);
+        return d.getTime();
+      })();
+      const sameDay = state.player.attributedDayStart === dayStart;
+      const newAttributed =
+        (sameDay ? state.player.attributedTodaySteps ?? 0 : 0) + action.steps;
+
       // Convert steps to km via the stacked-boost multiplier.
       const conv = stepsToKm(action.steps, state.player, now);
       const oldKm = state.player.distanceKm;
@@ -324,6 +335,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             state.config.maxDice,
           ),
           stepsTowardNextDie: remainder,
+          attributedTodaySteps: newAttributed,
+          attributedDayStart: dayStart,
           visitedCapitals: cross.newCapitals,
           visitedCities: cross.newCities,
           completedLaps: state.player.completedLaps + cross.completedLaps,
@@ -337,44 +350,42 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'SYNC_FROM_GOOGLE_FIT': {
-      // action.steps is the ABSOLUTE total step count for today (since
-      // start-of-day in local time), not an incremental delta. We compute
-      // the delta from the last seen baseline so that late-arriving Fit
-      // data still gets credited correctly on a subsequent poll.
+      // action.steps = ABSOLUTE today total from Fit. We credit only the
+      // PORTION not yet attributed to distanceKm by any source. This way
+      // the in-browser pedometer and the periodic Fit sync can both run
+      // concurrently without ever crediting the same steps twice.
       const todayAbsolute = action.steps;
       const d = new Date(action.syncTimestamp);
       d.setHours(0, 0, 0, 0);
       const todayStart = d.getTime();
 
-      // First sync after upgrade (no baseline tracked yet) — adopt the
-      // current absolute value as the baseline without crediting steps.
-      // This avoids double-counting steps already credited under the old
-      // incremental sync model.
-      const isFirstSyncAfterUpgrade =
-        state.player.todayBaselineDayStart === undefined;
+      const sameDay = state.player.attributedDayStart === todayStart;
+      const attributedSoFar = sameDay
+        ? state.player.attributedTodaySteps ?? 0
+        : 0;
 
-      // If the day has rolled over since the last sync, reset baseline.
-      const baseline = isFirstSyncAfterUpgrade
+      // First-ever sync (no attribution data yet): adopt today's absolute
+      // value as the baseline without crediting it. This handles the
+      // upgrade path from v6/v7 where attributedTodaySteps doesn't exist
+      // and avoids re-crediting steps already added under the old model.
+      const isFirstSync =
+        state.player.attributedDayStart === undefined &&
+        state.player.attributedTodaySteps === undefined;
+
+      const contribution = isFirstSync
+        ? 0
+        : Math.max(0, todayAbsolute - attributedSoFar);
+      const newAttributed = isFirstSync
         ? todayAbsolute
-        : state.player.todayBaselineDayStart === todayStart
-          ? state.player.todayStepsBaseline ?? 0
-          : 0;
-
-      // Negative delta (e.g. Fit data correction) → ignore, don't subtract.
-      const delta = Math.max(0, todayAbsolute - baseline);
-      // Only ratchet the baseline UP within a day. Otherwise a transient
-      // API hiccup that returned 0 would lower the baseline, then the next
-      // successful sync (returning the real total) would credit it all
-      // again, double-counting. Same-day baseline is monotonically increasing.
-      const newBaseline = Math.max(baseline, todayAbsolute);
+        : Math.max(attributedSoFar, todayAbsolute);
 
       const now = Date.now();
-      const totalSteps = state.player.stepsTowardNextDie + delta;
+      const totalSteps = state.player.stepsTowardNextDie + contribution;
       const newDice = Math.floor(totalSteps / state.config.stepsPerDie);
       const remainder = totalSteps % state.config.stepsPerDie;
 
-      // Convert delta steps to km using active multiplier.
-      const conv = stepsToKm(delta, state.player, now);
+      // Convert the new contribution to km using active multiplier.
+      const conv = stepsToKm(contribution, state.player, now);
       const oldKm = state.player.distanceKm;
       const newKm = oldKm + conv.km;
 
@@ -388,7 +399,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       );
 
       const oldStepTotal = state.player.totalStepsEntered;
-      const newStepTotal = oldStepTotal + delta;
+      const newStepTotal = oldStepTotal + contribution;
       const ms = checkMilestones(
         oldStepTotal,
         newStepTotal,
@@ -411,8 +422,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           ),
           stepsTowardNextDie: remainder,
           lastSyncTimestamp: action.syncTimestamp,
-          todayStepsBaseline: newBaseline,
-          todayBaselineDayStart: todayStart,
+          attributedTodaySteps: newAttributed,
+          attributedDayStart: todayStart,
           visitedCapitals: cross.newCapitals,
           visitedCities: cross.newCities,
           completedLaps: state.player.completedLaps + cross.completedLaps,

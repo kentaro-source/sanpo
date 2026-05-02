@@ -6,11 +6,13 @@ import { BonusToast } from './components/stats/BonusToast';
 import { StepInput } from './components/dice/StepInput';
 import { DiceButton } from './components/dice/DiceButton';
 import { GoogleFitButton } from './components/dice/GoogleFitButton';
+import { PedometerStatus } from './components/dice/PedometerStatus';
 import './App.css';
 
 function BottomPanel() {
   return (
     <>
+      <PedometerStatus />
       <ProgressInfo />
       <GoogleFitButton />
       <StepInput />

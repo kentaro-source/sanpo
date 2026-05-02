@@ -159,11 +159,23 @@ export interface PlayerState {
   completedLaps: number;
   // Google Fit sync state
   lastSyncTimestamp?: number; // unix ms - last time we successfully pulled from Google Fit
-  // Absolute step counter for the current day, last seen from Fit. Used to
-  // compute idempotent deltas resilient to late-arriving Fit data.
+  /**
+   * @deprecated v8 replaced this with `attributedTodaySteps`.
+   * Kept on the type so v6/v7 saves still type-check during load.
+   */
   todayStepsBaseline?: number;
-  // start-of-day ms for the day todayStepsBaseline applies to
+  /** @deprecated see todayStepsBaseline. */
   todayBaselineDayStart?: number;
+  /**
+   * Sum of steps already credited to distanceKm today, regardless of
+   * source (Fit sync, in-browser pedometer, manual input). Used for
+   * cross-source double-count prevention: when Fit syncs with an
+   * absolute today-total, contribution = max(0, todayAbsolute - attributedTodaySteps),
+   * so steps the pedometer already counted aren't credited a second time.
+   */
+  attributedTodaySteps?: number;
+  /** start-of-day ms for the day attributedTodaySteps applies to */
+  attributedDayStart?: number;
   // Step-count milestones already claimed (10k/100k/1M/10M/100M etc.).
   claimedMilestones?: number[];
   // City IDs the player has visited via stopping within range. For the
