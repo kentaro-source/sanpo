@@ -291,6 +291,7 @@ export const cities: City[] = [
     lng: 114.1694,
     type: 'metropolis',
     description: '東洋と西洋が交わる国際都市',
+    visitedInRealLife: true,
   },
   {
     id: 'MO-MACAU',
@@ -302,6 +303,7 @@ export const cities: City[] = [
     lng: 113.5439,
     type: 'historic',
     description: 'ポルトガル文化が残るカジノ都市',
+    visitedInRealLife: true,
   },
   {
     id: 'CN-GUANGZHOU',

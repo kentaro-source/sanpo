@@ -3,6 +3,7 @@ import { GameContext } from '../contexts/GameContext';
 import { routeData } from '../data';
 import { cities } from '../data/cities';
 import { positionAtKm, squareIndexAtKm } from '../data/generateRoute';
+import { isRealLifeVisitedCapital } from '../data/realLifeVisited';
 import type { BetSlot } from '../types';
 
 export interface UpcomingStop {
@@ -111,6 +112,7 @@ export function useGame() {
             nameJa: cap.nameJa,
             name: cap.name,
             countryJa: cap.countryJa,
+            visitedInRealLife: isRealLifeVisitedCapital(cap.id),
             description: `${cap.country} の首都`,
           });
           prevDelta = s.delta;

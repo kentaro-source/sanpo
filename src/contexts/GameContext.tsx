@@ -132,21 +132,27 @@ function detectCrossings(
       if (capKm > localStart && capKm <= localEnd) {
         if (!newCapitalsSet.has(cap.id)) {
           newCapitalsSet.add(cap.id);
-          // No landing/pass-through distinction: in the continuous distance
-          // model the player crosses every capital exactly once with no
-          // mechanic to "stop on" one. Real-life-visited capitals award
-          // a bigger bonus for the 思い出 effect.
+          // Bonuses stack: every new capital awards +2, and if the
+          // user has actually been there in real life, an additional
+          // +3 思い出ボーナス is granted. Emitted as two separate
+          // events so the toast/recent-bonuses UI shows the breakdown.
           const irl = isRealLifeVisitedCapital(cap.id);
-          const tokens = irl ? 5 : 2;
-          bonusTokens += tokens;
+          bonusTokens += 2;
           events.push({
-            kind: irl ? 'capital-landing' : 'capital',
-            amount: tokens,
-            label: irl
-              ? `★ ${cap.nameJa}（${cap.countryJa}）懐かしの首都！`
-              : `🏛 ${cap.nameJa}（${cap.countryJa}）通過`,
+            kind: 'capital',
+            amount: 2,
+            label: `🏛 ${cap.nameJa}（${cap.countryJa}）通過 +2`,
             timestamp: now,
           });
+          if (irl) {
+            bonusTokens += 3;
+            events.push({
+              kind: 'capital-landing',
+              amount: 3,
+              label: `★ 懐かしの${cap.nameJa} 思い出ボーナス +3`,
+              timestamp: now,
+            });
+          }
         }
       }
     }
@@ -176,16 +182,23 @@ function detectCrossings(
     const city = cities.find((c) => c.id === cid);
     if (!city) continue;
     const irl = city.visitedInRealLife === true || isRealLifeVisitedCity(cid);
-    const tokens = irl ? 3 : 1;
-    bonusTokens += tokens;
+    // Stackable: base city +1, plus +2 思い出 if IRL-visited.
+    bonusTokens += 1;
     events.push({
-      kind: irl ? 'city-irl' : 'city',
-      amount: tokens,
-      label: irl
-        ? `★ 懐かしの${city.nameJa}を再訪`
-        : `${city.nameJa}に立ち寄り`,
+      kind: 'city',
+      amount: 1,
+      label: `📍 ${city.nameJa} 立ち寄り +1`,
       timestamp: now,
     });
+    if (irl) {
+      bonusTokens += 2;
+      events.push({
+        kind: 'city-irl',
+        amount: 2,
+        label: `★ 懐かしの${city.nameJa} 思い出ボーナス +2`,
+        timestamp: now,
+      });
+    }
   }
 
   return {

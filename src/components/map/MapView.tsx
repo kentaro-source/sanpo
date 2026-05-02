@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useGame } from '../../hooks/useGame';
 import { cities, segmentClassifications } from '../../data';
 import { getRoadPolyline } from '../../services/directions';
+import { isRealLifeVisitedCapital } from '../../data/realLifeVisited';
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
 
@@ -553,15 +554,20 @@ export function MapView() {
           strokeWeight: 1.5,
         },
       });
+      const irlCapital = isRealLifeVisitedCapital(capital.id);
       m.addListener('click', () => {
         const visitedTag = visited
-          ? '<span style="color:#10b981;font-weight:600">✓ 訪問済</span>'
-          : '<span style="color:#94a3b8">未訪問</span>';
+          ? '<span style="color:#10b981;font-weight:600">✓ 通過済</span>'
+          : '<span style="color:#94a3b8">未通過</span>';
+        const irlTag = irlCapital
+          ? '<div style="margin-top:4px;color:#ec4899;font-weight:600">★ 思い出の首都</div>'
+          : '';
         const html =
           `<div style="font-size:13px;line-height:1.5">` +
           `<div style="font-weight:700;font-size:14px">🏛 ${escapeHtml(capital.nameJa)}</div>` +
           `<div style="color:#64748b;font-size:11px;margin-top:2px">${escapeHtml(capital.countryJa)} / ${escapeHtml(capital.country)} 首都</div>` +
           `<div style="margin-top:6px">${visitedTag}</div>` +
+          irlTag +
           `</div>`;
         infoWindowRef.current!.setContent(html);
         infoWindowRef.current!.open({ map: mapRef.current!, anchor: m });
