@@ -807,6 +807,291 @@ export const segmentClassifications: SegmentClassification[] = [
     ],
     notes: 'ワルシャワ→ウッチ→ポズナン→[国境]→ベルリン',
   },
+
+  // ===== Batch 6: Northern Europe (DE → IS), 4 segments =====
+
+  // Berlin → Copenhagen via Hamburg + Lübeck + Flensburg + Odense.
+  // Crosses to Denmark over land then bridges Storebælt to Zealand.
+  {
+    fromCapitalId: 'DE',
+    toCapitalId: 'DK',
+    routeType: 'land',
+    waypointCityIds: [
+      'DE-HAMBURG',    // ~290 km from Berlin (Driving fallback)
+      'DE-LUEBECK',    // ~70 km
+      'DE-FLENSBURG',  // ~150 km
+      'DK-ODENSE',     // ~190 km, DE-DK border (Funen via Jutland)
+      // Odense → Copenhagen ~165 km via Storebæltsbro
+    ],
+    notes:
+      'ベルリン→ハンブルク→リューベック→フレンスブルク→[国境・ユトランド]→オーデンセ→[ストアベルト橋]→コペンハーゲン',
+  },
+
+  // Copenhagen → Oslo — direct DFDS overnight ferry across the Skagerrak.
+  {
+    fromCapitalId: 'DK',
+    toCapitalId: 'NO',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]], // entire leg is sea
+    notes: 'コペンハーゲン→[DFDSフェリー一晩 ~480km]→オスロ',
+  },
+
+  // Oslo → Stockholm via Karlstad + Örebro (E18 corridor).
+  {
+    fromCapitalId: 'NO',
+    toCapitalId: 'SE',
+    routeType: 'land',
+    waypointCityIds: [
+      'SE-KARLSTAD',  // ~210 km from Oslo (NO-SE border crossing)
+      'SE-OREBRO',    // ~110 km
+      // Örebro → Stockholm ~200 km
+    ],
+    notes: 'オスロ→[国境]→カールスタード→エレブルー→ストックホルム',
+  },
+
+  // Stockholm → Reykjavik. No land path; anchor on Tórshavn (Faroe)
+  // and Akureyri (north Iceland) so the line touches real geography.
+  {
+    fromCapitalId: 'SE',
+    toCapitalId: 'IS',
+    routeType: 'mixed',
+    waypointCityIds: [
+      'NO-BERGEN',    // ~860 km from Stockholm (Driving fallback through NO)
+      'FO-TORSHAVN',  // ~900 km North Atlantic
+      'IS-AKUREYRI',  // ~770 km North Atlantic
+      // Akureyri → Reykjavik ~390 km (drive across Iceland)
+    ],
+    seaSegments: [[1, 2], [2, 3]], // Bergen → Tórshavn → Akureyri are sea
+    notes:
+      'ストックホルム→ベルゲン→[北大西洋]→トースハウン(フェロー)→[北大西洋]→アークレイリ→レイキャビク',
+  },
+
+  // ===== Batch 7: Western Europe (IS → PT), 10 segments =====
+
+  // Reykjavik → Dublin — pure Atlantic crossing.
+  {
+    fromCapitalId: 'IS',
+    toCapitalId: 'IE',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]], // ~1500 km open Atlantic
+    notes: 'レイキャビク→[大西洋 ~1500km]→ダブリン',
+  },
+
+  // Dublin → London via Irish Sea ferry → Liverpool → Birmingham.
+  {
+    fromCapitalId: 'IE',
+    toCapitalId: 'GB',
+    routeType: 'mixed',
+    waypointCityIds: [
+      'GB-LIVERPOOL',   // ~210 km incl. Irish Sea ferry from Dublin
+      'GB-BIRMINGHAM',  // ~165 km
+      // Birmingham → London ~200 km
+    ],
+    seaSegments: [[0, 1]], // Dublin → Liverpool sea crossing
+    notes: 'ダブリン→[アイリッシュ海フェリー]→リヴァプール→バーミンガム→ロンドン',
+  },
+
+  // London → Amsterdam via the Netherlands ferry to Hook of Holland.
+  {
+    fromCapitalId: 'GB',
+    toCapitalId: 'NL',
+    routeType: 'mixed',
+    waypointCityIds: [
+      'NL-ROTTERDAM', // ~330 km incl. North Sea ferry crossing
+      // Rotterdam → Amsterdam ~75 km
+    ],
+    seaSegments: [[0, 1]], // London → Rotterdam is the sea hop
+    notes: 'ロンドン→[北海フェリー]→ロッテルダム→アムステルダム',
+  },
+
+  // Amsterdam → Brussels via Antwerp.
+  {
+    fromCapitalId: 'NL',
+    toCapitalId: 'BE',
+    routeType: 'land',
+    waypointCityIds: [
+      'BE-ANTWERP', // ~160 km, NL-BE border crossing
+      // Antwerp → Brussels ~50 km
+    ],
+    notes: 'アムステルダム→[国境]→アントワープ→ブリュッセル',
+  },
+
+  // Brussels → Luxembourg — direct (~220 km, Driving fallback).
+  {
+    fromCapitalId: 'BE',
+    toCapitalId: 'LU',
+    routeType: 'land',
+    notes: 'ブリュッセル→[国境]→ルクセンブルク（直行 ~220km）',
+  },
+
+  // Luxembourg → Paris via Metz + Reims.
+  {
+    fromCapitalId: 'LU',
+    toCapitalId: 'FR',
+    routeType: 'land',
+    waypointCityIds: [
+      'FR-METZ',   // ~70 km from Luxembourg, LU-FR border
+      'FR-REIMS',  // ~190 km
+      // Reims → Paris ~140 km
+    ],
+    notes: 'ルクセンブルク→[国境]→メス→ランス→パリ',
+  },
+
+  // Paris → Monaco via Dijon → Lyon → Avignon → Marseille → Nice (E15/A6/A7/A8).
+  {
+    fromCapitalId: 'FR',
+    toCapitalId: 'MC',
+    routeType: 'land',
+    waypointCityIds: [
+      'FR-DIJON',      // ~310 km from Paris (Driving fallback)
+      'FR-LYON',       // ~200 km
+      'FR-AVIGNON',    // ~230 km (slight Driving fallback)
+      'FR-MARSEILLE',  // ~85 km
+      'FR-NICE',       // ~205 km (Driving fallback)
+      // Nice → Monaco ~20 km
+    ],
+    notes: 'パリ→ディジョン→リヨン→アヴィニョン→マルセイユ→ニース→モナコ',
+  },
+
+  // Monaco → Andorra via Marseille → Montpellier → Toulouse.
+  {
+    fromCapitalId: 'MC',
+    toCapitalId: 'AD',
+    routeType: 'land',
+    waypointCityIds: [
+      'FR-NICE',         // ~20 km from Monaco
+      'FR-MARSEILLE',    // ~205 km (Driving fallback)
+      'FR-MONTPELLIER',  // ~165 km
+      'FR-TOULOUSE',     // ~245 km (Driving fallback)
+      // Toulouse → Andorra la Vella ~190 km, FR-AD border via Pyrenees
+    ],
+    notes: 'モナコ→ニース→マルセイユ→モンペリエ→トゥールーズ→[ピレネー]→アンドラ・ラ・ヴェリャ',
+  },
+
+  // Andorra → Madrid via Lleida → Zaragoza.
+  {
+    fromCapitalId: 'AD',
+    toCapitalId: 'ES',
+    routeType: 'land',
+    waypointCityIds: [
+      'ES-LLEIDA',    // ~190 km from Andorra (AD-ES border)
+      'ES-ZARAGOZA',  // ~150 km
+      // Zaragoza → Madrid ~315 km (Driving fallback)
+    ],
+    notes: 'アンドラ→[国境]→リェイダ→サラゴサ→マドリード',
+  },
+
+  // Madrid → Lisbon via Toledo → Mérida → Évora.
+  {
+    fromCapitalId: 'ES',
+    toCapitalId: 'PT',
+    routeType: 'land',
+    waypointCityIds: [
+      'ES-TOLEDO',  // ~75 km from Madrid
+      'ES-MERIDA',  // ~280 km (Driving fallback)
+      'PT-EVORA',   // ~205 km (Driving fallback, PT border)
+      // Évora → Lisbon ~135 km
+    ],
+    notes: 'マドリード→トレド→メリダ→[国境]→エヴォラ→リスボン',
+  },
+
+  // ===== Batch 8: Mediterranean Europe (PT → MT), 6 segments =====
+
+  // Lisbon → Bern. Long route back through Iberia, France and Switzerland.
+  {
+    fromCapitalId: 'PT',
+    toCapitalId: 'CH',
+    routeType: 'land',
+    waypointCityIds: [
+      'PT-COIMBRA',    // ~200 km from Lisbon
+      'PT-PORTO',      // ~120 km
+      // Porto → Spain west coast → Barcelona → Marseille → Lyon → Geneva.
+      // Most of these legs lean on Driving fallback; the route runs along
+      // the A28/AP-1 / E70 / A8 highways the way a road-tripper would.
+      'ES-ZARAGOZA',   // ~705 km (heavy Driving fallback)
+      'ES-BARCELONA',  // ~290 km (Driving fallback)
+      'FR-MONTPELLIER',// ~340 km (Driving fallback, FR border)
+      'FR-LYON',       // ~305 km (Driving fallback)
+      'CH-GENEVA',     // ~150 km (CH border)
+      // Geneva → Bern ~160 km
+    ],
+    notes:
+      'リスボン→コインブラ→ポルト→[国境]→サラゴサ→バルセロナ→[国境]→モンペリエ→リヨン→[国境]→ジュネーブ→ベルン',
+  },
+
+  // Bern → Vaduz via Zurich.
+  {
+    fromCapitalId: 'CH',
+    toCapitalId: 'LI',
+    routeType: 'land',
+    waypointCityIds: [
+      'CH-ZURICH', // ~125 km from Bern
+      // Zurich → Vaduz ~120 km, CH-LI border
+    ],
+    notes: 'ベルン→チューリヒ→[国境]→ファドゥーツ',
+  },
+
+  // Vaduz → Vienna via Innsbruck → Salzburg → Linz.
+  {
+    fromCapitalId: 'LI',
+    toCapitalId: 'AT',
+    routeType: 'land',
+    waypointCityIds: [
+      'AT-INNSBRUCK', // ~190 km from Vaduz, LI-AT border (Arlberg pass)
+      'AT-SALZBURG',  // ~190 km
+      'AT-LINZ',      // ~135 km
+      // Linz → Vienna ~185 km
+    ],
+    notes: 'ファドゥーツ→[国境]→インスブルック→ザルツブルク→リンツ→ウィーン',
+  },
+
+  // Vienna → Rome via Graz → Trieste → Venice → Bologna → Florence.
+  {
+    fromCapitalId: 'AT',
+    toCapitalId: 'IT',
+    routeType: 'land',
+    waypointCityIds: [
+      'AT-GRAZ',      // ~200 km from Vienna
+      'IT-TRIESTE',   // ~225 km, AT-IT border (Driving fallback)
+      'IT-VENICE',    // ~165 km
+      'IT-BOLOGNA',   // ~155 km
+      'IT-FLORENCE',  // ~105 km
+      // Florence → Rome ~280 km (Driving fallback)
+    ],
+    notes:
+      'ウィーン→グラーツ→[国境]→トリエステ→ヴェネツィア→ボローニャ→フィレンツェ→ローマ',
+  },
+
+  // Rome → San Marino via Perugia + Ancona on the Adriatic coast.
+  {
+    fromCapitalId: 'IT',
+    toCapitalId: 'SM',
+    routeType: 'land',
+    waypointCityIds: [
+      'IT-PERUGIA', // ~170 km from Rome
+      'IT-ANCONA',  // ~130 km
+      // Ancona → San Marino ~135 km
+    ],
+    notes: 'ローマ→ペルージャ→アンコーナ→サンマリノ',
+  },
+
+  // San Marino → Valletta via Bologna → Florence → Rome (passed) →
+  // Naples → Palermo → Mediterranean ferry to Malta.
+  {
+    fromCapitalId: 'SM',
+    toCapitalId: 'MT',
+    routeType: 'mixed',
+    waypointCityIds: [
+      'IT-BOLOGNA',  // ~110 km from San Marino
+      'IT-FLORENCE', // ~105 km
+      'IT-NAPLES',   // ~470 km (Driving fallback, traverses Lazio)
+      'IT-PALERMO',  // ~310 km incl. Strait of Messina ferry
+      // Palermo → Valletta ~510 km Mediterranean
+    ],
+    seaSegments: [[3, 4], [4, 5]], // Naples→Palermo + Palermo→Valletta sea
+    notes:
+      'サンマリノ→ボローニャ→フィレンツェ→ナポリ→[メッシーナ海峡]→パレルモ→[地中海]→バレッタ',
+  },
 ];
 
 export function findSegmentClassification(
