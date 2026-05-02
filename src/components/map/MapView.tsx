@@ -662,32 +662,11 @@ export function MapView() {
     }
   }, [loaded, position]);
 
-  // Auto-pan: follow the marker when it leaves the visible viewport.
-  // (We don't pan on every tiny step — that fights the user's manual pan.)
-  // When the player walks far enough that the marker is near or outside
-  // the visible bounds, recenter on them.
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    const bounds = map.getBounds();
-    if (!bounds) {
-      map.panTo(position);
-      return;
-    }
-    // Shrink bounds to a "stay-in-view" inner box (75% of viewport). If the
-    // marker drifts outside that box, recenter. This way small steps don't
-    // jitter the map but a long walk follows the player.
-    const ne = bounds.getNorthEast();
-    const sw = bounds.getSouthWest();
-    const latPad = (ne.lat() - sw.lat()) * 0.125;
-    const lngPad = (ne.lng() - sw.lng()) * 0.125;
-    const inside =
-      position.lat > sw.lat() + latPad &&
-      position.lat < ne.lat() - latPad &&
-      position.lng > sw.lng() + lngPad &&
-      position.lng < ne.lng() - lngPad;
-    if (!inside) map.panTo(position);
-  }, [position]);
+  // Auto-pan was removed — it fought the user's manual pinch/zoom: every
+  // step's distanceKm change re-fired this effect, and if the marker had
+  // drifted outside the inner box (because the user panned away to look
+  // at a future stop) the map was yanked back to the player. Now the
+  // map stays wherever the user put it; tap 📍 to recenter.
 
   if (error) {
     return (

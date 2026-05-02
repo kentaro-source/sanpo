@@ -86,8 +86,19 @@ export const segmentClassifications: SegmentClassification[] = [
   {
     fromCapitalId: 'CN',
     toCapitalId: 'MN',
-    routeType: 'land',
-    notes: '北京→ウランバートル直行',
+    routeType: 'mixed',
+    waypointCityIds: [
+      'CN-DATONG',     // ~280 km from Beijing
+      'CN-HOHHOT',     // ~260 km
+      'CN-ERENHOT',    // ~440 km (driving in Inner Mongolia)
+      'MN-SAINSHAND',  // ~210 km — crosses CN-MN border (closed for cars)
+      // Sainshand → Ulaanbaatar ~440 km Mongolian highway
+    ],
+    // [origin=Beijing, 1=Datong, 2=Hohhot, 3=Erenhot, 4=Sainshand, 5=UB]
+    // 3→4 is the China-Mongolia rail border; Directions for cars usually
+    // refuses, fall back to straight. Everything else road-followable.
+    seaSegments: [[3, 4]],
+    notes: '北京→大同→フフホト→二連浩特→[国境]→サインシャンド→ウランバートル(全長 ~1,600km、トランスモンゴル鉄道沿い)',
   },
   // === User's preferred Pacific island chain (CN→Taiwan→PH) ===
   {

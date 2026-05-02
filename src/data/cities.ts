@@ -124,7 +124,7 @@ export const cities: City[] = [
     lng: 137.7261,
     type: 'gourmet',
     description: '東海道の中継地、うなぎ',
-    visitedInRealLife: true,
+    // 静岡県の都市だが県庁所在地ではない → 訪問は確定しない。
   },
   {
     id: 'JP-HIROSHIMA',
@@ -148,7 +148,7 @@ export const cities: City[] = [
     lng: 130.8751,
     type: 'tourist',
     description: '関門海峡の本州側ゲート',
-    visitedInRealLife: true,
+    // 福岡県の都市だが県庁所在地ではない → 訪問は確定しない。
   },
   {
     id: 'JP-KUMAMOTO',
@@ -409,6 +409,53 @@ export const cities: City[] = [
     lng: 117.3616,
     type: 'metropolis',
     description: '渤海フェリーの北京側ゲート',
+  },
+  // CN→MN bridge cities along the Trans-Mongolian corridor.
+  {
+    id: 'CN-DATONG',
+    name: 'Datong',
+    nameJa: '大同',
+    countryId: 'CN',
+    countryJa: '中国',
+    lat: 40.0768,
+    lng: 113.2999,
+    type: 'historic',
+    description: '雲岡石窟、北魏の旧都',
+  },
+  {
+    id: 'CN-HOHHOT',
+    name: 'Hohhot',
+    nameJa: 'フフホト',
+    countryId: 'CN',
+    countryJa: '中国',
+    lat: 40.8414,
+    lng: 111.7519,
+    type: 'metropolis',
+    description: '内モンゴル自治区の区都',
+  },
+  {
+    id: 'CN-ERENHOT',
+    name: 'Erenhot',
+    nameJa: '二連浩特',
+    countryId: 'CN',
+    countryJa: '中国',
+    lat: 43.6526,
+    lng: 111.9779,
+    type: 'tourist',
+    description: 'モンゴル国境の鉄道ゲート',
+  },
+
+  // === モンゴル (Mongolia) ===
+  {
+    id: 'MN-SAINSHAND',
+    name: 'Sainshand',
+    nameJa: 'サインシャンド',
+    countryId: 'MN',
+    countryJa: 'モンゴル',
+    lat: 44.8930,
+    lng: 110.1378,
+    type: 'tourist',
+    description: 'ゴビ砂漠中央の鉄道駅',
   },
 
   // === 台湾 (Taiwan) - capitals.ts未収録の場合のため。仕様にあるためTW想定 ===
