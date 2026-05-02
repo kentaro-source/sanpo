@@ -106,18 +106,41 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'PH',
     routeType: 'mixed',
     waypointCityIds: [
-      'CN-XIAN',
-      'CN-SHANGHAI',
-      'CN-HONGKONG',
-      'MO-MACAU',
-      'CN-ZHUHAI',
-      'TW-TAIPEI',
-      'TW-TAICHUNG',
-      'TW-TAINAN',
-      'TW-KAOHSIUNG',
-      // Then Luzon Strait → Manila
+      'MN-SAINSHAND',  // ~370 km from UB (Mongolian highway)
+      'CN-ERENHOT',    // ~140 km — MN-CN border (closed road)
+      'CN-HOHHOT',     // ~310 km
+      'CN-DATONG',     // ~165 km
+      'CN-TAIYUAN',    // ~250 km
+      'CN-XIAN',       // ~510 km
+      'CN-ZHENGZHOU',  // ~470 km
+      'CN-WUHAN',      // ~520 km
+      'CN-NANJING',    // ~550 km
+      'CN-SHANGHAI',   // ~290 km
+      'CN-HANGZHOU',   // ~170 km
+      'CN-FUZHOU',     // ~470 km
+      'CN-XIAMEN',     // ~270 km
+      'CN-SHENZHEN',   // ~530 km
+      'CN-HONGKONG',   // ~30 km
+      'MO-MACAU',      // ~60 km (HK-Macau bridge or ferry)
+      'CN-ZHUHAI',     // ~10 km — closed Macau-mainland border
+      'TW-TAIPEI',     // ~750 km — Taiwan Strait SEA
+      'TW-TAICHUNG',   // ~140 km
+      'TW-TAINAN',     // ~140 km
+      'TW-KAOHSIUNG',  // ~40 km
+      // Kaohsiung → Manila ~1,200 km Luzon Strait SEA
     ],
-    notes: 'UB→中国東岸→台湾海峡→台湾縦断→ルソン海峡→マニラ',
+    // [origin=UB, 1=Sainshand, 2=Erenhot, 3=Hohhot, 4=Datong, 5=Taiyuan,
+    //  6=Xi'an, 7=Zhengzhou, 8=Wuhan, 9=Nanjing, 10=Shanghai, 11=Hangzhou,
+    //  12=Fuzhou, 13=Xiamen, 14=Shenzhen, 15=HK, 16=Macau, 17=Zhuhai,
+    //  18=Taipei, 19=Taichung, 20=Tainan, 21=Kaohsiung, 22=Manila]
+    seaSegments: [
+      [1, 2],    // Sainshand→Erenhot — closed MN-CN border
+      [16, 17],  // Macau→Zhuhai — closed SAR-mainland border
+      [17, 18],  // Zhuhai→Taipei — Taiwan Strait
+      [21, 22],  // Kaohsiung→Manila — Luzon Strait
+    ],
+    notes:
+      'UB→[国境]→中国東岸縦断→[海峡]→台湾→[ルソン]→マニラ。22経由地、全長 ~6,500km。',
   },
   {
     fromCapitalId: 'PH',
