@@ -32,8 +32,14 @@ interface DeviceMotionEventConstructorWithPermission {
   requestPermission?: () => Promise<'granted' | 'denied' | 'default'>;
 }
 
-const STEP_THRESHOLD_M_S2 = 11.5; // m/s² above 1g (9.8) = a strong impulse
-const STEP_COOLDOWN_MS = 280; // typical fastest comfortable walking cadence
+// Tightened from the v8 initial values (11.5 / 280) after a user report
+// of "+6732歩 三軒茶屋まで飛ばされた" — phantom steps from pocket bounce
+// or commuter motion got conflated with Fit's first-sync delta. A higher
+// threshold filters weaker non-walking peaks, and a longer cooldown caps
+// the maximum effective rate to ~150 steps/min, which is faster than
+// almost any human can sustain without running.
+const STEP_THRESHOLD_M_S2 = 13;
+const STEP_COOLDOWN_MS = 380;
 const FLUSH_INTERVAL_MS = 1000; // forward buffered steps to consumer 1×/sec
 
 class Pedometer {

@@ -399,20 +399,21 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ? state.player.attributedTodaySteps ?? 0
         : 0;
 
-      // First-ever sync (no attribution data yet): adopt today's absolute
-      // value as the baseline without crediting it. This handles the
-      // upgrade path from v6/v7 where attributedTodaySteps doesn't exist
-      // and avoids re-crediting steps already added under the old model.
-      const isFirstSync =
-        state.player.attributedDayStart === undefined &&
-        state.player.attributedTodaySteps === undefined;
+      // First Fit sync OF TODAY: adopt the absolute as baseline without
+      // crediting it. We deliberately key off lastSyncTimestamp (not
+      // attributedTodaySteps) because attributedTodaySteps can be > 0 by
+      // the time the first Fit sync arrives — the pedometer is auto-on
+      // and may have already added a few (real or false-positive) steps
+      // before Fit's first response lands. Crediting Fit's accumulated
+      // daily total on top of those would yank the player far ahead
+      // (the '+6732歩 三軒茶屋' bug).
+      const lastSyncMs = state.player.lastSyncTimestamp ?? 0;
+      const isFirstFitSyncToday = lastSyncMs < todayStart;
 
-      const contribution = isFirstSync
+      const contribution = isFirstFitSyncToday
         ? 0
         : Math.max(0, todayAbsolute - attributedSoFar);
-      const newAttributed = isFirstSync
-        ? todayAbsolute
-        : Math.max(attributedSoFar, todayAbsolute);
+      const newAttributed = Math.max(attributedSoFar, todayAbsolute);
 
       const now = Date.now();
       const totalSteps = state.player.stepsTowardNextDie + contribution;
