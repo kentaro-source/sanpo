@@ -1,6 +1,58 @@
 # Sanpo - 歩いて世界一周アプリ
 
-## 🚀 引継ぎサマリ (2026-05-02 第3セッション末)
+## 🚀 引継ぎサマリ (2026-05-02 第4セッション末 — Capacitor 化完了)
+
+別PCで再開する Claude / 数ヶ月後の自分が**最初に読むべき要点**:
+
+1. **本番デプロイは 2 系統**:
+   - PWA: https://kentaro-source.github.io/sanpo/ (push で自動デプロイ)
+   - **Android APK**: ローカルビルド → 端末に sideload (Play Store 公開はしない、自分用)
+2. **APK ビルドの toolchain** (一度入れれば不要):
+   - JDK は **Android Studio 同梱の JBR (OpenJDK 21)** を使う (`/c/Program Files/Android/Android Studio/jbr`)。Capacitor 8 が JDK 21 を要求するので、別途入れた Temurin 17 では失敗する
+   - Android SDK: `$LOCALAPPDATA/Android/Sdk` (Android Studio Standard install で自動)
+   - `android/local.properties` に `sdk.dir` を書いておく必要あり (このリポジトリには既に commit 済)
+3. **APK ビルド + 端末インストールのフルコマンド**:
+   ```bash
+   cd android
+   JAVA_HOME="/c/Program Files/Android/Android Studio/jbr" \
+     ANDROID_HOME="$LOCALAPPDATA/Android/Sdk" \
+     PATH="$JAVA_HOME/bin:$PATH" \
+     ./gradlew.bat assembleDebug
+   "$LOCALAPPDATA/Android/Sdk/platform-tools/adb.exe" install -r \
+     app/build/outputs/apk/debug/app-debug.apk
+   ```
+   - 直前に `npm run cap:sync` で web build → android/app/src/main/assets/public へコピー必須
+   - 端末側: USB デバッグ ON + USB ケーブル接続
+4. **Health Connect 連携**:
+   - プラグイン: `@capgo/capacitor-health@8.4` (Capacitor 8 対応で唯一活発にメンテされてる)
+   - アダプタ: [src/services/healthConnect.ts](src/services/healthConnect.ts) + [src/hooks/useHealthConnect.ts](src/hooks/useHealthConnect.ts)
+   - 30秒間隔で `queryAggregated({ dataType: 'steps', bucket: 'day', aggregation: 'sum' })` を叩いて当日累計を取得
+   - 取得値を **既存の `SYNC_FROM_GOOGLE_FIT` action にそのまま流す** (action 名は legacy だが内部の `attributedTodaySteps` 二重計上防止ロジックが Fit/HC 両方に効く)
+   - native 判定は `Capacitor.isNativePlatform()` ([src/services/platform.ts](src/services/platform.ts))。PWA では useHealthConnect は no-op
+   - foreground は引き続き DeviceMotion ペドメーター + HC 両方走る (二重計上は attributedTodaySteps で吸収)
+   - **背景時の歩数取得が解禁** — 画面 OFF・アプリ閉じてても HC が記録 → 起動時に追いつく
+5. **APK 固有の落とし穴と対策**:
+   - **WebView の textZoom が端末アクセシビリティの font-size 設定を継承して全 px が拡大される** → [MainActivity.java](android/app/src/main/java/com/kentarosource/sanpo/MainActivity.java) で `setTextZoom(100)` 固定
+   - **Header がステータスバーと重なる** (PWA はブラウザが守ってくれるが APK は WebView がフルスクリーン) → `.header` の padding-top を `max(8px, env(safe-area-inset-top))` に
+   - **Google Maps が APK origin を許可してない** → Cloud Console の API キー referrer に `https://localhost/*` と `http://localhost/*` を追加 (済)
+   - **`.env.local` が worktree には無い** → APK ビルド時は worktree に手動コピーする (`cp ../../../../.env.local .env.local`)
+   - **PWA と APK は別 origin (`https://kentaro-source.github.io` vs `https://localhost`) で localStorage 共有なし** → 移行はゲーム再開と同じ。必要なら手動エクスポート/インポート
+6. **package.json scripts**:
+   - `npm run dev` / `npm run build`: 従来通り PWA 用
+   - `npm run cap:build`: `CAP=1` で `vite build` → `dist/` の `base` が `./` になる (APK の WebView 用)
+   - `npm run cap:sync`: `cap:build` + `cap sync android` (Capacitor で android/ にコピー)
+   - `npm run cap:open`: Android Studio で android/ を開く
+7. **vite.config.ts**: `process.env.CAP === '1'` で base を `./` に切り替え。これしないと APK の WebView で asset 読めない (`loading=async` 削除と同レベルの致命傷)
+8. **android/ ディレクトリは git commit する**: Capacitor が generate するが、MainActivity の修正やマニフェスト微調整があるので一緒にバージョン管理
+
+### 既知の制約 (Capacitor 後も残るもの)
+- iOS APK は未対応 (Capacitor は対応してるが、kentaro-source は Android 端末のみ)
+- Health Connect プラグインは API 26+ なので variables.gradle の minSdkVersion を 24→26 にバンプ済
+- Foreground notification 周りは未実装 (ロック画面に「歩いた数」表示等は別途 Capacitor プラグイン要)
+
+---
+
+## 🗂 旧引継ぎサマリ (2026-05-02 第3セッション末)
 
 別PCで再開する Claude / 数ヶ月後の自分が**最初に読むべき要点**:
 

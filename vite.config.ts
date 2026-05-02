@@ -30,11 +30,17 @@ const buildTag = (() => {
   return `${tz(d.getMonth() + 1)}${tz(d.getDate())}-${tz(d.getHours())}${tz(d.getMinutes())}`
 })()
 
+// In Capacitor (Android) builds the webview loads from a local scheme,
+// so base must be relative ('./'). For the PWA / GitHub Pages build it
+// stays '/sanpo/'. Toggle with CAP=1 env var (used by `cap:build` script).
+const isCapacitor = process.env.CAP === '1'
+
 export default defineConfig({
   plugins: [react(), injectSwBuildId()],
-  base: '/sanpo/',
+  base: isCapacitor ? './' : '/sanpo/',
   define: {
     __BUILD_TAG__: JSON.stringify(buildTag),
+    __CAPACITOR_BUILD__: JSON.stringify(isCapacitor),
   },
   server: {
     host: true,

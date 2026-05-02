@@ -7,9 +7,15 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "cap:build": "cross-env CAP=1 tsc -b && cross-env CAP=1 vite build",
+    "cap:sync": "npm run cap:build && cap sync android",
+    "cap:open": "cap open android"
   },
   "dependencies": {
+    "@capacitor/android": "^8.3.1",
+    "@capacitor/core": "^8.3.1",
+    "@capgo/capacitor-health": "^8.4.8",
     "@react-google-maps/api": "^2.20.8",
     "@types/leaflet": "^1.9.21",
     "leaflet": "^1.9.4",
@@ -18,12 +24,14 @@
     "react-leaflet": "^5.0.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.3.1",
     "@eslint/js": "^9.39.4",
     "@types/google.maps": "^3.64.0",
     "@types/node": "^24.12.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "cross-env": "^10.1.0",
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",

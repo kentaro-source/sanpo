@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">せかいさんぽ</string>
+    <string name="title_activity_main">せかいさんぽ</string>
+    <string name="package_name">com.kentarosource.sanpo</string>
+    <string name="custom_url_scheme">com.kentarosource.sanpo</string>
+</resources>
