@@ -32,17 +32,7 @@ async function hardReload() {
 }
 
 export function Header() {
-  const { player, config, visitedCount, totalCapitals, resetGame } = useGame();
-
-  const handleReset = () => {
-    if (
-      window.confirm(
-        '進行をリセットして東京駅(0km)からやり直しますか？この操作は取り消せません。',
-      )
-    ) {
-      resetGame();
-    }
-  };
+  const { player, config, visitedCount, totalCapitals } = useGame();
 
   return (
     <header className="header">
@@ -53,15 +43,6 @@ export function Header() {
         <span className="dice-icon">🎲</span>
         <span className="dice-count">{player.availableDice}/{config.maxDice}</span>
       </div>
-      <button
-        type="button"
-        className="header-reset"
-        onClick={handleReset}
-        aria-label="進行リセット"
-        title="進行リセット(東京駅から)"
-      >
-        ⟲
-      </button>
       <button
         type="button"
         className="header-reload"
