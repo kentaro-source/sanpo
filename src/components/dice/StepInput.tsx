@@ -20,8 +20,10 @@ export function StepInput() {
   const progressPercent = (progress / config.stepsPerDie) * 100;
 
   // Diagnostic line so the user can verify Fit is actually returning fresh
-  // data. Shows "what Fit said today's total is" + when we last asked.
-  const fitToday = player.todayStepsBaseline;
+  // data. Shows today's attributed total + when we last synced.
+  // (Was reading the legacy v6 todayStepsBaseline field — fell out of
+  // sync once v8 switched to attributedTodaySteps.)
+  const fitToday = player.attributedTodaySteps;
   const lastSync = player.lastSyncTimestamp;
   const fitInfo = connected && lastSync
     ? `Fit: ${(fitToday ?? 0).toLocaleString()}歩 / ${new Date(lastSync).toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} 同期`

@@ -165,7 +165,6 @@ export function useGame() {
   const addSteps = (steps: number) => dispatch({ type: 'ADD_STEPS', steps });
   const syncFromGoogleFit = (steps: number, syncTimestamp: number) =>
     dispatch({ type: 'SYNC_FROM_GOOGLE_FIT', steps, syncTimestamp });
-  const rollDie = () => dispatch({ type: 'ROLL_DIE' });
   const rollSicBo = (bets: BetSlot[], dice?: [number, number, number]) =>
     dispatch({ type: 'ROLL_SICBO', bets, dice });
   const resetGame = () => dispatch({ type: 'RESET_GAME' });
@@ -177,7 +176,6 @@ export function useGame() {
     routeData,
     addSteps,
     syncFromGoogleFit,
-    rollDie,
     rollSicBo,
     resetGame,
   };

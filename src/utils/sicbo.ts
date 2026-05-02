@@ -118,25 +118,6 @@ export function betWon(bet: BetSlot, dice: [number, number, number]): boolean {
 }
 
 /**
- * Legacy advance evaluation (squares-based). Retained as a no-op stub
- * for any old callers; new code uses evaluateBetWindow.
- */
-export function evaluateBet(
-  _bet: BetSlot,
-  _dice: [number, number, number],
-): number {
-  return 0;
-}
-
-export function evaluateAllBets(
-  bets: BetSlot[],
-  _dice: [number, number, number],
-): { total: number; perBet: { bet: BetSlot; advance: number }[] } {
-  // Stub: no longer drives advance directly.
-  return { total: 0, perBet: bets.map((bet) => ({ bet, advance: 0 })) };
-}
-
-/**
  * Evaluate a roll against the player's bets and return the highest-payout
  * winning multiplier window. (If no wins, returns the loss window for the
  * highest-payout bet placed — symmetric penalty.)

@@ -3,7 +3,6 @@ import type {
   GameState,
   PlayerState,
   GameConfig,
-  DiceRoll,
   BetSlot,
   SicBoRoll,
   BonusEvent,
@@ -305,7 +304,6 @@ function getInitialState(): GameState {
 type GameAction =
   | { type: 'ADD_STEPS'; steps: number }
   | { type: 'SYNC_FROM_GOOGLE_FIT'; steps: number; syncTimestamp: number }
-  | { type: 'ROLL_DIE' } // legacy single-die roll (kept for now)
   | { type: 'ROLL_SICBO'; bets: BetSlot[]; dice?: [number, number, number] }
   | { type: 'UPDATE_CONFIG'; config: Partial<GameConfig> }
   | { type: 'RESET_GAME' };
@@ -468,50 +466,6 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           claimedMilestones: ms.newClaimed,
           recentBonuses: allEvents.length
             ? [...allEvents, ...(state.player.recentBonuses ?? [])].slice(0, MAX_RECENT_BONUSES)
-            : state.player.recentBonuses,
-          lastUpdated: now,
-        },
-      };
-    }
-
-    case 'ROLL_DIE': {
-      // Legacy 1-die roll. Distance-based: each pip = 50 km of advance
-      // (rough analogue of an old single square). Mostly unused now that
-      // Sic Bo drives gameplay via multiplier windows.
-      if (state.player.availableDice <= 0) return state;
-      const roll = Math.floor(Math.random() * 6) + 1;
-      const now = Date.now();
-      const oldKm = state.player.distanceKm;
-      const newKm = oldKm + roll * 50;
-      const cross = detectCrossings(
-        oldKm,
-        newKm,
-        state.player.visitedCapitals,
-        state.player.visitedCities ?? [],
-        now,
-      );
-      const diceRoll: DiceRoll = {
-        roll,
-        timestamp: now,
-        fromSquare: state.player.currentSquareIndex,
-        toSquare: squareIndexAtKm(routeData, newKm),
-      };
-      return {
-        ...state,
-        player: {
-          ...state.player,
-          distanceKm: newKm,
-          currentSquareIndex: squareIndexAtKm(routeData, newKm),
-          availableDice: Math.min(
-            state.player.availableDice - 1 + cross.bonusTokens,
-            state.config.maxDice,
-          ),
-          diceHistory: [...state.player.diceHistory, diceRoll],
-          visitedCapitals: cross.newCapitals,
-          visitedCities: cross.newCities,
-          completedLaps: state.player.completedLaps + cross.completedLaps,
-          recentBonuses: cross.events.length
-            ? [...cross.events, ...(state.player.recentBonuses ?? [])].slice(0, MAX_RECENT_BONUSES)
             : state.player.recentBonuses,
           lastUpdated: now,
         },

@@ -185,37 +185,13 @@ export function MapView() {
       lng: a.lng + (b.lng - a.lng) * frac,
     });
 
-    // Helper: build allPoints / cumKm from a list of segPaths, in order.
-    // Used twice — first for the instant straight-line preview, then for
-    // the road-following replacement once Directions API responds.
     type Built = {
       allPoints: google.maps.LatLngLiteral[];
       cumKm: number[];
     };
-    const buildFromSegPaths = (
-      segPaths: google.maps.LatLngLiteral[][],
-      startKm: number,
-    ): Built => {
-      const allPoints: google.maps.LatLngLiteral[] = [];
-      const cumKm: number[] = [];
-      let runningKm = startKm;
-      for (const segPath of segPaths) {
-        const startIdxAdd = allPoints.length === 0 ? 0 : 1;
-        for (let i = startIdxAdd; i < segPath.length; i++) {
-          const p = segPath[i];
-          if (allPoints.length > 0) {
-            runningKm += kmBetween(allPoints[allPoints.length - 1], p);
-          }
-          allPoints.push(p);
-          cumKm.push(runningKm);
-        }
-      }
-      return { allPoints, cumKm };
-    };
 
     // Materialize walked + future polylines from a Built path. Wipes any
-    // existing route polylines first so the second (road-following) pass
-    // cleanly replaces the first (straight-line preview) pass.
+    // existing route polylines first so the rebuild replaces them.
     const renderFromBuilt = (b: Built) => {
       if (!mapRef.current) return;
       realRoutePolylinesRef.current.forEach((p) => p.setMap(null));
@@ -279,29 +255,12 @@ export function MapView() {
         ? routeData.capitalDistances[firstSeg.fromCapitalId] ?? 0
         : 0;
 
-      // ───── Phase 1: instant straight-line preview ─────
-      // The Directions API calls below can take 10-30s the first time
-      // (cache empty), and the user expects to see SOMETHING the moment
-      // the map loads. Render a straight-through-waypoints polyline now
-      // so the future-route line is visible immediately.
-      const previewSegPaths: google.maps.LatLngLiteral[][] = [];
-      for (const seg of visibleSegs) {
-        const fromCap = routeData.capitals.find((c) => c.id === seg.fromCapitalId);
-        const toCap = routeData.capitals.find((c) => c.id === seg.toCapitalId);
-        if (!fromCap || !toCap) continue;
-        const origin = { lat: fromCap.lat, lng: fromCap.lng };
-        const destination = { lat: toCap.lat, lng: toCap.lng };
-        const waypoints: google.maps.LatLngLiteral[] = [];
-        for (const cityId of seg.waypointCityIds ?? []) {
-          const city = cities.find((c) => c.id === cityId);
-          if (city) waypoints.push({ lat: city.lat, lng: city.lng });
-        }
-        previewSegPaths.push([origin, ...waypoints, destination]);
-      }
-      if (cancelled || !mapRef.current) return;
-      renderFromBuilt(buildFromSegPaths(previewSegPaths, firstSegStartKm));
+      // The Phase-1 straight-line preview was reverted — it drew an
+      // ugly Tokyo→Miyazaki diagonal across the Pacific while waiting
+      // for Directions API. Better to show nothing for a few seconds
+      // than a misleading straight line. The Directions cache (30-day
+      // TTL in localStorage) makes subsequent loads instant anyway.
 
-      // ───── Phase 2: road-following replacement (async) ─────
       const allPoints: google.maps.LatLngLiteral[] = [];
       const cumKm: number[] = [];
       let runningKm = firstSegStartKm;
