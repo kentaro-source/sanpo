@@ -1092,6 +1092,591 @@ export const segmentClassifications: SegmentClassification[] = [
     notes:
       'サンマリノ→ボローニャ→フィレンツェ→ナポリ→[メッシーナ海峡]→パレルモ→[地中海]→バレッタ',
   },
+
+  // ===== Batch 9: Atlantic + North America (MT → MX), 3 segments =====
+
+  // Valletta → Ottawa. Pure Atlantic crossing anchored on the Azores
+  // and Newfoundland.
+  {
+    fromCapitalId: 'MT',
+    toCapitalId: 'CA',
+    routeType: 'mixed',
+    waypointCityIds: [
+      'PT-PONTADELGADA', // ~3300 km Mediterranean+Atlantic to Azores
+      'CA-STJOHNS',      // ~2200 km open Atlantic to Newfoundland
+      'CA-HALIFAX',      // ~900 km along Maritime Canada
+      'CA-MONTREAL',     // ~810 km (Driving fallback)
+      // Montréal → Ottawa ~200 km
+    ],
+    seaSegments: [[0, 1], [1, 2]], // Valletta→Ponta Delgada→St.Johns sea
+    notes:
+      'バレッタ→[地中海・大西洋]→ポンタ・デルガダ(アゾレス)→[北大西洋]→セントジョンズ→ハリファックス→モントリオール→オタワ',
+  },
+
+  // Ottawa → Washington DC via Montréal → Albany → NYC → Philadelphia.
+  {
+    fromCapitalId: 'CA',
+    toCapitalId: 'US',
+    routeType: 'land',
+    waypointCityIds: [
+      'CA-MONTREAL',     // ~200 km from Ottawa
+      'US-ALBANY',       // ~290 km, CA-US border (Driving fallback)
+      'US-NYC',          // ~250 km
+      'US-PHILADELPHIA', // ~150 km
+      // Philadelphia → DC ~225 km (Driving fallback)
+    ],
+    notes: 'オタワ→モントリオール→[国境]→オールバニ→ニューヨーク→フィラデルフィア→ワシントンD.C.',
+  },
+
+  // DC → Mexico City via the I-95/I-10/I-35 corridor.
+  {
+    fromCapitalId: 'US',
+    toCapitalId: 'MX',
+    routeType: 'land',
+    waypointCityIds: [
+      'US-RICHMOND',     // ~170 km from DC
+      'US-CHARLOTTE',    // ~440 km (Driving fallback)
+      'US-ATLANTA',      // ~390 km (Driving fallback)
+      'US-NEWORLEANS',   // ~750 km (heavy Driving fallback through AL/MS)
+      'US-HOUSTON',      // ~570 km (Driving fallback)
+      'US-SANANTONIO',   // ~310 km (Driving fallback)
+      'MX-MONTERREY',    // ~530 km, US-MX border at Laredo (Driving)
+      'MX-SLP',          // ~440 km (Driving fallback)
+      // SLP → Mexico City ~430 km (Driving fallback)
+    ],
+    notes:
+      'ワシントン→リッチモンド→シャーロット→アトランタ→ニューオーリンズ→ヒューストン→サンアントニオ→[国境]→モンテレイ→サン・ルイス・ポトシ→メキシコシティ',
+  },
+
+  // ===== Batch 10: Central America (MX → PA), 7 segments =====
+
+  // Mexico City → Guatemala City via Puebla → Oaxaca → Tuxtla → Quetzaltenango.
+  {
+    fromCapitalId: 'MX',
+    toCapitalId: 'GT',
+    routeType: 'land',
+    waypointCityIds: [
+      'MX-PUEBLA',           // ~135 km from Mexico City
+      'MX-OAXACA',           // ~330 km (Driving fallback)
+      'MX-TUXTLA',           // ~400 km (Driving fallback)
+      'GT-QUETZALTENANGO',   // ~360 km, MX-GT border (Driving fallback)
+      // Quetzaltenango → Guatemala City ~210 km (Driving fallback)
+    ],
+    notes:
+      'メキシコシティ→プエブラ→オアハカ→トゥクストラ→[国境]→ケツァルテナンゴ→グアテマラシティ',
+  },
+
+  // Guatemala City → Belmopan via Puerto Barrios.
+  {
+    fromCapitalId: 'GT',
+    toCapitalId: 'BZ',
+    routeType: 'land',
+    waypointCityIds: [
+      'GT-PUERTOBARRIOS', // ~290 km from Guatemala City (Driving fallback)
+      // Puerto Barrios → Belmopan ~165 km, GT-BZ border
+    ],
+    notes: 'グアテマラシティ→プエルトバリオス→[国境]→ベルモパン',
+  },
+
+  // Belmopan → Tegucigalpa via San Pedro Sula.
+  {
+    fromCapitalId: 'BZ',
+    toCapitalId: 'HN',
+    routeType: 'land',
+    waypointCityIds: [
+      'HN-SANPEDROSULA', // ~360 km from Belmopan, GT/HN borders (Driving)
+      // San Pedro Sula → Tegucigalpa ~240 km (Driving fallback)
+    ],
+    notes: 'ベルモパン→[国境・グアテマラ経由]→サンペドロスーラ→テグシガルパ',
+  },
+
+  // Tegucigalpa → San Salvador via Comayagua.
+  {
+    fromCapitalId: 'HN',
+    toCapitalId: 'SV',
+    routeType: 'land',
+    waypointCityIds: [
+      'HN-COMAYAGUA', // ~90 km from Tegucigalpa
+      // Comayagua → San Salvador ~240 km, HN-SV border (Driving fallback)
+    ],
+    notes: 'テグシガルパ→コマヤグア→[国境]→サンサルバドル',
+  },
+
+  // San Salvador → Managua via La Unión + León.
+  {
+    fromCapitalId: 'SV',
+    toCapitalId: 'NI',
+    routeType: 'land',
+    waypointCityIds: [
+      'SV-LAUNION', // ~185 km from San Salvador
+      'NI-LEON',    // ~190 km, SV-HN-NI borders (Driving fallback through HN)
+      // León → Managua ~90 km
+    ],
+    notes: 'サンサルバドル→ラ・ウニオン→[国境]→レオン→マナグア',
+  },
+
+  // Managua → San José via Granada + Liberia.
+  {
+    fromCapitalId: 'NI',
+    toCapitalId: 'CR',
+    routeType: 'land',
+    waypointCityIds: [
+      'NI-GRANADA', // ~45 km from Managua
+      'CR-LIBERIA', // ~210 km, NI-CR border (Driving fallback)
+      // Liberia → San José ~225 km (Driving fallback)
+    ],
+    notes: 'マナグア→グラナダ→[国境]→リベリア→サンホセ',
+  },
+
+  // San José → Panama City via David + Santiago.
+  {
+    fromCapitalId: 'CR',
+    toCapitalId: 'PA',
+    routeType: 'land',
+    waypointCityIds: [
+      'PA-DAVID',    // ~360 km from San José, CR-PA border (Driving fallback)
+      'PA-SANTIAGO', // ~210 km (Driving fallback)
+      // Santiago → Panama City ~250 km (Driving fallback)
+    ],
+    notes: 'サンホセ→[国境]→ダビ→サンティアゴ・デ・ベラグアス→パナマシティ',
+  },
+
+  // ===== Batch 11: Caribbean (PA → KN), 13 segments =====
+
+  // Panama City → Havana. Caribbean crossing anchored on Colón
+  // (Atlantic side) before the long sea hop.
+  {
+    fromCapitalId: 'PA',
+    toCapitalId: 'CU',
+    routeType: 'mixed',
+    waypointCityIds: [
+      'PA-COLON', // ~75 km from Panama City (canal crossing)
+      // Colón → Havana ~1500 km Caribbean
+    ],
+    seaSegments: [[1, 2]],
+    notes: 'パナマシティ→コロン→[カリブ海 ~1500km]→ハバナ',
+  },
+
+  // Havana → Kingston via Santiago de Cuba.
+  {
+    fromCapitalId: 'CU',
+    toCapitalId: 'JM',
+    routeType: 'mixed',
+    waypointCityIds: [
+      'CU-SANTIAGODECUBA', // ~870 km within Cuba (Driving fallback)
+      // Santiago de Cuba → Kingston ~280 km Caribbean
+    ],
+    seaSegments: [[1, 2]],
+    notes: 'ハバナ→サンティアゴ・デ・クーバ→[カリブ海]→キングストン',
+  },
+
+  // Kingston → Port-au-Prince — direct sea.
+  {
+    fromCapitalId: 'JM',
+    toCapitalId: 'HT',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]],
+    notes: 'キングストン→[カリブ海 ~700km]→ポルトープランス',
+  },
+
+  // Port-au-Prince → Santo Domingo via Cap-Haïtien + DO Santiago.
+  {
+    fromCapitalId: 'HT',
+    toCapitalId: 'DO',
+    routeType: 'land',
+    waypointCityIds: [
+      'HT-CAPHAITIEN', // ~225 km from Port-au-Prince (Driving fallback)
+      'DO-SANTIAGO',   // ~165 km, HT-DO border
+      // DO Santiago → Santo Domingo ~155 km
+    ],
+    notes: 'ポルトープランス→カパイシャン→[国境]→サンティアゴ→サントドミンゴ',
+  },
+
+  // Santo Domingo → Nassau via Turks & Caicos anchor.
+  {
+    fromCapitalId: 'DO',
+    toCapitalId: 'BS',
+    routeType: 'mixed',
+    waypointCityIds: [
+      'TC-PROVIDENCIALES', // ~470 km Atlantic
+      // Providenciales → Nassau ~700 km
+    ],
+    seaSegments: [[0, 1], [1, 2]],
+    notes: 'サントドミンゴ→[大西洋]→プロヴィデンシアレス→[大西洋]→ナッソー',
+  },
+
+  // Nassau → Bridgetown — long Caribbean traverse, no realistic anchor.
+  {
+    fromCapitalId: 'BS',
+    toCapitalId: 'BB',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]],
+    notes: 'ナッソー→[カリブ海 ~1900km]→ブリッジタウン',
+  },
+
+  // Bridgetown → Port of Spain — direct sea.
+  {
+    fromCapitalId: 'BB',
+    toCapitalId: 'TT',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]],
+    notes: 'ブリッジタウン→[カリブ海 ~410km]→ポートオブスペイン',
+  },
+
+  // Port of Spain → St. George's — direct sea.
+  {
+    fromCapitalId: 'TT',
+    toCapitalId: 'GD',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]],
+    notes: 'ポートオブスペイン→[カリブ海 ~200km]→セントジョージズ',
+  },
+
+  // St. George's → Kingstown — direct sea (Lesser Antilles chain).
+  {
+    fromCapitalId: 'GD',
+    toCapitalId: 'VC',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]],
+    notes: 'セントジョージズ→[カリブ海 ~190km]→キングスタウン',
+  },
+
+  // Kingstown → Castries — direct sea.
+  {
+    fromCapitalId: 'VC',
+    toCapitalId: 'LC',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]],
+    notes: 'キングスタウン→[カリブ海 ~110km]→カストリーズ',
+  },
+
+  // Castries → Roseau — direct sea (passes Martinique).
+  {
+    fromCapitalId: 'LC',
+    toCapitalId: 'DM',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]],
+    notes: 'カストリーズ→[カリブ海 ~110km]→ロゾー',
+  },
+
+  // Roseau → St. John's — direct sea.
+  {
+    fromCapitalId: 'DM',
+    toCapitalId: 'AG',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]],
+    notes: 'ロゾー→[カリブ海 ~310km]→セントジョンズ',
+  },
+
+  // St. John's → Basseterre — direct sea.
+  {
+    fromCapitalId: 'AG',
+    toCapitalId: 'KN',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]],
+    notes: 'セントジョンズ→[カリブ海 ~100km]→バセテール',
+  },
+
+  // ===== Batch 12: South America (KN → EC), 12 segments =====
+
+  // Basseterre → Bogotá. Caribbean to mainland VE then over the Andes.
+  {
+    fromCapitalId: 'KN',
+    toCapitalId: 'CO',
+    routeType: 'mixed',
+    waypointCityIds: [
+      'VE-VALENCIA',   // ~890 km Caribbean to Venezuelan coast
+      'VE-MARACAIBO',  // ~270 km (Driving fallback)
+      'CO-CUCUTA',     // ~270 km, VE-CO border (Driving fallback)
+      // Cúcuta → Bogotá ~560 km (Driving fallback through the Eastern Andes)
+    ],
+    seaSegments: [[0, 1]], // Basseterre → Valencia is the long sea hop
+    notes:
+      'バセテール→[カリブ海]→バレンシア→マラカイボ→[国境]→ククータ→ボゴタ',
+  },
+
+  // Bogotá → Caracas via Cúcuta + Mérida + Valencia (over the Andes).
+  {
+    fromCapitalId: 'CO',
+    toCapitalId: 'VE',
+    routeType: 'land',
+    waypointCityIds: [
+      'CO-CUCUTA',    // ~560 km from Bogotá (Driving fallback)
+      'CO-MEDELLIN',  // skip, included for variety; ~590 km (Driving fallback)
+      'VE-VALENCIA',  // ~870 km, CO-VE border (Driving fallback)
+      // Valencia → Caracas ~150 km
+    ],
+    notes: 'ボゴタ→ククータ→メデジン→[国境]→バレンシア→カラカス',
+  },
+
+  // Caracas → Georgetown via Ciudad Guayana then Guyana coastal.
+  {
+    fromCapitalId: 'VE',
+    toCapitalId: 'GY',
+    routeType: 'land',
+    waypointCityIds: [
+      'VE-CIUDADGUAYANA', // ~520 km from Caracas (Driving fallback)
+      // Ciudad Guayana → Georgetown ~580 km, VE-GY border (Driving fallback)
+    ],
+    notes: 'カラカス→シウダー・グアヤナ→[国境]→ジョージタウン',
+  },
+
+  // Georgetown → Paramaribo via Linden.
+  {
+    fromCapitalId: 'GY',
+    toCapitalId: 'SR',
+    routeType: 'land',
+    waypointCityIds: [
+      'GY-LINDEN', // ~110 km from Georgetown
+      // Linden → Paramaribo ~330 km, GY-SR border (Driving fallback)
+    ],
+    notes: 'ジョージタウン→リンデン→[国境]→パラマリボ',
+  },
+
+  // Paramaribo → Brasília via Macapá + Manaus + Palmas (Amazon traverse).
+  {
+    fromCapitalId: 'SR',
+    toCapitalId: 'BR',
+    routeType: 'mixed',
+    waypointCityIds: [
+      'BR-MACAPA',  // ~880 km, SR-FR-BR borders (heavy Driving fallback)
+      'BR-MANAUS',  // ~1330 km along the Amazon (Driving fallback or river)
+      'BR-PALMAS',  // ~1730 km (Driving fallback)
+      // Palmas → Brasília ~700 km (Driving fallback)
+    ],
+    seaSegments: [[0, 1]], // Paramaribo → Macapá traverses estuary
+    notes:
+      'パラマリボ→[国境・アマゾン河口]→マカパ→マナウス→パルマス→ブラジリア',
+  },
+
+  // Brasília → Asunción via Goiânia + Campo Grande + Ciudad del Este.
+  {
+    fromCapitalId: 'BR',
+    toCapitalId: 'PY',
+    routeType: 'land',
+    waypointCityIds: [
+      'BR-GOIANIA',        // ~210 km from Brasília
+      'BR-CAMPOGRANDE',    // ~840 km (Driving fallback)
+      'PY-CIUDADDELESTE',  // ~720 km, BR-PY border (Driving fallback)
+      // Ciudad del Este → Asunción ~330 km (Driving fallback)
+    ],
+    notes: 'ブラジリア→ゴイアニア→カンポ・グランデ→[国境]→シウダー・デル・エステ→アスンシオン',
+  },
+
+  // Asunción → Montevideo via Corrientes + Rosario + Salto.
+  {
+    fromCapitalId: 'PY',
+    toCapitalId: 'UY',
+    routeType: 'land',
+    waypointCityIds: [
+      'AR-CORRIENTES', // ~325 km from Asunción (Driving fallback)
+      'AR-ROSARIO',    // ~720 km (Driving fallback)
+      'UY-SALTO',      // ~660 km, AR-UY border (Driving fallback)
+      // Salto → Montevideo ~500 km (Driving fallback)
+    ],
+    notes: 'アスンシオン→[国境]→コリエンテス→ロサリオ→[国境]→サルト→モンテビデオ',
+  },
+
+  // Montevideo → Buenos Aires — Río de la Plata ferry.
+  {
+    fromCapitalId: 'UY',
+    toCapitalId: 'AR',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]],
+    notes: 'モンテビデオ→[ブケブス フェリー ~210km]→ブエノスアイレス',
+  },
+
+  // Buenos Aires → Santiago via Mendoza (Andes pass).
+  {
+    fromCapitalId: 'AR',
+    toCapitalId: 'CL',
+    routeType: 'land',
+    waypointCityIds: [
+      'AR-MENDOZA', // ~1050 km from Buenos Aires (Driving fallback)
+      // Mendoza → Santiago ~360 km via Cristo Redentor pass (Driving fallback)
+    ],
+    notes: 'ブエノスアイレス→メンドーサ→[アンデス峠]→サンティアゴ',
+  },
+
+  // Santiago → La Paz via La Serena → Antofagasta → Calama → Oruro.
+  {
+    fromCapitalId: 'CL',
+    toCapitalId: 'BO',
+    routeType: 'land',
+    waypointCityIds: [
+      'CL-LASERENA',    // ~470 km from Santiago (Driving fallback)
+      'CL-ANTOFAGASTA', // ~870 km (Driving fallback through Atacama)
+      'CL-CALAMA',      // ~210 km (Driving fallback)
+      'BO-ORURO',       // ~800 km, CL-BO border (Driving fallback at altitude)
+      // Oruro → La Paz ~230 km (Driving fallback)
+    ],
+    notes:
+      'サンティアゴ→ラ・セレーナ→アントファガスタ→カラマ→[国境]→オルロ→ラパス',
+  },
+
+  // La Paz → Lima via Cochabamba + Arequipa + Nazca.
+  {
+    fromCapitalId: 'BO',
+    toCapitalId: 'PE',
+    routeType: 'land',
+    waypointCityIds: [
+      'BO-COCHABAMBA', // ~390 km from La Paz (Driving fallback)
+      'PE-AREQUIPA',   // ~750 km, BO-PE border (Driving fallback)
+      'PE-NAZCA',      // ~570 km (Driving fallback)
+      // Nazca → Lima ~445 km (Driving fallback)
+    ],
+    notes: 'ラパス→コチャバンバ→[国境]→アレキパ→ナスカ→リマ',
+  },
+
+  // Lima → Quito via Trujillo + Chiclayo + Piura + Guayaquil.
+  {
+    fromCapitalId: 'PE',
+    toCapitalId: 'EC',
+    routeType: 'land',
+    waypointCityIds: [
+      'PE-TRUJILLO',    // ~560 km from Lima (Driving fallback)
+      'PE-CHICLAYO',    // ~205 km (Driving fallback)
+      'PE-PIURA',       // ~210 km (Driving fallback)
+      'EC-GUAYAQUIL',   // ~520 km, PE-EC border (Driving fallback)
+      // Guayaquil → Quito ~420 km (Driving fallback)
+    ],
+    notes: 'リマ→トルヒーリョ→チクラヨ→ピウラ→[国境]→グアヤキル→キト',
+  },
+
+  // ===== Batch 13: Pacific + Oceania (EC → TV), 14 segments =====
+
+  // Quito → Canberra. The longest leg in the route — Pacific traverse
+  // anchored on Galápagos and Tahiti so the line touches real points.
+  {
+    fromCapitalId: 'EC',
+    toCapitalId: 'AU',
+    routeType: 'mixed',
+    waypointCityIds: [
+      'EC-GALAPAGOS', // ~1000 km Pacific
+      'PF-PAPEETE',   // ~6300 km open Pacific
+      // Papeete → Canberra ~6500 km Pacific
+    ],
+    seaSegments: [[0, 1], [1, 2], [2, 3]], // every leg is sea/air
+    notes:
+      'キト→[太平洋]→ガラパゴス→[太平洋 ~6300km]→パペーテ(タヒチ)→[太平洋 ~6500km]→キャンベラ',
+  },
+
+  // Canberra → Wellington — Tasman Sea crossing.
+  {
+    fromCapitalId: 'AU',
+    toCapitalId: 'NZ',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]],
+    notes: 'キャンベラ→[タスマン海 ~2300km]→ウェリントン',
+  },
+
+  // Wellington → Port Moresby — Coral/Tasman Sea, ~5000 km.
+  {
+    fromCapitalId: 'NZ',
+    toCapitalId: 'PG',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]],
+    notes: 'ウェリントン→[太平洋 ~5000km]→ポートモレスビー',
+  },
+
+  // Port Moresby → Suva — Coral Sea, ~3300 km.
+  {
+    fromCapitalId: 'PG',
+    toCapitalId: 'FJ',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]],
+    notes: 'ポートモレスビー→[珊瑚海 ~3300km]→スバ',
+  },
+
+  // Suva → Honiara — ~1700 km Pacific.
+  {
+    fromCapitalId: 'FJ',
+    toCapitalId: 'SB',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]],
+    notes: 'スバ→[太平洋 ~1700km]→ホニアラ',
+  },
+
+  // Honiara → Port Vila — ~900 km.
+  {
+    fromCapitalId: 'SB',
+    toCapitalId: 'VU',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]],
+    notes: 'ホニアラ→[太平洋 ~900km]→ポートビラ',
+  },
+
+  // Port Vila → Apia — ~1900 km.
+  {
+    fromCapitalId: 'VU',
+    toCapitalId: 'WS',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]],
+    notes: 'ポートビラ→[太平洋 ~1900km]→アピア',
+  },
+
+  // Apia → Nuku'alofa — ~890 km.
+  {
+    fromCapitalId: 'WS',
+    toCapitalId: 'TO',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]],
+    notes: 'アピア→[太平洋 ~890km]→ヌクアロファ',
+  },
+
+  // Nuku'alofa → Tarawa — ~3200 km equatorial Pacific.
+  {
+    fromCapitalId: 'TO',
+    toCapitalId: 'KI',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]],
+    notes: 'ヌクアロファ→[太平洋 ~3200km]→タラワ',
+  },
+
+  // Tarawa → Majuro — ~700 km.
+  {
+    fromCapitalId: 'KI',
+    toCapitalId: 'MH',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]],
+    notes: 'タラワ→[太平洋 ~700km]→マジュロ',
+  },
+
+  // Majuro → Palikir — ~2000 km.
+  {
+    fromCapitalId: 'MH',
+    toCapitalId: 'FM',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]],
+    notes: 'マジュロ→[太平洋 ~2000km]→パリキール',
+  },
+
+  // Palikir → Yaren — ~2300 km.
+  {
+    fromCapitalId: 'FM',
+    toCapitalId: 'NR',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]],
+    notes: 'パリキール→[太平洋 ~2300km]→ヤレン',
+  },
+
+  // Yaren → Ngerulmud — ~3300 km.
+  {
+    fromCapitalId: 'NR',
+    toCapitalId: 'PW',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]],
+    notes: 'ヤレン→[太平洋 ~3300km]→ンゲルルムッド',
+  },
+
+  // Ngerulmud → Funafuti — ~5000 km. Loop completes in Tuvalu.
+  {
+    fromCapitalId: 'PW',
+    toCapitalId: 'TV',
+    routeType: 'mixed',
+    seaSegments: [[0, 1]],
+    notes: 'ンゲルルムッド→[太平洋 ~5000km]→フナフティ',
+  },
 ];
 
 export function findSegmentClassification(
