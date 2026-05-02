@@ -65,10 +65,12 @@ export function MapView() {
 
     mapRef.current = new google.maps.Map(containerRef.current, {
       center: { lat: currentSquare.lat, lng: currentSquare.lng },
-      // Zoom 14 ≈ 9.5m/px: 100m/step = ~10px of marker movement (clearly
-      // visible per step). Auto-pan keeps marker in view as the player
-      // walks. Tighter than 13 (street-level feel restored).
-      zoom: 14,
+      // Zoom 16 ≈ 2.4m/px. Sized for the v7 distance model where
+      // KM_PER_STEP = 0.001 (1m/step). At ×1 walking 1 step ≈ 0.4px
+      // — subtle but cumulative. At a stacked ×12 boost 1 step ≈ 5px,
+      // clearly perceptible. Tight enough to feel "in the city" without
+      // drowning the view in street labels. The user can pinch-zoom.
+      zoom: 16,
       zoomControl: false,
       streetViewControl: false,
       mapTypeControl: false,
