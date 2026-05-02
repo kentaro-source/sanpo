@@ -572,6 +572,29 @@ export const cities: City[] = [
   },
 
   // === ベトナム (Vietnam) ===
+  // ベトナム縦断ブリッジ。ハノイ→ホーチミン間を細かく。
+  {
+    id: 'VN-HUE',
+    name: 'Hue',
+    nameJa: 'フエ',
+    countryId: 'VN',
+    countryJa: 'ベトナム',
+    lat: 16.4637,
+    lng: 107.5909,
+    type: 'historic',
+    description: 'グエン朝の旧都、王宮',
+  },
+  {
+    id: 'VN-VINH',
+    name: 'Vinh',
+    nameJa: 'ヴィン',
+    countryId: 'VN',
+    countryJa: 'ベトナム',
+    lat: 18.6790,
+    lng: 105.6817,
+    type: 'tourist',
+    description: 'ベトナム中北部の中継地',
+  },
   {
     id: 'VN-HOIAN',
     name: 'Hoi An',
@@ -663,6 +686,40 @@ export const cities: City[] = [
     lng: 100.5877,
     type: 'historic',
     description: 'タイ王朝の世界遺産遺跡群',
+  },
+  // MY→TH 半島縦断ブリッジ。ペナン以北をバンコクに繋ぐ。
+  {
+    id: 'TH-HATYAI',
+    name: 'Hat Yai',
+    nameJa: 'ハジャイ',
+    countryId: 'TH',
+    countryJa: 'タイ',
+    lat: 7.0083,
+    lng: 100.4747,
+    type: 'gourmet',
+    description: 'タイ南部の交通要衝、マレー国境最寄り',
+  },
+  {
+    id: 'TH-SURATTHANI',
+    name: 'Surat Thani',
+    nameJa: 'スラートターニー',
+    countryId: 'TH',
+    countryJa: 'タイ',
+    lat: 9.1382,
+    lng: 99.3215,
+    type: 'tourist',
+    description: 'サムイ島・パンガン島の玄関口',
+  },
+  {
+    id: 'TH-HUAHIN',
+    name: 'Hua Hin',
+    nameJa: 'ホアヒン',
+    countryId: 'TH',
+    countryJa: 'タイ',
+    lat: 12.5703,
+    lng: 99.9583,
+    type: 'tourist',
+    description: 'バンコク王室の保養地',
   },
 
   // === ミャンマー (Myanmar) ===

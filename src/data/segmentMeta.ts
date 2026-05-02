@@ -146,20 +146,29 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'PH',
     toCapitalId: 'BN',
     routeType: 'sea',
-    waypointCityIds: ['PH-CEBU'],
-    notes: 'マニラ→セブ→スールー海→ボルネオ北部',
+    // フィリピン群島南下 → ボルネオ北部。基本 SEA(直線)。
+    waypointCityIds: ['PH-CEBU', 'PH-DAVAO'],
+    notes: 'マニラ→セブ→ダバオ→スールー海→ボルネオ北部',
   },
   {
     fromCapitalId: 'BN',
     toCapitalId: 'ID',
     routeType: 'sea',
-    notes: 'ボルネオ→ジャワ海→ジャカルタ',
+    notes: 'ボルネオ→ジャワ海→ジャカルタ(直線)',
   },
   {
     fromCapitalId: 'ID',
     toCapitalId: 'TL',
     routeType: 'mixed',
-    notes: 'ジャワ→バリ→ヌサトゥンガラ列島→東ティモール',
+    waypointCityIds: [
+      'ID-YOGYAKARTA', // ~430 km Java road
+      'ID-SURABAYA',   // ~330 km
+      'ID-BALI',       // ~330 km (ferry/bridge to Bali)
+    ],
+    // [origin=Jakarta, 1=Yogyakarta, 2=Surabaya, 3=Bali, 4=Dili]
+    // 3→4 spans the Lesser Sunda Islands ~1,100 km of ferries/island hops.
+    seaSegments: [[3, 4]],
+    notes: 'ジャワ→バリ→[ヌサトゥンガラ列島]→東ティモール',
   },
   {
     fromCapitalId: 'TL',
@@ -178,8 +187,15 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'MY',
     toCapitalId: 'TH',
     routeType: 'land',
-    waypointCityIds: ['MY-MALACCA'],
-    notes: 'マラッカ→ペナン→タイ南部→バンコク',
+    waypointCityIds: [
+      'MY-MALACCA',     // ~150 km from KL
+      'MY-PENANG',      // ~520 km
+      'TH-HATYAI',      // ~190 km — crosses MY-TH border
+      'TH-SURATTHANI',  // ~290 km
+      'TH-HUAHIN',      // ~390 km
+      // Hua Hin → Bangkok ~190 km
+    ],
+    notes: 'KL→マラッカ→ペナン→ハジャイ→スラート→ホアヒン→バンコク',
   },
   {
     fromCapitalId: 'TH',
@@ -192,14 +208,22 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'KH',
     toCapitalId: 'VN',
     routeType: 'land',
-    notes: 'メコン川流域',
+    waypointCityIds: [
+      'VN-HOCHIMINH', // ~210 km — crosses KH-VN border
+      'VN-DANANG',    // ~830 km coastal Vietnam
+      'VN-HOIAN',     // ~30 km (思い出)
+      'VN-HUE',       // ~100 km
+      'VN-VINH',      // ~370 km
+      // Vinh → Hanoi ~290 km
+    ],
+    notes: 'プノンペン→ホーチミン→ベトナム海岸縦断→ハノイ',
   },
   {
     fromCapitalId: 'VN',
     toCapitalId: 'LA',
     routeType: 'land',
-    waypointCityIds: ['VN-HOIAN'],
-    notes: 'ハノイ南下→ホイアン→ラオス内陸',
+    // ハノイ→ヴィエンチャン直接 ~470 km、driving可能。HOIAN は南方なので外して KH→VN に移動済み。
+    notes: 'ハノイ→[山岳]→ヴィエンチャン',
   },
   {
     fromCapitalId: 'LA',

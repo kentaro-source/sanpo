@@ -16,12 +16,12 @@ async function hardReload() {
       const keys = await caches.keys();
       await Promise.all(keys.map((k) => caches.delete(k)));
     }
-    // Clear the Directions polyline cache only. We deliberately DO NOT
-    // touch sanpo-google-fit-* — that would force the user to re-auth
-    // every time they tap ⟳, which defeats the whole point of having
-    // a refresh-token Worker.
-    localStorage.removeItem('sanpo-directions-cache-v1');
-    localStorage.removeItem('sanpo-directions-cache-v2');
+    // Don't touch the Directions cache — clearing it forced every ⟳
+    // to refetch all visible polylines from Google Directions, which
+    // showed as a 5-10 second 'route reset' (user complained:
+    // '更新押すとルートリセットはしょうがない？'). Cache keys are
+    // coord-based so entries become stale automatically when waypoint
+    // cities are added/changed; no harm leaving them.
   } catch {
     // ignore
   }
