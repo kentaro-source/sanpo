@@ -60,6 +60,11 @@ declare global {
             client_id: string;
             scope: string;
             ux_mode?: 'popup' | 'redirect';
+            /** Force consent screen so Google issues a refresh_token even if
+             * the user has already granted access in a prior session. */
+            prompt?: 'consent' | 'select_account' | 'none' | '';
+            access_type?: 'offline' | 'online';
+            include_granted_scopes?: boolean;
             callback: (response: CodeResponse) => void;
             error_callback?: (error: unknown) => void;
           }) => CodeClient;
@@ -173,6 +178,12 @@ function ensureCodeClient(google: NonNullable<Window['google']>): CodeClient {
     client_id: CLIENT_ID,
     scope: SCOPE,
     ux_mode: 'popup',
+    // Force consent to guarantee Google issues a refresh_token. Without
+    // this, a user who has previously connected gets an auth code that
+    // can't be exchanged for a refresh_token, and the worker /exchange
+    // returns no_refresh_token, locking the user out of indefinite sync.
+    prompt: 'consent',
+    access_type: 'offline',
     callback: (response) => {
       if (response.error) {
         pendingCodeReject?.(new Error(response.error));
@@ -222,7 +233,12 @@ async function workerExchange(code: string): Promise<string> {
   });
   const data = (await res.json()) as WorkerTokenResponse;
   if (!res.ok || !data.access_token || !data.expires_in) {
-    throw new Error(data.error ?? `worker exchange failed: ${res.status}`);
+    // Surface the worker's hint (e.g., revoke-and-reconnect instructions)
+    // so the user actually sees actionable guidance rather than just a
+    // bare error code.
+    const parts = [data.error ?? `worker exchange failed: ${res.status}`];
+    if (data.hint) parts.push(data.hint);
+    throw new Error(parts.join(' — '));
   }
   saveToken({
     access_token: data.access_token,

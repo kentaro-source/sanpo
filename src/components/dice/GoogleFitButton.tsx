@@ -135,15 +135,29 @@ export function GoogleFitButton() {
     }
   };
 
-  /** One-tap re-auth (no consent screen). */
+  /** One-tap re-auth. Tries silent refresh first, falls back to a full
+   * consent popup if the refresh token is dead (revoked, 7-day test-mode
+   * expiry, or KV record gone). Without this fallback, "再連携" would
+   * silently keep failing whenever refresh fails, locking the user out. */
   const handleReAuth = async () => {
     setBusy(true);
     setError(null);
     try {
-      await reAuth();
+      try {
+        await reAuth();
+      } catch (refreshErr) {
+        const m =
+          refreshErr instanceof Error ? refreshErr.message : String(refreshErr);
+        // Worker /refresh is the silent path. If it fails for any reason
+        // related to credentials being unusable, fall through to the full
+        // interactive consent flow. We try this for ANY refresh failure
+        // because the user explicitly tapped re-auth — they want to be
+        // re-connected, not see another error.
+        console.warn('[fit] silent refresh failed, falling back to signIn:', m);
+        await signIn();
+      }
       autoSyncedRef.current = false;
       consecutiveAuthFailuresRef.current = 0;
-      // Trigger a sync immediately so the user sees fresh data.
       doSync(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'サインインに失敗しました');
