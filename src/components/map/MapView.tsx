@@ -41,6 +41,10 @@ export function MapView() {
   const passedPolylineRef = useRef<google.maps.Polyline | null>(null);
   const upcomingPolylineRef = useRef<google.maps.Polyline | null>(null);
   const realRoutePolylinesRef = useRef<google.maps.Polyline[]>([]);
+  const builtPathRef = useRef<{
+    allPoints: google.maps.LatLngLiteral[];
+    cumKm: number[];
+  } | null>(null);
   const capitalMarkersRef = useRef<google.maps.Marker[]>([]);
   const cityMarkersRef = useRef<google.maps.Marker[]>([]);
   const squareMarkersRef = useRef<google.maps.Marker[]>([]);
@@ -325,9 +329,10 @@ export function MapView() {
 
       if (cancelled || !mapRef.current) return;
 
-      // Replace the Phase 1 straight-line preview with the road-following
-      // version (only one set of polylines on the map at a time).
-      renderFromBuilt({ allPoints, cumKm });
+      // Cache the built geometry so the cheap walked/future split effect
+      // can re-render on each step without rebuilding from Directions.
+      builtPathRef.current = { allPoints, cumKm };
+      renderFromBuilt(builtPathRef.current);
     }
 
     renderCombinedRoute().catch((e) => {
@@ -337,8 +342,82 @@ export function MapView() {
     return () => {
       cancelled = true;
     };
+    // Heavy effect: ONLY rebuild Directions geometry when crossing into a
+    // new segment. Was previously also keyed on player.distanceKm, which
+    // meant every single step (1m advance) cancelled the in-flight
+    // Directions promises and started over — so the route never finished
+    // rendering while the user was walking.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loaded, currentSquare.segmentIndex, player.distanceKm]);
+  }, [loaded, currentSquare.segmentIndex]);
+
+  // Cheap effect: re-split the cached geometry into walked/future
+  // polylines when the player's distanceKm changes (every step). Reads
+  // from builtPathRef populated by the heavy effect above. Inlined
+  // (duplicated) split logic so this effect doesn't depend on closures
+  // captured inside the heavy effect.
+  useEffect(() => {
+    if (!loaded || !mapRef.current) return;
+    const b = builtPathRef.current;
+    if (!b) return;
+
+    realRoutePolylinesRef.current.forEach((p) => p.setMap(null));
+    realRoutePolylinesRef.current = [];
+
+    const playerKm = player.distanceKm;
+    let splitIdx = -1;
+    for (let i = 0; i < b.cumKm.length; i++) {
+      if (b.cumKm[i] >= playerKm) {
+        splitIdx = i;
+        break;
+      }
+    }
+    let walkedPath: google.maps.LatLngLiteral[] = [];
+    let futurePath: google.maps.LatLngLiteral[] = [];
+    if (splitIdx === -1) {
+      walkedPath = b.allPoints;
+    } else if (splitIdx === 0) {
+      futurePath = b.allPoints;
+    } else {
+      const a = b.allPoints[splitIdx - 1];
+      const c = b.allPoints[splitIdx];
+      const segKm = b.cumKm[splitIdx] - b.cumKm[splitIdx - 1];
+      const frac = segKm > 0 ? (playerKm - b.cumKm[splitIdx - 1]) / segKm : 0;
+      const f = Math.max(0, Math.min(1, frac));
+      const splitPoint = {
+        lat: a.lat + (c.lat - a.lat) * f,
+        lng: a.lng + (c.lng - a.lng) * f,
+      };
+      walkedPath = [...b.allPoints.slice(0, splitIdx), splitPoint];
+      futurePath = [splitPoint, ...b.allPoints.slice(splitIdx)];
+    }
+
+    if (walkedPath.length >= 2) {
+      realRoutePolylinesRef.current.push(
+        new google.maps.Polyline({
+          path: walkedPath,
+          strokeColor: '#10b981',
+          strokeOpacity: 0.95,
+          strokeWeight: 5,
+          zIndex: 6,
+          geodesic: true,
+          map: mapRef.current,
+        }),
+      );
+    }
+    if (futurePath.length >= 2) {
+      realRoutePolylinesRef.current.push(
+        new google.maps.Polyline({
+          path: futurePath,
+          strokeColor: '#64748b',
+          strokeOpacity: 0.85,
+          strokeWeight: 4,
+          zIndex: 5,
+          geodesic: true,
+          map: mapRef.current,
+        }),
+      );
+    }
+  }, [loaded, player.distanceKm]);
 
   // Render capital markers — only those near the current position to keep
   // marker count tiny. Re-renders when player advances.
