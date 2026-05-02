@@ -185,17 +185,125 @@ export function MapView() {
       lng: a.lng + (b.lng - a.lng) * frac,
     });
 
-    async function renderCombinedRoute() {
-      // Track each point's cumulative km from the start of allPoints, so
-      // we can split into "walked" vs "future" at the player position.
+    // Helper: build allPoints / cumKm from a list of segPaths, in order.
+    // Used twice — first for the instant straight-line preview, then for
+    // the road-following replacement once Directions API responds.
+    type Built = {
+      allPoints: google.maps.LatLngLiteral[];
+      cumKm: number[];
+    };
+    const buildFromSegPaths = (
+      segPaths: google.maps.LatLngLiteral[][],
+      startKm: number,
+    ): Built => {
       const allPoints: google.maps.LatLngLiteral[] = [];
       const cumKm: number[] = [];
+      let runningKm = startKm;
+      for (const segPath of segPaths) {
+        const startIdxAdd = allPoints.length === 0 ? 0 : 1;
+        for (let i = startIdxAdd; i < segPath.length; i++) {
+          const p = segPath[i];
+          if (allPoints.length > 0) {
+            runningKm += kmBetween(allPoints[allPoints.length - 1], p);
+          }
+          allPoints.push(p);
+          cumKm.push(runningKm);
+        }
+      }
+      return { allPoints, cumKm };
+    };
+
+    // Materialize walked + future polylines from a Built path. Wipes any
+    // existing route polylines first so the second (road-following) pass
+    // cleanly replaces the first (straight-line preview) pass.
+    const renderFromBuilt = (b: Built) => {
+      if (!mapRef.current) return;
+      realRoutePolylinesRef.current.forEach((p) => p.setMap(null));
+      realRoutePolylinesRef.current = [];
+
+      const playerKm = player.distanceKm;
+      let splitIdx = -1;
+      for (let i = 0; i < b.cumKm.length; i++) {
+        if (b.cumKm[i] >= playerKm) {
+          splitIdx = i;
+          break;
+        }
+      }
+      let walkedPath: google.maps.LatLngLiteral[] = [];
+      let futurePath: google.maps.LatLngLiteral[] = [];
+      if (splitIdx === -1) {
+        walkedPath = b.allPoints;
+      } else if (splitIdx === 0) {
+        futurePath = b.allPoints;
+      } else {
+        const a = b.allPoints[splitIdx - 1];
+        const c = b.allPoints[splitIdx];
+        const segKm = b.cumKm[splitIdx] - b.cumKm[splitIdx - 1];
+        const frac = segKm > 0 ? (playerKm - b.cumKm[splitIdx - 1]) / segKm : 0;
+        const splitPoint = interpAt(a, c, Math.max(0, Math.min(1, frac)));
+        walkedPath = [...b.allPoints.slice(0, splitIdx), splitPoint];
+        futurePath = [splitPoint, ...b.allPoints.slice(splitIdx)];
+      }
+
+      if (walkedPath.length >= 2) {
+        const walked = new google.maps.Polyline({
+          path: walkedPath,
+          strokeColor: '#10b981',
+          strokeOpacity: 0.95,
+          strokeWeight: 5,
+          zIndex: 6,
+          geodesic: true,
+          map: mapRef.current,
+        });
+        realRoutePolylinesRef.current.push(walked);
+      }
+      if (futurePath.length >= 2) {
+        const future = new google.maps.Polyline({
+          path: futurePath,
+          strokeColor: '#64748b',
+          strokeOpacity: 0.85,
+          strokeWeight: 4,
+          zIndex: 5,
+          geodesic: true,
+          map: mapRef.current,
+        });
+        realRoutePolylinesRef.current.push(future);
+      }
+    };
+
+    async function renderCombinedRoute() {
       // The first visible segment's starting km — needed to align
-      // allPoints' cumKm with player.distanceKm.
+      // cumKm with player.distanceKm.
       const firstSeg = visibleSegs[0];
       const firstSegStartKm = firstSeg
         ? routeData.capitalDistances[firstSeg.fromCapitalId] ?? 0
         : 0;
+
+      // ───── Phase 1: instant straight-line preview ─────
+      // The Directions API calls below can take 10-30s the first time
+      // (cache empty), and the user expects to see SOMETHING the moment
+      // the map loads. Render a straight-through-waypoints polyline now
+      // so the future-route line is visible immediately.
+      const previewSegPaths: google.maps.LatLngLiteral[][] = [];
+      for (const seg of visibleSegs) {
+        const fromCap = routeData.capitals.find((c) => c.id === seg.fromCapitalId);
+        const toCap = routeData.capitals.find((c) => c.id === seg.toCapitalId);
+        if (!fromCap || !toCap) continue;
+        const origin = { lat: fromCap.lat, lng: fromCap.lng };
+        const destination = { lat: toCap.lat, lng: toCap.lng };
+        const waypoints: google.maps.LatLngLiteral[] = [];
+        for (const cityId of seg.waypointCityIds ?? []) {
+          const city = cities.find((c) => c.id === cityId);
+          if (city) waypoints.push({ lat: city.lat, lng: city.lng });
+        }
+        previewSegPaths.push([origin, ...waypoints, destination]);
+      }
+      if (cancelled || !mapRef.current) return;
+      renderFromBuilt(buildFromSegPaths(previewSegPaths, firstSegStartKm));
+
+      // ───── Phase 2: road-following replacement (async) ─────
+      const allPoints: google.maps.LatLngLiteral[] = [];
+      const cumKm: number[] = [];
       let runningKm = firstSegStartKm;
 
       for (const seg of visibleSegs) {
@@ -258,62 +366,9 @@ export function MapView() {
 
       if (cancelled || !mapRef.current) return;
 
-      // Split into walked (cumKm <= player.distanceKm) and future.
-      const playerKm = player.distanceKm;
-      let splitIdx = -1;
-      for (let i = 0; i < cumKm.length; i++) {
-        if (cumKm[i] >= playerKm) {
-          splitIdx = i;
-          break;
-        }
-      }
-      let walkedPath: LL[] = [];
-      let futurePath: LL[] = [];
-      if (splitIdx === -1) {
-        // Player is past all visible points → all walked
-        walkedPath = allPoints;
-      } else if (splitIdx === 0) {
-        // Player is before all visible points → all future
-        futurePath = allPoints;
-      } else {
-        // Interpolate the exact split point between [splitIdx-1, splitIdx]
-        const a = allPoints[splitIdx - 1];
-        const b = allPoints[splitIdx];
-        const segKm = cumKm[splitIdx] - cumKm[splitIdx - 1];
-        const frac = segKm > 0 ? (playerKm - cumKm[splitIdx - 1]) / segKm : 0;
-        const splitPoint = interpAt(a, b, Math.max(0, Math.min(1, frac)));
-        walkedPath = [...allPoints.slice(0, splitIdx), splitPoint];
-        futurePath = [splitPoint, ...allPoints.slice(splitIdx)];
-      }
-
-      if (walkedPath.length >= 2) {
-        const walked = new google.maps.Polyline({
-          path: walkedPath,
-          strokeColor: '#10b981', // bright green = "完走"
-          strokeOpacity: 0.95,
-          strokeWeight: 5,
-          zIndex: 6,
-          geodesic: true,
-          map: mapRef.current,
-        });
-        realRoutePolylinesRef.current.push(walked);
-      }
-      if (futurePath.length >= 2) {
-        // Solid gray for the future path. The dashed icon-only version
-        // didn't render reliably on all devices (strokeWeight: 0 base
-        // suppressed the icon overlay on some browsers). Plain visible
-        // line is unambiguous and works everywhere.
-        const future = new google.maps.Polyline({
-          path: futurePath,
-          strokeColor: '#64748b',
-          strokeOpacity: 0.85,
-          strokeWeight: 4,
-          zIndex: 5,
-          geodesic: true,
-          map: mapRef.current,
-        });
-        realRoutePolylinesRef.current.push(future);
-      }
+      // Replace the Phase 1 straight-line preview with the road-following
+      // version (only one set of polylines on the map at a time).
+      renderFromBuilt({ allPoints, cumKm });
     }
 
     renderCombinedRoute().catch((e) => {
