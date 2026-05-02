@@ -159,8 +159,12 @@ export function MapView() {
     };
     const simplifyPath = (path: LL[]) => {
       if (path.length <= 4) return path;
-      // ~2km tolerance — keeps highway curves, drops dense straight segments
-      return rdp(path, 0.02);
+      // ~100 m tolerance. The previous 0.02° (~2 km) was a great-circle
+      // simplifier — it dropped every highway curve smaller than 2 km
+      // lateral, so at zoom 16 the polyline looked like a Tokyo→Miyazaki
+      // straight line. 0.001° still wipes out dense urban zigzag in the
+      // raw Directions response without erasing visible curves.
+      return rdp(path, 0.001);
     };
 
     // Clear existing

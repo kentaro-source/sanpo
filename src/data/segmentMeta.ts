@@ -25,17 +25,37 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'JP',
     toCapitalId: 'KR',
     routeType: 'mixed',
+    // Each consecutive pair stays under ~200km so Directions WALKING
+    // mode succeeds (limit ~300km, safety margin). Walking actually
+    // returns pedestrian-feasible streets instead of just expressway
+    // car routes the user can't actually walk.
     waypointCityIds: [
-      'JP-MIYAZAKI',
-      'JP-NAGASAKI',
-      'JP-FUKUOKA',
-      'KR-BUSAN',
-      'KR-CHEONGJU',
+      'JP-YOKOHAMA',    // ~28 km
+      'JP-HAMAMATSU',   // ~210 km
+      'JP-NAGOYA',      // ~80 km
+      'JP-KYOTO',       // ~110 km
+      'JP-OSAKA',       // ~40 km
+      'JP-KOBE',        // ~28 km
+      'JP-HIROSHIMA',   // ~270 km (driving fallback OK)
+      'JP-KITAKYUSHU',  // ~180 km
+      'JP-FUKUOKA',     // ~12 km
+      'JP-KUMAMOTO',    // ~90 km
+      'JP-MIYAZAKI',    // ~140 km (故郷)
+      'JP-NAGASAKI',    // ~170 km
+      // back up Kyushu west coast — re-enter Fukuoka would loop, so
+      // we go Nagasaki → Busan via Tsushima ferry directly.
+      'KR-BUSAN',       // SEA (関釜フェリー)
+      'KR-CHEONGJU',    // ~215 km
     ],
-    // [origin=Tokyo, MIYAZAKI=1, NAGASAKI=2, FUKUOKA=3, BUSAN=4, CHEONGJU=5, dest=Seoul]
-    // Only Fukuoka→Busan (3→4) is a sea ferry crossing.
-    seaSegments: [[3, 4]],
-    notes: '東京発（Japan capital）→ 関西通過 → 宮崎(故郷) → 長崎 → 福岡 →[関釜フェリー]→ プサン → 清州 → ソウル',
+    // Indices into [origin=Tokyo, ...waypoints, dest=Seoul]:
+    //   0=Tokyo, 1=Yokohama, 2=Hamamatsu, 3=Nagoya, 4=Kyoto, 5=Osaka,
+    //   6=Kobe, 7=Hiroshima, 8=Kitakyushu, 9=Fukuoka, 10=Kumamoto,
+    //   11=Miyazaki, 12=Nagasaki, 13=Busan, 14=Cheongju, 15=Seoul
+    // Only Nagasaki→Busan (12→13) is the sea crossing. Everything
+    // else is pedestrian/road land.
+    seaSegments: [[12, 13]],
+    notes:
+      '東京→横浜→浜松→名古屋→京都→大阪→神戸→広島→北九州→福岡→熊本→宮崎(故郷)→長崎→[対馬経由フェリー]→プサン→清州→ソウル',
   },
   {
     fromCapitalId: 'KR',
