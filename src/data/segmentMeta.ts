@@ -409,6 +409,7 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'QA',
     toCapitalId: 'AE',
     routeType: 'land',
+    waypointCityIds: ['AE-DUBAI'],
     notes: 'ドーハ→ドバイ→アブダビ',
   },
   {
@@ -427,7 +428,8 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'YE',
     toCapitalId: 'SA',
     routeType: 'land',
-    notes: 'サナア→メッカ→リヤド',
+    waypointCityIds: ['SA-MECCA', 'SA-JEDDAH'],
+    notes: 'サナア→メッカ→ジェッダ→リヤド',
   },
   {
     fromCapitalId: 'SA',
@@ -444,6 +446,8 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'IL',
     toCapitalId: 'LB',
     routeType: 'land',
+    waypointCityIds: ['IL-TELAVIV'],
+    notes: 'エルサレム→テルアビブ→ベイルート',
   },
   {
     fromCapitalId: 'LB',
@@ -454,18 +458,22 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'SY',
     toCapitalId: 'TR',
     routeType: 'land',
+    waypointCityIds: ['TR-CAPPADOCIA'],
+    notes: 'ダマスカス→カッパドキア経由→アンカラ',
   },
   {
     fromCapitalId: 'TR',
     toCapitalId: 'CY',
     routeType: 'sea',
-    notes: '地中海フェリー',
+    waypointCityIds: ['TR-IZMIR'],
+    notes: 'アンカラ→イズミル→[地中海]→キプロス',
   },
   {
     fromCapitalId: 'CY',
     toCapitalId: 'GE',
     routeType: 'mixed',
-    notes: '地中海→トルコ東岸→黒海→トビリシ',
+    waypointCityIds: ['TR-ISTANBUL'],
+    notes: 'キプロス→[地中海]→イスタンブール→[黒海沿い]→トビリシ',
   },
   {
     fromCapitalId: 'GE',
