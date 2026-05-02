@@ -2,6 +2,17 @@ import type { GameState, PlayerState } from '../types';
 
 const STORAGE_KEY = 'sanpo-game-state';
 const WATCHDOG_KEY = 'sanpo-progress-watchdog';
+/**
+ * One-time clean-slate flag. The user explicitly asked to start once
+ * with the freshly-rebalanced v8 system after a chain of mid-session
+ * tunings (token cap 5→100, stepsPerDie 5000→1000, fixed 30min boost
+ * windows, capital/city bonus model rewrite, +6732歩 phantom-step bug).
+ * On the very first load that observes this flag missing, both the
+ * game state AND the watchdog are wiped so the recovery path can't
+ * silently restore the pre-rebalance distance. Subsequent loads see
+ * the flag and behave normally.
+ */
+const CLEAN_SLATE_KEY = 'sanpo-cleanslate-v9';
 
 // Version 8: per-day step attribution renamed from todayStepsBaseline
 // (Fit-only) to attributedTodaySteps (sum across all sources). Required
@@ -95,6 +106,16 @@ export interface LoadResult {
 }
 
 export function loadGameState(): GameState | null {
+  // One-time clean slate. See CLEAN_SLATE_KEY comment.
+  try {
+    if (localStorage.getItem(CLEAN_SLATE_KEY) !== '1') {
+      localStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(WATCHDOG_KEY);
+      localStorage.setItem(CLEAN_SLATE_KEY, '1');
+    }
+  } catch {
+    // ignore
+  }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
