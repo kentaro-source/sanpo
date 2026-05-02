@@ -219,7 +219,7 @@ function checkMilestones(
 }
 
 const DEFAULT_CONFIG: GameConfig = {
-  stepsPerDie: 5000,
+  stepsPerDie: 1000, // v8: 5000→1000 — more frequent betting to suit slow walking
   maxDice: 5,
 };
 

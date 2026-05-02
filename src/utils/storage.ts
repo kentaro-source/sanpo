@@ -100,9 +100,13 @@ export function loadGameState(): GameState | null {
     if (raw) {
       const parsed = JSON.parse(raw) as GameState;
       if (parsed.version === CURRENT_VERSION && parsed.player) {
-        // Migration: tuning made stepsPerDie 5000→7000→5000.
-        if (parsed.config && parsed.config.stepsPerDie === 7000) {
-          parsed.config.stepsPerDie = 5000;
+        // Token-pace migration history:
+        //   v1-v6: stepsPerDie 5000 (with a brief detour to 7000)
+        //   v7   : 5000 again
+        //   v8   : 1000 (much faster, suits the 1m/step distance model)
+        // Force any stored value below v8's expectation up to 1000.
+        if (parsed.config && parsed.config.stepsPerDie >= 5000) {
+          parsed.config.stepsPerDie = 1000;
         }
         const p = parsed.player;
         p.distanceKm = sanitizeNum(p.distanceKm, 0);
