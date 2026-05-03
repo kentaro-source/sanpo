@@ -144,8 +144,9 @@ export function useGame() {
       }
     }
 
-    // Active multiplier stack (v7) — effective multiplier = product of
-    // unexpired Boost entries.
+    // Active multiplier stack — effective multiplier = product of
+    // unexpired Boost entries, clamped to [0.25, 30] (1km/h floor,
+    // 120km/h cap) to match the gameplay constraints.
     const now = Date.now();
     const liveBoosts = (player.boosts ?? []).filter((b) => b.expiresAt > now);
     let effectiveMult = 1;
@@ -153,6 +154,8 @@ export function useGame() {
       if (Number.isFinite(b.multiplier)) effectiveMult *= b.multiplier;
     }
     if (!Number.isFinite(effectiveMult) || effectiveMult <= 0) effectiveMult = 1;
+    if (effectiveMult < 0.25) effectiveMult = 0.25;
+    if (effectiveMult > 30) effectiveMult = 30;
     const multiplierActive = liveBoosts.length > 0 && effectiveMult !== 1;
     // Time until the SOONEST boost expires (when stack starts shrinking).
     const multiplierMsLeft = liveBoosts.length

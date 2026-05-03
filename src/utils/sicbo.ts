@@ -8,10 +8,13 @@ import type { SicBoBetType, BetSlot } from '../types';
  * roughly equivalent total boost.
  */
 export const SICBO_PAYOUTS: Record<string, number> = {
-  big: 2,
-  small: 2,
-  odd: 2,
-  even: 2,
+  // ×2 系 are bumped to ×3 (deviation from real Sic Bo) so that
+  // big/small/odd/even become the highest-EV bets in our system —
+  // matches the gameplay goal of "the safe bet is also the best bet."
+  big: 3,
+  small: 3,
+  odd: 3,
+  even: 3,
   'total-4': 60,
   'total-5': 30,
   'total-6': 17,
@@ -34,6 +37,56 @@ export const SICBO_PAYOUTS: Record<string, number> = {
   'triple-5': 180,
   'triple-6': 180,
 };
+
+/** Win probability per bet type (used to derive lose multipliers). */
+const WIN_PROB: Record<string, number> = {
+  big: 0.486,
+  small: 0.486,
+  odd: 0.486,
+  even: 0.486,
+  'total-4': 0.014,
+  'total-5': 0.028,
+  'total-6': 0.046,
+  'total-7': 0.069,
+  'total-8': 0.097,
+  'total-9': 0.116,
+  'total-10': 0.125,
+  'total-11': 0.125,
+  'total-12': 0.116,
+  'total-13': 0.097,
+  'total-14': 0.069,
+  'total-15': 0.046,
+  'total-16': 0.028,
+  'total-17': 0.014,
+  'any-triple': 0.0278,
+  'triple-1': 0.00463,
+  'triple-2': 0.00463,
+  'triple-3': 0.00463,
+  'triple-4': 0.00463,
+  'triple-5': 0.00463,
+  'triple-6': 0.00463,
+};
+
+/**
+ * Per-bet-type lose multiplier. The boost magnitude applied as a
+ * 30-min penalty when this specific bet loses. Tiered to make
+ * big/small/odd/even the +EV "safe & best" bets, sums slightly +EV,
+ * triples slightly −EV (lottery feel).
+ */
+export function loseMultiplierFor(betType: SicBoBetType): number {
+  if (
+    betType === 'big' || betType === 'small' ||
+    betType === 'odd' || betType === 'even'
+  ) {
+    return 0.5; // dramatic halving on the headline bets
+  }
+  if (betType === 'any-triple' || betType.startsWith('triple-')) {
+    return 0.85; // triple bets: lottery, slightly negative EV
+  }
+  // Sum bets: lose = 1 − win_prob (calibrated to ~+1-12% EV).
+  const p = WIN_PROB[betType] ?? 0.5;
+  return 1 - p;
+}
 
 /**
  * Fixed window for all wins/losses, regardless of multiplier.
@@ -118,35 +171,74 @@ export function betWon(bet: BetSlot, dice: [number, number, number]): boolean {
 }
 
 /**
- * Evaluate a roll against the player's bets and return the highest-payout
- * winning multiplier window. (If no wins, returns the loss window for the
- * highest-payout bet placed — symmetric penalty.)
+ * Evaluate a roll against the player's bets.
+ *
+ * - If ANY bets win, every winning bet's payout becomes a separate
+ *   boost multiplier (so 大 + total-12 both hitting → ×2 AND ×7
+ *   stacked, effective ×14). The reducer pushes each as its own Boost
+ *   entry in `boosts[]` and they expire independently.
+ * - If no bets win, a single LOSS_MULTIPLIER (×0.5) penalty boost is
+ *   applied, regardless of how many bets were placed.
+ *
+ * `multiplier` is kept on the return shape as the EFFECTIVE multiplier
+ * (= product of winning payouts) for callers that just want one number;
+ * `winningMultipliers[]` carries the individual values for stacking.
+ */
+export interface BetEvaluation {
+  /** Effective multiplier (product of all per-bet outcomes — wins payout, losses lose_mult). */
+  multiplier: number;
+  /** Window length for each emitted boost (fixed). */
+  windowMs: number;
+  /** Did at least one bet win? */
+  won: boolean;
+  /** Per-bet outcome multipliers — wins use payout, losses use loseMultiplierFor(). */
+  outcomeMultipliers: number[];
+  /** Highest payout that was bet — used for diagnostics / labels. */
+  payout: number;
+}
+
+/**
+ * Evaluate a roll against the player's bets and produce one
+ * outcome-multiplier per bet (linear-by-chip-count for wins, single
+ * lose-multiplier for losses regardless of chip count).
+ *
+ * The reducer pushes each outcome as its own Boost, so they stack
+ * multiplicatively with the existing boost stack and expire on
+ * independent timers. This means:
+ *   - 大 + 合計-12 both win on a 12-roll → two boost entries
+ *     (×3 and ×7 respectively, with linear chip multiplier baked in)
+ *   - 大 only wins on 13 → one ×3 boost + one ×0.5 boost (12 lost)
+ *   - All bets lose → one lose-multiplier boost per bet
  */
 export function evaluateBetWindow(
   bets: BetSlot[],
   dice: [number, number, number],
-): { multiplier: number; windowMs: number; won: boolean; payout: number } {
-  let bestWinPayout = 0;
+): BetEvaluation {
+  const outcomeMultipliers: number[] = [];
+  let won = false;
   let bestBetPayout = 0;
   for (const bet of bets) {
     const payout = payoutFor(bet.type);
     if (payout > bestBetPayout) bestBetPayout = payout;
-    if (betWon(bet, dice) && payout > bestWinPayout) {
-      bestWinPayout = payout;
+    if (betWon(bet, dice)) {
+      won = true;
+      // Linear chip scaling on win: 5-chip 大 win → ×(3 × 5) = ×15
+      // boost (single boost, not 5 separate ones — exponential stack
+      // would be runaway).
+      outcomeMultipliers.push(payout * bet.amount);
+    } else {
+      // Single lose-multiplier per losing bet, regardless of chip count.
+      // Multi-chip on a losing bet costs the chips (already deducted
+      // from availableDice) but doesn't worsen the boost penalty.
+      outcomeMultipliers.push(loseMultiplierFor(bet.type));
     }
   }
-  if (bestWinPayout > 0) {
-    return {
-      multiplier: bestWinPayout,
-      windowMs: windowMsForMultiplier(bestWinPayout),
-      won: true,
-      payout: bestWinPayout,
-    };
-  }
+  const effective = outcomeMultipliers.reduce((a, b) => a * b, 1);
   return {
-    multiplier: LOSS_MULTIPLIER,
-    windowMs: lossWindowMsForBet(bestBetPayout || 2),
-    won: false,
+    multiplier: effective,
+    windowMs: windowMsForMultiplier(effective),
+    won,
+    outcomeMultipliers,
     payout: bestBetPayout,
   };
 }

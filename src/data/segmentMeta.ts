@@ -40,8 +40,12 @@ export const segmentClassifications: SegmentClassification[] = [
       'JP-YAMAGUCHI',    // ~135 km
       'JP-SHIMONOSEKI',  // ~50 km
       'JP-KITAKYUSHU',   // ~30 km (Kanmon strait)
-      'JP-KUMAMOTO',     // ~150 km
-      'JP-MIYAZAKI',     // ~140 km (故郷)
+      // Kitakyushu→大分 down the east coast on the 東九州自動車道, then
+      // along the east coast all the way south to Miyazaki, before
+      // looping back west through Kumamoto to Nagasaki.
+      'JP-OITA',         // ~145 km
+      'JP-MIYAZAKI',     // ~210 km (故郷)
+      'JP-KUMAMOTO',     // ~140 km
       'JP-NAGASAKI',     // ~170 km
       'JP-FUKUOKA',      // ~150 km — back north for the Hakata ferry
       // Fukuoka(博多港) → Busan via the Beetle / Camellia Line ferry
@@ -52,14 +56,15 @@ export const segmentClassifications: SegmentClassification[] = [
       'KR-SUWON',        // ~85 km — Hwaseong fortress UNESCO site
     ],
     // Indices into [origin=Tokyo, ...waypoints, dest=Seoul]:
-    //   0=Tokyo,  1=Yokohama,  2=Hamamatsu,  3=Nagoya,  4=Kyoto,
-    //   5=Osaka,  6=Kobe,      7=Hiroshima,  8=Kitakyushu, 9=Kumamoto,
-    //   10=Miyazaki, 11=Nagasaki, 12=Fukuoka, 13=Busan, 14=Daegu,
-    //   15=Daejeon, 16=Cheongju, 17=Seoul
-    // Only Fukuoka→Busan (12→13) is the sea crossing (Hakata ferry).
-    seaSegments: [[12, 13]],
+    //   0=Tokyo, 1=Yokohama, 2=Hamamatsu, 3=Nagoya, 4=Kyoto,
+    //   5=Osaka, 6=Kobe,    7=Hiroshima, 8=Yamaguchi, 9=Shimonoseki,
+    //   10=Kitakyushu, 11=Oita, 12=Miyazaki, 13=Kumamoto, 14=Nagasaki,
+    //   15=Fukuoka, 16=Busan, 17=Daegu, 18=Daejeon, 19=Cheongju,
+    //   20=Suwon, 21=Seoul
+    // Only Fukuoka→Busan (15→16) is the sea crossing (Hakata ferry).
+    seaSegments: [[15, 16]],
     notes:
-      '東京→横浜→浜松→名古屋→京都→大阪→神戸→広島→北九州→熊本→宮崎(故郷)→長崎→福岡→[博多-プサン フェリー]→プサン→大邱→大田→清州→ソウル',
+      '東京→横浜→浜松→名古屋→京都→大阪→神戸→広島→山口→下関→[関門海峡]→北九州→大分→宮崎(故郷)→熊本→長崎→福岡→[博多-プサン フェリー]→プサン→大邱→大田→清州→水原→ソウル',
   },
   // Seoul → Pyongyang via Kaesong (open via the now-defunct Kaesong
   // Industrial Region road in the post-war geography).

@@ -52,6 +52,13 @@ const KM_PER_STEP = 0.001;
  * Effective speed multiplier at time `now` = product of all unexpired
  * Boost entries. Empty / all expired = 1.0×.
  */
+/** Hard floor and cap for the displayed/applied effective multiplier.
+ *  Floor 0.25 = 1km/h zone (turtle), prevents penalty stacking from
+ *  reaching speeds where the marker basically halts. Cap 30 keeps the
+ *  emoji range usable and prevents runaway from compound wins. */
+const EFFECTIVE_MULT_FLOOR = 0.25;
+const EFFECTIVE_MULT_CAP = 30;
+
 function effectiveMultiplier(boosts: Boost[] | undefined, now: number): number {
   if (!boosts || boosts.length === 0) return 1.0;
   let m = 1;
@@ -60,7 +67,10 @@ function effectiveMultiplier(boosts: Boost[] | undefined, now: number): number {
       m *= b.multiplier;
     }
   }
-  return Number.isFinite(m) && m > 0 ? m : 1.0;
+  if (!Number.isFinite(m) || m <= 0) return 1.0;
+  if (m < EFFECTIVE_MULT_FLOOR) return EFFECTIVE_MULT_FLOOR;
+  if (m > EFFECTIVE_MULT_CAP) return EFFECTIVE_MULT_CAP;
+  return m;
 }
 
 /** Drop expired Boost entries. Returns the same array reference if nothing changed. */
@@ -612,19 +622,25 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const triple = isTriple(dice);
       const tripleValue = triple ? dice[0] : undefined;
 
-      // Evaluate the bet → new boost window. Stacks on top of any active
-      // boosts (multiplicatively): chaining wins compounds the speedup,
-      // which is the whole point per the user's "倍を積み上げて" model.
+      // Evaluate the bet → new boost window(s). When MULTIPLE bets win
+      // on the same roll (e.g. 大 + total-12 both hit on a 12), each
+      // winning multiplier is pushed as its own Boost so the effective
+      // multiplier (product across the stack) reflects every win and
+      // each boost expires on its own 30-min timer.
       const result = evaluateBetWindow(bets, dice);
       const now = Date.now();
-      const newBoost: Boost = {
-        multiplier: result.multiplier,
+      // Each per-bet outcome (win or lose) becomes its own Boost so they
+      // stack multiplicatively with existing boosts and expire on
+      // independent 30-min timers. The effective multiplier (clamped by
+      // floor/cap in effectiveMultiplier()) reflects everything live.
+      const newBoosts: Boost[] = result.outcomeMultipliers.map((m) => ({
+        multiplier: m,
         expiresAt: now + result.windowMs,
         createdAt: now,
-      };
+      }));
       const stackedBoosts = [
         ...pruneExpiredBoosts(state.player.boosts, now),
-        newBoost,
+        ...newBoosts,
       ];
 
       const sicBoRoll: SicBoRoll = {

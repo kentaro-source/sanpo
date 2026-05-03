@@ -173,6 +173,19 @@ export const cities: City[] = [
     visitedInRealLife: true,
   },
 
+  {
+    id: 'JP-OITA',
+    name: 'Oita',
+    nameJa: '大分',
+    countryId: 'JP',
+    countryJa: '日本',
+    lat: 33.2382,
+    lng: 131.6126,
+    type: 'tourist',
+    description: '九州東岸、温泉と「おんせん県」キャッチ',
+    visitedInRealLife: true,
+  },
+
   // === 韓国 (South Korea) ===
   {
     id: 'KR-BUSAN',
