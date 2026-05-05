@@ -143,24 +143,24 @@ function detectCrossings(
       if (capKm > localStart && capKm <= localEnd) {
         if (!newCapitalsSet.has(cap.id)) {
           newCapitalsSet.add(cap.id);
-          // Bonuses stack: every new capital awards +2, and if the
+          // Bonuses stack: every new capital awards +5, and if the
           // user has actually been there in real life, an additional
-          // +3 思い出ボーナス is granted. Emitted as two separate
+          // +5 思い出ボーナス is granted. Emitted as two separate
           // events so the toast/recent-bonuses UI shows the breakdown.
           const irl = isRealLifeVisitedCapital(cap.id);
-          bonusTokens += 2;
+          bonusTokens += 5;
           events.push({
             kind: 'capital',
-            amount: 2,
-            label: `🏛 ${cap.nameJa}（${cap.countryJa}）通過 +2`,
+            amount: 5,
+            label: `🏛 ${cap.nameJa}（${cap.countryJa}）通過 +5`,
             timestamp: now,
           });
           if (irl) {
-            bonusTokens += 3;
+            bonusTokens += 5;
             events.push({
               kind: 'capital-landing',
-              amount: 3,
-              label: `★ 懐かしの${cap.nameJa} 思い出ボーナス +3`,
+              amount: 5,
+              label: `★ 懐かしの${cap.nameJa} 思い出ボーナス +5`,
               timestamp: now,
             });
           }
@@ -193,20 +193,20 @@ function detectCrossings(
     const city = cities.find((c) => c.id === cid);
     if (!city) continue;
     const irl = city.visitedInRealLife === true || isRealLifeVisitedCity(cid);
-    // Stackable: base city +1, plus +2 思い出 if IRL-visited.
-    bonusTokens += 1;
+    // Stackable: base city +3, plus +3 思い出 if IRL-visited.
+    bonusTokens += 3;
     events.push({
       kind: 'city',
-      amount: 1,
-      label: `📍 ${city.nameJa} 立ち寄り +1`,
+      amount: 3,
+      label: `📍 ${city.nameJa} 立ち寄り +3`,
       timestamp: now,
     });
     if (irl) {
-      bonusTokens += 2;
+      bonusTokens += 3;
       events.push({
         kind: 'city-irl',
-        amount: 2,
-        label: `★ 懐かしの${city.nameJa} 思い出ボーナス +2`,
+        amount: 3,
+        label: `★ 懐かしの${city.nameJa} 思い出ボーナス +3`,
         timestamp: now,
       });
     }
@@ -249,7 +249,7 @@ function checkMilestones(
 }
 
 const DEFAULT_CONFIG: GameConfig = {
-  stepsPerDie: 1000, // v8: 5000→1000 — more frequent betting to suit slow walking
+  stepsPerDie: 777,  // v9: 1000→777 — slightly more frequent chips, 「ラッキーセブン」
   maxDice: 100,      // v8: 5→100 — lets the player hoard for sea-crossing 爆速 sessions
 };
 

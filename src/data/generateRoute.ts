@@ -181,6 +181,29 @@ export function generateRoute(capitals: Capital[]): RouteData {
     }
   }
 
+  // Project any city defined in cities.ts that ISN'T already a
+  // waypoint onto the nearest square, IF it's within 200km of the
+  // route. Lets cities like JP-SAPPORO, GB-EDINBURGH, EG-LUXOR — added
+  // to cities.ts but never wired into a segment — still trigger a
+  // 立ち寄りボーナス when the player walks past them. Cities further
+  // than 200km from any route point are skipped (off-route entirely).
+  const PROJECTION_RADIUS_KM = 200;
+  for (const city of cities) {
+    if (city.id in cityDistances) continue;
+    let bestKm = -1;
+    let bestDist = Infinity;
+    for (const sq of squares) {
+      const d = haversineDistance(city.lat, city.lng, sq.lat, sq.lng);
+      if (d < bestDist) {
+        bestDist = d;
+        bestKm = sq.cumulativeKm;
+      }
+    }
+    if (bestDist <= PROJECTION_RADIUS_KM && bestKm >= 0) {
+      cityDistances[city.id] = bestKm;
+    }
+  }
+
   return {
     capitals,
     segments,
