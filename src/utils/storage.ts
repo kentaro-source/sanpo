@@ -122,9 +122,10 @@ export function loadGameState(): GameState | null {
         //   v1-v6: stepsPerDie 5000 (with a brief detour to 7000)
         //   v7   : 5000 again
         //   v8   : 1000 (much faster, suits the 1m/step distance model)
-        // Force any stored value below v8's expectation up to 1000.
-        if (parsed.config && parsed.config.stepsPerDie >= 5000) {
-          parsed.config.stepsPerDie = 1000;
+        //   v9   : 777 (lucky 7s)
+        // Force any stale stored value (≥1000) down to 777.
+        if (parsed.config && parsed.config.stepsPerDie >= 1000) {
+          parsed.config.stepsPerDie = 777;
         }
         // Token-cap history: 5 (v1-v8 initial) → 50 → 100 (v8 mid-session bumps).
         // Anyone still under 100 didn't get the new bonus economy yet — bump.
