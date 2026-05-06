@@ -196,6 +196,7 @@ export function useGame() {
     outcome: 'win' | 'lose',
     cardLabel: string,
   ) => dispatch({ type: 'ROLL_BORDER', choice, outcome, cardLabel });
+  const forceLaunchReset = () => dispatch({ type: 'FORCE_LAUNCH_RESET' });
   const resetGame = () => dispatch({ type: 'RESET_GAME' });
 
   return {
@@ -207,6 +208,7 @@ export function useGame() {
     syncFromGoogleFit,
     rollSicBo,
     rollBorder,
+    forceLaunchReset,
     resetGame,
   };
 }

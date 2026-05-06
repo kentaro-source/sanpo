@@ -162,11 +162,12 @@ export function ShareToX({ onClose }: Props) {
       if (minStr && minKmh < maxKmh) lines.push(`🐢 最低 ${minStr}`);
     }
 
-    // Long-haul progress: which capital we're aiming for, with flag.
+    // Long-haul progress: which capital we're aiming for, with flag,
+    // plus 何カ国目 for the world-tour-status bragging line.
     if (nextCapital) {
       const idx = Math.min(visitedCount + 1, totalCapitals);
       lines.push(
-        `🏛 → ${flagEmoji(nextCapital.id)} ${nextCapital.nameJa} (${idx}/${totalCapitals})`,
+        `🏛 → ${flagEmoji(nextCapital.id)} ${nextCapital.nameJa} (${idx}/${totalCapitals} カ国目)`,
       );
     }
 

@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { ShareToX } from './ShareToX';
+import { useGame } from '../../hooks/useGame';
 
 interface Props {
   onForceReload: () => void;
 }
 
 export function HamburgerMenu({ onForceReload }: Props) {
+  const { forceLaunchReset } = useGame();
   const [open, setOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
 
@@ -73,6 +75,24 @@ export function HamburgerMenu({ onForceReload }: Props) {
                 }}
               >
                 ⟳ 強制更新
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
+                className="menu-item"
+                onClick={() => {
+                  if (
+                    confirm(
+                      '5/7 Day 1 にリセットします。現在の進捗・チップは消去されます。よろしい?',
+                    )
+                  ) {
+                    setOpen(false);
+                    forceLaunchReset();
+                  }
+                }}
+              >
+                🚀 5/7 Day 1 にリセット
               </button>
             </li>
           </ul>

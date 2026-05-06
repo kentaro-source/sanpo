@@ -408,6 +408,7 @@ type GameAction =
   | { type: 'UPDATE_CONFIG'; config: Partial<GameConfig> }
   | { type: 'CLAIM_LOGIN_BONUS' }
   | { type: 'CHECK_SCHEDULED_RESET' }
+  | { type: 'FORCE_LAUNCH_RESET' }
   | { type: 'ROLL_BORDER'; choice: 'red' | 'black'; outcome: 'win' | 'lose'; cardLabel: string }
   | { type: 'RESET_GAME' };
 
@@ -907,11 +908,44 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           player: {
             ...fresh.player,
             scheduledResetAt: 0,
-            startDate: now,
+            // Use LAUNCH_RESET_AT_MS (= 5/7 00:00 JST) for startDate,
+            // not now. This pins Day 1 to the launch instant whether
+            // the reset fires exactly on schedule or a beat later.
+            startDate: LAUNCH_RESET_AT_MS,
+            // Day-1 login bonus is folded in here. Without this the
+            // CLAIM_LOGIN_BONUS effect (only fires once per app mount)
+            // would already have run on mount, leaving the freshly-
+            // reset state at 0 chips with no bonus credit.
+            availableDice: LOGIN_BONUS_CHIPS,
+            lastLoginDayStart: startOfDayMs(now),
           },
         };
       }
       return state;
+    }
+
+    case 'FORCE_LAUNCH_RESET': {
+      // Manual "5/7 Day 1 にリセット" trigger from the UI. Wipes all
+      // progress and pins startDate at LAUNCH_RESET_AT_MS so the day
+      // counter reads Day 1 the moment 5/7 00:00 JST hits, regardless
+      // of whether the user pressed the button before or after that.
+      // Clears scheduledResetAt to 0 so the auto-reset doesn't double-fire.
+      // Includes the Day-1 login bonus inline (the auto-claim effect
+      // only fires once per mount and won't re-trigger after this
+      // dispatch).
+      clearGameState();
+      const fresh = createInitialState();
+      const now = Date.now();
+      return {
+        ...fresh,
+        player: {
+          ...fresh.player,
+          scheduledResetAt: 0,
+          startDate: LAUNCH_RESET_AT_MS,
+          availableDice: LOGIN_BONUS_CHIPS,
+          lastLoginDayStart: startOfDayMs(now),
+        },
+      };
     }
 
     case 'RESET_GAME': {
