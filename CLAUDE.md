@@ -118,13 +118,18 @@ APK ビルドが必要な場合 (ユーザーが APK 更新依頼):
 
 **設計意図 (重要)**: ハズレ時のチップ消費は **「国境は金とられがち」の揶揄** (ユーザー明言)。「ハズレは無料リトライ」みたいな"親切設計"に書き換えないこと。memory `project_border_satire.md` 参照
 
-### 既知の制限と次の改善
+### 既知の制限と次の改善 (ユーザー確定スペック)
 
-**国境位置は first-foreign-stop ヒューリスティック** — 「Tokyo→Seoul」レグなら Busan (最初の KR 都市) で発火。理想は **文字通りの地理的国境** (例: 対馬-釜山間の海峡) だが、それには route データに「国境」を都市と同列の destination として追加する必要がある (~192 国境点)。「border-as-destination」をユーザーが認識・受容済み、別セッションのタスク。
+**発火位置の最終スペック**:
+- **海路 (sea)**: 目的地側への上陸時 = first foreign stop。例 JP→KR は釜山。`findNextBorder` の現挙動で正しい
+- **陸路 (land)**: 理想は文字通りの国境ライン。実装には route data に explicit 国境点を都市と同列の destination として追加する必要 (~192 点)。**code 側 heuristic では完全な正解は出ない** (midpoint は陸地で数百km ズレる、first-foreign-stop は既に他国内)
+- **陸路の妥協策 (今これでいく)**: code は first-foreign-stop のまま。route data 側で **国境直後の都市 (到着される側、できるだけ国境に近い)** を waypoint に追加する。例: KP→CN なら 丹東 (鴨緑江沿い)、RU→FI なら Vyborg、CN→KZ なら Khorgos など
+- 一度試した midpoint 案 (lastDomestic と firstForeign の中点) はユーザー却下: 陸路でズレすぎる。コミット `7f1bd4f` を `950823d` で revert 済み
 
 ### 残タスク (次セッション以降、優先順)
 
-1. **border-as-destination route データ整備** ← 上記の通り、国境を都市と同様 routeData に登録 (`Border` 型 + `borderDistances`)。`findNextBorder` をそれを優先して見るように切替
+1. **陸路の国境隣接都市を `cities.ts` + `segmentMeta.ts` に追加** — 上記スペック通り、各 land 国境の到着側に国境隣接都市を waypoint で追加。これで code 変更なく first-foreign-stop が正確になる。優先順: 実プレイで早く到達する順 (KP→CN: 丹東、CN→MN: エレンホト or ザミンウード、CN→KZ: ホルゴス、KZ→RU: 各種、RU→FI: ヴィボルグ、…)。完璧を目指さず順次拡充
+2. **(オプション) border-as-destination 完全版** — 1 が手間な場合、`Border` 型を新規導入 + `borderDistances` を route data に追加 + `findNextBorder` を「borders > cities/capitals 優先」に切替。理想だが大きな構造変更
 2. **画像のクオリティ調整** ← banner (1500×500 横長で難しいとユーザー認める) / casino / map crop が「ひどすぎ」評価。再デザイン or Canva 等の外部ツール推奨。`public/x-promo/banner-design.svg` の手書きSVG では限界
 3. **横浜以外の都市座標ポリシー記録** ← 市役所基準で統一決定済 (意思決定はあるが実 sweep はしてない)
 4. **アカウント取得確認**: `@sekai_sanpo_` (末尾アンダースコア) で取得予定。取得後は ShareToX の mention が機能するか実投稿で確認
