@@ -309,28 +309,22 @@ function visitedCountrySet(
 type BorderInfo = NonNullable<PlayerState['pendingBorder']>;
 
 /**
- * Find the next country boundary the player is about to cross.
- * Strategy: locate the first stop ahead of oldKm whose country has not
- * yet been entered (= firstForeign). The geographical border lies
- * BEFORE that stop — by the time you reach Busan, you are already in
- * Korea — so we estimate the border as the midpoint between the last
- * already-visited-country stop and firstForeign. The player is clamped
- * mid-strait there until they pass the immigration draw.
- *
- * Returns null if no boundary lies in the walk range.
+ * Find the first stop (city OR capital) between oldKm (exclusive) and
+ * newKm (inclusive) whose country has not yet been entered. That stop
+ * marks the country boundary — the player is clamped here until they
+ * win the border draw. Uses km order so the FIRST foreign stop wins
+ * (Busan over Seoul on a JP→KR leg).
  */
 function findNextBorder(
   oldKm: number,
   newKm: number,
   visitedCountries: Set<string>,
 ): BorderInfo | null {
-  // 1. First foreign stop ahead (no upper bound — we still need it
-  //    even if the walk stops before it, so we can compute the midpoint).
-  let firstForeign: BorderInfo | null = null;
+  let best: BorderInfo | null = null;
   const consider = (km: number, info: BorderInfo) => {
     if (visitedCountries.has(info.country)) return;
-    if (km <= oldKm) return;
-    if (!firstForeign || km < firstForeign.atKm) firstForeign = info;
+    if (km <= oldKm || km > newKm) return;
+    if (!best || km < best.atKm) best = info;
   };
   for (const cap of routeData.capitals) {
     const km = routeData.capitalDistances[cap.id];
@@ -347,32 +341,7 @@ function findNextBorder(
       country: city.countryId,
     });
   }
-  if (!firstForeign) return null;
-  // TS struggles to narrow the captured-in-closure assignment above.
-  const ff: BorderInfo = firstForeign;
-
-  // 2. Last domestic stop strictly before firstForeign — the other
-  //    anchor for the midpoint.
-  let lastDomesticKm = 0;
-  for (const cap of routeData.capitals) {
-    if (!visitedCountries.has(cap.id)) continue;
-    const km = routeData.capitalDistances[cap.id];
-    if (km == null) continue;
-    if (km < ff.atKm && km > lastDomesticKm) lastDomesticKm = km;
-  }
-  for (const city of cities) {
-    if (!visitedCountries.has(city.countryId)) continue;
-    const km = routeData.cityDistances[city.id];
-    if (km == null) continue;
-    if (km < ff.atKm && km > lastDomesticKm) lastDomesticKm = km;
-  }
-
-  const midpoint = (lastDomesticKm + ff.atKm) / 2;
-  // Fire only if the walk this batch reaches the geographical border.
-  if (newKm < midpoint) return null;
-  // Clamp the cap so we never push the player backwards.
-  const atKm = Math.max(oldKm + 0.001, midpoint);
-  return { ...ff, atKm };
+  return best;
 }
 
 const BORDER_ROLL_COST = 1;
