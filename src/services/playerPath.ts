@@ -24,10 +24,46 @@ interface BuiltPath {
   cumKm: number[];
 }
 
+const STORAGE_KEY = 'sanpo-snapped-path-v1';
 let current: BuiltPath | null = null;
+let loadedFromDisk = false;
+
+/**
+ * Lazy-load any persisted path on first read so first-paint of
+ * ShareToX doesn't have to wait for MapView's async Directions build
+ * (which can take seconds-to-minutes on a fresh visible window).
+ * MapView still overwrites with a fresh build when ready.
+ */
+function ensureLoaded(): void {
+  if (loadedFromDisk) return;
+  loadedFromDisk = true;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const parsed = JSON.parse(raw) as BuiltPath;
+    if (
+      parsed &&
+      Array.isArray(parsed.allPoints) &&
+      Array.isArray(parsed.cumKm) &&
+      parsed.allPoints.length === parsed.cumKm.length &&
+      parsed.allPoints.length > 1
+    ) {
+      current = parsed;
+    }
+  } catch {
+    // ignore
+  }
+}
 
 export function setBuiltPath(path: BuiltPath | null): void {
   current = path;
+  loadedFromDisk = true;
+  try {
+    if (path) localStorage.setItem(STORAGE_KEY, JSON.stringify(path));
+    else localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // quota or unavailable — ignore, in-memory still works
+  }
 }
 
 /**
@@ -36,6 +72,7 @@ export function setBuiltPath(path: BuiltPath | null): void {
  * outside the currently-built window.
  */
 export function snappedPositionAtKm(km: number): SnappedPosition | null {
+  ensureLoaded();
   if (!current || current.cumKm.length < 2) return null;
   const { allPoints, cumKm } = current;
   const lo = cumKm[0];
