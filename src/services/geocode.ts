@@ -36,7 +36,11 @@ interface GoogleGeocodeResult {
   }>;
 }
 
-const STORAGE_KEY = 'sanpo-geocode-cache-v1';
+// v2: bumped after pickLabel regression — v1 entries have locality-only
+// labels from a brief period when sublocality was disabled, even though
+// the new pickLabel would have produced locality+sublocality. Fresh
+// cache forces re-resolution against the new label rules.
+const STORAGE_KEY = 'sanpo-geocode-cache-v2';
 const memCache = new Map<string, GeocodeResult>();
 let diskLoaded = false;
 
@@ -47,6 +51,13 @@ function key(lat: number, lng: number): string {
 function loadDiskCache(): void {
   if (diskLoaded) return;
   diskLoaded = true;
+  try {
+    // Drop the previous-version cache once, on first load post-upgrade,
+    // so old entries don't sit around taking up quota.
+    localStorage.removeItem('sanpo-geocode-cache-v1');
+  } catch {
+    // ignore
+  }
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return;
