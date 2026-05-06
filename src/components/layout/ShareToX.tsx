@@ -13,8 +13,23 @@ interface Props {
   onClose: () => void;
 }
 
-const HASHTAG_LINE = '#せかいさんぽ @sekai_sanpo_';
+const HASHTAG_LINE = '#せかいさんぽ';
 const BASE_KMH = 4;
+const X_CHAR_BUDGET = 280;
+
+/**
+ * Approximate X's "weighted character" rule: ASCII codepoints count
+ * as 1, everything else (CJK, kana, emoji) counts as 2. Close enough
+ * to twitter-text's official ranges for our daily-post use case.
+ */
+function weightedLen(s: string): number {
+  let w = 0;
+  for (const ch of s) {
+    const code = ch.codePointAt(0) ?? 0;
+    w += code <= 0x7f ? 1 : 2;
+  }
+  return w;
+}
 
 function formatSpeed(kmh: number): string {
   if (!Number.isFinite(kmh) || kmh <= 0) return '';
@@ -32,7 +47,8 @@ function flagEmoji(cc: string): string {
 }
 
 export function ShareToX({ onClose }: Props) {
-  const { nextCapital, visitedCount, totalCapitals, player, routeData } = useGame();
+  const { nextCapital, visitedCount, totalCapitals, player, routeData, upcomingStops } =
+    useGame();
   const [comment, setComment] = useState('');
 
   // Lat/lng for today's start and current position. Memoized so the
@@ -153,32 +169,15 @@ export function ShareToX({ onClose }: Props) {
       lines.push(`👣 ${todaySteps.toLocaleString()}歩`);
     }
 
-    // Current speed = product of active boosts × 4 km/h. Always shown
-    // even when no Sic Bo roll happened today, so the post never goes
-    // bare on the speed dimension.
-    const now = Date.now();
-    let currentMult = 1;
-    for (const b of player.boosts ?? []) {
-      if (b.expiresAt > now && Number.isFinite(b.multiplier)) {
-        currentMult *= b.multiplier;
-      }
-    }
-    if (!Number.isFinite(currentMult) || currentMult <= 0) currentMult = 1;
-    if (currentMult < 0.25) currentMult = 0.25;
-    if (currentMult > 1000) currentMult = 1000;
-    const currentKmh = currentMult * BASE_KMH;
-    const currentStr = formatSpeed(currentKmh);
-    if (currentStr) lines.push(`🚶 現在 ${currentStr}`);
-
-    // Today's max / min effective multiplier — only added if a Sic Bo
-    // roll happened today AND the band is wider than the current speed.
+    // Today's max / min effective multiplier — only when a Sic Bo
+    // roll happened today (otherwise no band data exists).
     if (player.todayMultiplierDayStart === todayStart) {
       const maxKmh = (player.todayMaxMultiplier ?? 0) * BASE_KMH;
       const minKmh = (player.todayMinMultiplier ?? 0) * BASE_KMH;
       const maxStr = formatSpeed(maxKmh);
       const minStr = formatSpeed(minKmh);
-      if (maxStr && maxKmh > currentKmh + 0.5) lines.push(`🏃 最高 ${maxStr}`);
-      if (minStr && minKmh + 0.5 < currentKmh) lines.push(`🐢 最低 ${minStr}`);
+      if (maxStr) lines.push(`🏃 最高 ${maxStr}`);
+      if (minStr && minKmh < maxKmh) lines.push(`🐢 最低 ${minStr}`);
     }
 
     // Sic Bo wins/losses for the day. Only shown when there's been
@@ -191,15 +190,56 @@ export function ShareToX({ onClose }: Props) {
       }
     }
 
-    // Long-haul progress: which capital we're aiming for, with flag,
-    // plus 何カ国目 for the world-tour-status bragging line.
-    // visitedCount = countries already cleared (includes JP at start),
-    // so it IS the index of the country the player currently stands in.
+    // Distance summary: cumulative km walked plus remaining to lap end,
+    // with progress % so the post answers "how far along am I?" at a
+    // glance.
+    const totalKm = routeData.totalDistanceKm;
+    const walkedKm = Math.max(0, player.distanceKm);
+    const remainingKm = Math.max(0, totalKm - walkedKm);
+    const fmt = (km: number) =>
+      km >= 100 ? Math.round(km).toLocaleString() : km.toFixed(1);
+    const pct = totalKm > 0 ? (walkedKm / totalKm) * 100 : 0;
+    const pctStr = pct < 0.1 ? pct.toFixed(2) : pct.toFixed(1);
+    lines.push(
+      `📏 累計 ${fmt(walkedKm)}km / 残り ${fmt(remainingKm)}km (${pctStr}%)`,
+    );
+
+    // ETA: at this point's km/day pace, how long to complete a lap.
+    // Skip until at least 1 day has passed AND we've actually moved
+    // (otherwise pace is meaningless / infinite).
+    const elapsedDays =
+      (Date.now() - player.startDate) / (1000 * 60 * 60 * 24);
+    if (elapsedDays >= 1 && walkedKm > 0 && remainingKm > 0) {
+      const kmPerDay = walkedKm / elapsedDays;
+      const etaDays = remainingKm / kmPerDay;
+      const etaYears = etaDays / 365;
+      let etaStr: string;
+      if (etaYears >= 100) etaStr = '100年以上';
+      else if (etaYears >= 1) etaStr = `${etaYears.toFixed(1)}年`;
+      else if (etaDays >= 30) etaStr = `${(etaDays / 30).toFixed(1)}ヶ月`;
+      else etaStr = `${Math.round(etaDays)}日`;
+      lines.push(`⏳ このペースで完走まで ${etaStr}`);
+    }
+
+    // Long-haul progress line — show the immediate next stop (could be
+    // an intermediate city like 釜山 on the way to ソウル), and the
+    // segment-goal capital in parens so the reader sees both "where the
+    // walker is heading next" and "where this leg ends".
     if (nextCapital) {
       const idx = Math.max(1, Math.min(visitedCount, totalCapitals));
-      lines.push(
-        `🏛 ${idx}/${totalCapitals} カ国目 → ${flagEmoji(nextCapital.id)} ${nextCapital.nameJa}`,
-      );
+      const next = upcomingStops?.[0];
+      const nextIsCapital =
+        next && next.kind === 'capital' && next.nameJa === nextCapital.nameJa;
+      const nextFlag = next?.countryCode ? flagEmoji(next.countryCode) : '';
+      const goalFlag = flagEmoji(nextCapital.id);
+      const goalLabel = `${goalFlag} ${nextCapital.nameJa}`;
+      if (next && !nextIsCapital) {
+        lines.push(
+          `🏛 ${idx}/${totalCapitals} カ国目 → ${nextFlag} ${next.nameJa} (→ ${goalLabel})`,
+        );
+      } else {
+        lines.push(`🏛 ${idx}/${totalCapitals} カ国目 → ${goalLabel}`);
+      }
     }
 
     return lines.join('\n');
@@ -221,6 +261,7 @@ export function ShareToX({ onClose }: Props) {
     startLabel,
     currLabel,
     placeNearKm,
+    upcomingStops,
   ]);
 
   const finalText = useMemo(() => {
@@ -231,7 +272,21 @@ export function ShareToX({ onClose }: Props) {
     return parts.join('\n\n');
   }, [comment, stats]);
 
+  // X weighted-char budget calc — stats + hashtag is fixed (auto-gen),
+  // the remaining budget is what's available for the freely-typed
+  // comment. statsBaseLen includes the leading "\n\n" separator that
+  // appears once a comment is added so the displayed budget matches
+  // the actual posted text exactly.
+  const statsBaseLen = useMemo(
+    () => weightedLen(`\n\n${stats}\n\n${HASHTAG_LINE}`),
+    [stats],
+  );
+  const commentLen = useMemo(() => weightedLen(comment), [comment]);
+  const remaining = X_CHAR_BUDGET - statsBaseLen - commentLen;
+  const overBudget = remaining < 0;
+
   const handlePost = () => {
+    if (overBudget) return;
     const url = `https://x.com/intent/tweet?text=${encodeURIComponent(finalText)}`;
     window.open(url, '_blank', 'noopener,noreferrer');
     onClose();
@@ -252,46 +307,41 @@ export function ShareToX({ onClose }: Props) {
           </button>
         </header>
         <div className="share-body">
-          <label className="share-label">コメント (任意)</label>
+          <label className="share-label">
+            コメント (任意 — 残り {remaining} 文字)
+          </label>
           <textarea
             className="share-comment"
             placeholder="今日の散歩の感想とか…"
             value={comment}
             onChange={(e) => setComment(e.target.value)}
             rows={3}
-            maxLength={140}
             autoFocus
           />
-          <div className="share-charcount">{comment.length} / 140</div>
+          <div
+            className={`share-charcount ${overBudget ? 'is-over' : ''}`}
+          >
+            {commentLen} / {X_CHAR_BUDGET - statsBaseLen} (合計{' '}
+            {statsBaseLen + commentLen} / {X_CHAR_BUDGET})
+          </div>
 
           <label className="share-label">プレビュー</label>
           <div className="share-preview-card">
-            <img
-              className="share-preview-avatar"
-              src={`${import.meta.env.BASE_URL}x-promo/profile-400.png`}
-              alt=""
-            />
-            <div className="share-preview-content">
-              <div className="share-preview-author">
-                <span className="share-preview-name">せかいさんぽ</span>
-                <span className="share-preview-handle">@sekai_sanpo_ · 今</span>
-              </div>
-              <div className="share-preview-text">
-                {finalText.split('\n').map((line, i) => (
-                  <span key={i} className="share-preview-line">
-                    {line.split(/(\s+)/).map((tok, j) =>
-                      tok.startsWith('#') || tok.startsWith('@') ? (
-                        <span key={j} className="share-preview-link">
-                          {tok}
-                        </span>
-                      ) : (
-                        <span key={j}>{tok}</span>
-                      ),
-                    )}
-                    {'\n'}
-                  </span>
-                ))}
-              </div>
+            <div className="share-preview-text">
+              {finalText.split('\n').map((line, i) => (
+                <span key={i} className="share-preview-line">
+                  {line.split(/(\s+)/).map((tok, j) =>
+                    tok.startsWith('#') || tok.startsWith('@') ? (
+                      <span key={j} className="share-preview-link">
+                        {tok}
+                      </span>
+                    ) : (
+                      <span key={j}>{tok}</span>
+                    ),
+                  )}
+                  {'\n'}
+                </span>
+              ))}
             </div>
           </div>
         </div>
@@ -300,8 +350,9 @@ export function ShareToX({ onClose }: Props) {
             type="button"
             className="share-post-btn"
             onClick={handlePost}
+            disabled={overBudget}
           >
-            𝕏 で投稿画面を開く
+            {overBudget ? '文字数オーバー' : '𝕏 で投稿画面を開く'}
           </button>
         </div>
       </div>
