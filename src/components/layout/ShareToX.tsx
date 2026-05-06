@@ -8,6 +8,13 @@ import {
   reverseGeocodeCached,
   type GeocodeResult,
 } from '../../services/geocode';
+import {
+  isXAuthConfigured,
+  loadStoredToken,
+  startXAuth,
+  clearStoredToken,
+} from '../../services/xAuth';
+import { postTweet, XPostError } from '../../services/xPost';
 
 interface Props {
   onClose: () => void;
@@ -49,7 +56,11 @@ function flagEmoji(cc: string): string {
 export function ShareToX({ onClose }: Props) {
   const { nextCapital, visitedCount, totalCapitals, player, routeData, upcomingStops } =
     useGame();
-  const [comment, setComment] = useState('');
+  // The full editable text. Initialized from the auto-generated template
+  // when the modal opens (and again on demand via the reset button) so
+  // the user can freely tweak/delete/reorder before posting.
+  const [text, setText] = useState('');
+  const [touched, setTouched] = useState(false);
 
   // Lat/lng for today's start and current position. Memoized so the
   // geocode effect only re-fires when the player actually moves.
@@ -71,6 +82,65 @@ export function ShareToX({ onClose }: Props) {
     reverseGeocodeCached(currLatLng.lat, currLatLng.lng),
   );
 
+  // X OAuth state.
+  const [xUsername, setXUsername] = useState<string | null>(null);
+  const [xConnecting, setXConnecting] = useState(false);
+  const [xPosting, setXPosting] = useState(false);
+  const [xMessage, setXMessage] = useState<{
+    kind: 'info' | 'error' | 'success';
+    text: string;
+  } | null>(null);
+  useEffect(() => {
+    loadStoredToken().then((t) => {
+      if (t?.username) setXUsername(t.username);
+    });
+  }, []);
+
+  const xConfigured = isXAuthConfigured();
+
+  const handleConnect = async () => {
+    setXConnecting(true);
+    setXMessage(null);
+    try {
+      const t = await startXAuth();
+      if (t.username) setXUsername(t.username);
+      setXMessage({ kind: 'success', text: `@${t.username ?? '...'} と連携しました` });
+    } catch (e) {
+      setXMessage({
+        kind: 'error',
+        text: `連携失敗: ${(e as Error).message}`,
+      });
+    } finally {
+      setXConnecting(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    await clearStoredToken();
+    setXUsername(null);
+    setXMessage({ kind: 'info', text: 'X 連携を解除しました' });
+  };
+
+  const handleDirectPost = async (text: string) => {
+    setXPosting(true);
+    setXMessage(null);
+    try {
+      const r = await postTweet(text);
+      setXMessage({ kind: 'success', text: `投稿完了 (${r.id})` });
+      // Auto-close after a short pause so user can read the success.
+      window.setTimeout(() => onClose(), 1200);
+    } catch (e) {
+      const err = e as XPostError;
+      let msg = err.message;
+      if (err.status === 401) msg = '認証期限切れ。再連携してください';
+      else if (err.status === 429) msg = 'レート制限 (24h で再試行)';
+      else if (err.status === 403) msg = '権限不足 — 連携をやり直す必要';
+      setXMessage({ kind: 'error', text: msg });
+    } finally {
+      setXPosting(false);
+    }
+  };
+
   useEffect(() => {
     let cancel = false;
     if (startLatLng) {
@@ -87,6 +157,20 @@ export function ShareToX({ onClose }: Props) {
       cancel = true;
     };
   }, [startLatLng, currLatLng]);
+
+  /**
+   * Resolve a country code (ISO alpha-2) to its Japanese country name
+   * by looking up the matching capital entry. Falls back to the code
+   * itself if no capital exists with that id (shouldn't happen — every
+   * country in the route has a capital entry).
+   */
+  const countryJaFor = useMemo(() => {
+    return (cc: string): string => {
+      if (!cc) return '';
+      const cap = routeData.capitals.find((c) => c.id === cc.toUpperCase());
+      return cap?.countryJa ?? cc;
+    };
+  }, [routeData.capitals]);
 
   /**
    * Route-local fallback used while the geocoder is loading or if the
@@ -145,19 +229,25 @@ export function ShareToX({ onClose }: Props) {
     const currPlace = currLabel ?? placeNearKm(player.distanceKm);
 
     if (startPlace && currPlace) {
+      const sCountry = countryJaFor(startPlace.cc);
+      const cCountry = countryJaFor(currPlace.cc);
       if (startPlace.name === currPlace.name) {
-        lines.push(`${flagEmoji(currPlace.cc)} ${currPlace.name}`);
+        lines.push(`${flagEmoji(currPlace.cc)} ${cCountry} ${currPlace.name}`);
       } else if (startPlace.cc === currPlace.cc) {
+        // Same country — country name once, then both city names.
         lines.push(
-          `${flagEmoji(startPlace.cc)} ${startPlace.name} → ${currPlace.name}`,
+          `${flagEmoji(startPlace.cc)} ${sCountry} ${startPlace.name} → ${currPlace.name}`,
         );
       } else {
+        // Cross-border — country names on both sides.
         lines.push(
-          `${flagEmoji(startPlace.cc)} ${startPlace.name} → ${flagEmoji(currPlace.cc)} ${currPlace.name}`,
+          `${flagEmoji(startPlace.cc)} ${sCountry} ${startPlace.name} → ${flagEmoji(currPlace.cc)} ${cCountry} ${currPlace.name}`,
         );
       }
     } else if (currPlace) {
-      lines.push(`${flagEmoji(currPlace.cc)} ${currPlace.name}`);
+      lines.push(
+        `${flagEmoji(currPlace.cc)} ${countryJaFor(currPlace.cc)} ${currPlace.name}`,
+      );
     }
 
     // Step count for the day.
@@ -236,12 +326,12 @@ export function ShareToX({ onClose }: Props) {
       const next = upcomingStops?.[0];
       const nextIsCapital =
         next && next.kind === 'capital' && next.nameJa === nextCapital.nameJa;
-      const nextFlag = next?.countryCode ? flagEmoji(next.countryCode) : '';
-      const goalFlag = flagEmoji(nextCapital.id);
-      const goalLabel = `${goalFlag}${nextCapital.nameJa}`;
+      const goalLabel = `${flagEmoji(nextCapital.id)} ${nextCapital.countryJa} ${nextCapital.nameJa}`;
       if (next && !nextIsCapital) {
+        const nextCountry = next.countryCode ? countryJaFor(next.countryCode) : '';
+        const nextFlag = next.countryCode ? flagEmoji(next.countryCode) : '';
         lines.push(
-          `🏛 ${idx}/${totalCapitals} → ${nextFlag}${next.nameJa} (→ ${goalLabel})`,
+          `🏛 ${idx}/${totalCapitals} → ${nextFlag} ${nextCountry} ${next.nameJa} (→ ${goalLabel})`,
         );
       } else {
         lines.push(`🏛 ${idx}/${totalCapitals} → ${goalLabel}`);
@@ -270,30 +360,30 @@ export function ShareToX({ onClose }: Props) {
     upcomingStops,
   ]);
 
-  const finalText = useMemo(() => {
-    const parts: string[] = [];
-    if (comment.trim()) parts.push(comment.trim());
-    parts.push(stats);
-    parts.push(HASHTAG_LINE);
-    return parts.join('\n\n');
-  }, [comment, stats]);
-
-  // X weighted-char budget calc — stats + hashtag is fixed (auto-gen),
-  // the remaining budget is what's available for the freely-typed
-  // comment. statsBaseLen includes the leading "\n\n" separator that
-  // appears once a comment is added so the displayed budget matches
-  // the actual posted text exactly.
-  const statsBaseLen = useMemo(
-    () => weightedLen(`\n\n${stats}\n\n${HASHTAG_LINE}`),
+  // Auto-generated template (= what we'd post if user did nothing).
+  const template = useMemo(
+    () => `${stats}\n\n${HASHTAG_LINE}`,
     [stats],
   );
-  const commentLen = useMemo(() => weightedLen(comment), [comment]);
-  const remaining = X_CHAR_BUDGET - statsBaseLen - commentLen;
+
+  // Initialize / refresh the textarea from template when modal opens
+  // OR when stats change AND user hasn't manually touched the text yet.
+  useEffect(() => {
+    if (!touched) setText(template);
+  }, [template, touched]);
+
+  const totalLen = weightedLen(text);
+  const remaining = X_CHAR_BUDGET - totalLen;
   const overBudget = remaining < 0;
+
+  const handleResetText = () => {
+    setText(template);
+    setTouched(false);
+  };
 
   const handlePost = () => {
     if (overBudget) return;
-    const url = `https://x.com/intent/tweet?text=${encodeURIComponent(finalText)}`;
+    const url = `https://x.com/intent/tweet?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank', 'noopener,noreferrer');
     onClose();
   };
@@ -313,54 +403,80 @@ export function ShareToX({ onClose }: Props) {
           </button>
         </header>
         <div className="share-body">
-          <label className="share-label">
-            コメント (任意 — 残り {remaining} 文字)
-          </label>
+          <div className="share-label-row">
+            <label className="share-label">投稿内容 (編集可)</label>
+            {touched && (
+              <button
+                type="button"
+                className="share-reset"
+                onClick={handleResetText}
+              >
+                ⟲ 自動生成に戻す
+              </button>
+            )}
+          </div>
           <textarea
-            className="share-comment"
-            placeholder="今日の散歩の感想とか…"
-            value={comment}
-            onChange={(e) => setComment(e.target.value)}
-            rows={3}
+            className="share-comment share-comment-tall"
+            value={text}
+            onChange={(e) => {
+              setText(e.target.value);
+              setTouched(true);
+            }}
+            rows={10}
             autoFocus
           />
-          <div
-            className={`share-charcount ${overBudget ? 'is-over' : ''}`}
-          >
-            {commentLen} / {X_CHAR_BUDGET - statsBaseLen} (合計{' '}
-            {statsBaseLen + commentLen} / {X_CHAR_BUDGET})
+          <div className={`share-charcount ${overBudget ? 'is-over' : ''}`}>
+            {totalLen} / {X_CHAR_BUDGET}
+            {overBudget && ' (オーバー)'}
           </div>
-
-          <label className="share-label">プレビュー</label>
-          <div className="share-preview-card">
-            <div className="share-preview-text">
-              {finalText.split('\n').map((line, i) => (
-                <span key={i} className="share-preview-line">
-                  {line.split(/(\s+)/).map((tok, j) =>
-                    tok.startsWith('#') || tok.startsWith('@') ? (
-                      <span key={j} className="share-preview-link">
-                        {tok}
-                      </span>
-                    ) : (
-                      <span key={j}>{tok}</span>
-                    ),
-                  )}
-                  {'\n'}
-                </span>
-              ))}
+          {xMessage && (
+            <div className={`share-x-msg share-x-msg-${xMessage.kind}`}>
+              {xMessage.text}
             </div>
-          </div>
+          )}
         </div>
-        <div className="share-footer">
+        <div className="share-footer share-footer-row">
+          {xConfigured && xUsername && (
+            <button
+              type="button"
+              className="share-post-btn share-post-btn-direct"
+              onClick={() => handleDirectPost(text)}
+              disabled={overBudget || xPosting}
+              title={`@${xUsername} に直接投稿`}
+            >
+              {xPosting ? '投稿中…' : `@${xUsername} に投稿`}
+            </button>
+          )}
+          {xConfigured && !xUsername && (
+            <button
+              type="button"
+              className="share-post-btn share-post-btn-connect"
+              onClick={handleConnect}
+              disabled={xConnecting}
+            >
+              {xConnecting ? '連携中…' : 'X 連携'}
+            </button>
+          )}
           <button
             type="button"
             className="share-post-btn"
             onClick={handlePost}
             disabled={overBudget}
           >
-            {overBudget ? '文字数オーバー' : '𝕏 で投稿画面を開く'}
+            𝕏 画面で開く
           </button>
         </div>
+        {xConfigured && xUsername && (
+          <div className="share-x-foot">
+            <button
+              type="button"
+              className="share-disconnect"
+              onClick={handleDisconnect}
+            >
+              連携解除
+            </button>
+          </div>
+        )}
       </div>
     </div>,
     document.body,

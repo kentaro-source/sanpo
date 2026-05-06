@@ -18,6 +18,31 @@ APK ビルドが必要な場合 (ユーザーが APK 更新依頼):
 - JDK 21 (Android Studio JBR `/c/Program Files/Android/Android Studio/jbr`)、ANDROID_HOME `$LOCALAPPDATA/Android/Sdk` を環境変数で渡して `cd android && ./gradlew.bat assembleDebug`
 - adb は `$LOCALAPPDATA/Android/Sdk/platform-tools/adb.exe`
 
+## 🐦 X (Twitter) OAuth 直接投稿 — セットアップ手順
+
+**ファイル**: `src/services/xAuth.ts` (PKCE flow + token mgr) / `src/services/xPost.ts` (POST /2/tweets) / `ShareToX.tsx` の連携 UI
+
+**起動条件**: ビルド時に `VITE_X_CLIENT_ID` env が設定されていれば `isXAuthConfigured() === true` で OAuth UI が表示される。未設定なら intent URL モードのまま (現行と同じ)。
+
+**ユーザー側セットアップ** (1回だけ):
+1. https://developer.x.com で `@sekai_sanpo_` でログイン → Free tier に sign up (電話番号認証必要)
+2. Project + App 作成、User authentication settings:
+   - Type: Public client (PKCE)
+   - Permissions: Read and write
+   - **Callback URL**: `com.kentarosource.sanpo://oauth-callback`
+3. **Client ID** を取得 (secret は不要)
+4. `.env.local` に追加: `VITE_X_CLIENT_ID=xxxxxxxxxxxxxxxxx`
+5. APK 再ビルド + インストール
+6. アプリで ☰ → 𝕏 投稿 → 「X 連携」タップ → 認可画面で許可 → アプリ復帰、token 保存
+
+**deep link**: `AndroidManifest.xml` に scheme `com.kentarosource.sanpo` host `oauth-callback` の intent-filter 追加済 (.MainActivity 内、launchMode=singleTask)。Capacitor App プラグインの `appUrlOpen` イベントで callback 受け取り
+
+**Free tier 制限**: 17 投稿/24h。1日1投稿運用なら余裕。429 時はトーストで通知
+
+**Token 寿命**: access 2h、refresh 数ヶ月。`getAccessToken()` が自動 refresh、失敗時は再連携要求
+
+**rate limit / token 期限切れ動作**: ShareToX の `xMessage` ステートで失敗理由を表示 (401/403/429 別メッセージ)。intent URL fallback ボタンは常に併設しているのでフォールバック可能
+
 ## 🚀 引継ぎサマリ (2026-05-06 第7セッション末 — JST自動リセット + dailyHistory撤去 + reverse geocoded share + 国境ロール MVP)
 
 別PCで再開する Claude / 数ヶ月後の自分が**最初に読むべき要点**:

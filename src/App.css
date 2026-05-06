@@ -233,6 +233,73 @@
   opacity: 0.4;
   cursor: not-allowed;
 }
+.share-comment-tall {
+  min-height: 220px;
+}
+.share-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.share-reset {
+  background: transparent;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.share-reset:active {
+  background: #f1f5f9;
+}
+.share-footer-row {
+  display: flex;
+  gap: 8px;
+}
+.share-post-btn-direct {
+  background: #1d9bf0;
+  color: #fff;
+}
+.share-post-btn-direct:active { background: #1a8cd8; }
+.share-post-btn-connect {
+  background: #1d9bf0;
+  color: #fff;
+}
+.share-x-msg {
+  font-size: 12px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  margin-top: -2px;
+}
+.share-x-msg-info {
+  background: #f1f5f9;
+  color: #334155;
+}
+.share-x-msg-success {
+  background: #ecfdf5;
+  color: #065f46;
+  border: 1px solid #a7f3d0;
+}
+.share-x-msg-error {
+  background: #fef2f2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+.share-x-foot {
+  padding: 6px 16px 12px;
+  text-align: right;
+  background: #fff;
+}
+.share-disconnect {
+  background: transparent;
+  border: 0;
+  color: #94a3b8;
+  font-size: 11px;
+  cursor: pointer;
+  text-decoration: underline;
+}
 /* Plain post-body preview with X-blue hashtag/mention highlight. */
 .share-preview-card {
   background: #f8fafc;
