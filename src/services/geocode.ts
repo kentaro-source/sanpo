@@ -72,12 +72,14 @@ function saveDiskCache(): void {
 }
 
 /**
- * Pick a short label from a Geocoder result. Stay at the locality
- * (city / 区) level — sublocality detail (neighborhood / chome name)
- * was too granular for X posts: rural points returned obscure names
- * like "向笠新屋" that nobody recognizes, and the inconsistency between
- * dense urban neighborhoods and rural micro-areas was jarring. City
- * name alone reads cleanly: "世田谷区", "磐田市", "Hamamatsu".
+ * Pick a short label from a Geocoder result. JP returns nested
+ * sublocality components (level_1 = neighborhood, level_2 = chome
+ * name, level_3 = X丁目, level_4 = banchi); we want level_1 if
+ * present otherwise level_2. The plain `sublocality` lookup picks
+ * the FIRST match in document order, which is the most granular
+ * (level_4 = "６" — pure number, useless), so we always look up by
+ * explicit level. Level 3/4 are skipped because they read as digits
+ * not place names.
  */
 function pickLabel(result: GoogleGeocodeResult): GeocodeResult {
   const getLong = (type: string): string | undefined =>
@@ -88,9 +90,15 @@ function pickLabel(result: GoogleGeocodeResult): GeocodeResult {
   const locality = getLong('locality');
   const adminLvl2 = getLong('administrative_area_level_2');
   const adminLvl1 = getLong('administrative_area_level_1');
+  const sublocality =
+    getLong('sublocality_level_1') ?? getLong('sublocality_level_2');
 
+  if (cc === 'JP' && locality && sublocality) {
+    return { name: `${locality}${sublocality}`, cc };
+  }
   if (locality) return { name: locality, cc };
   if (adminLvl2) return { name: adminLvl2, cc };
+  if (sublocality) return { name: sublocality, cc };
   if (adminLvl1) return { name: adminLvl1, cc };
   const first = result.formatted_address.split(',')[0]?.trim();
   return { name: first || '?', cc };
