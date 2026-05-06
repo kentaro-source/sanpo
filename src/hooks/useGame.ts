@@ -155,7 +155,7 @@ export function useGame() {
     }
     if (!Number.isFinite(effectiveMult) || effectiveMult <= 0) effectiveMult = 1;
     if (effectiveMult < 0.25) effectiveMult = 0.25;
-    if (effectiveMult > 30) effectiveMult = 30;
+    if (effectiveMult > 1000) effectiveMult = 1000;
     const multiplierActive = liveBoosts.length > 0 && effectiveMult !== 1;
     // Time until the SOONEST boost expires (when stack starts shrinking).
     const multiplierMsLeft = liveBoosts.length

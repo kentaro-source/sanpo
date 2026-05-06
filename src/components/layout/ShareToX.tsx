@@ -165,7 +165,7 @@ export function ShareToX({ onClose }: Props) {
     }
     if (!Number.isFinite(currentMult) || currentMult <= 0) currentMult = 1;
     if (currentMult < 0.25) currentMult = 0.25;
-    if (currentMult > 30) currentMult = 30;
+    if (currentMult > 1000) currentMult = 1000;
     const currentKmh = currentMult * BASE_KMH;
     const currentStr = formatSpeed(currentKmh);
     if (currentStr) lines.push(`🚶 現在 ${currentStr}`);
@@ -263,7 +263,35 @@ export function ShareToX({ onClose }: Props) {
           <div className="share-charcount">{comment.length} / 140</div>
 
           <label className="share-label">プレビュー</label>
-          <div className="share-preview">{finalText}</div>
+          <div className="share-preview-card">
+            <img
+              className="share-preview-avatar"
+              src={`${import.meta.env.BASE_URL}x-promo/profile-400.png`}
+              alt=""
+            />
+            <div className="share-preview-content">
+              <div className="share-preview-author">
+                <span className="share-preview-name">せかいさんぽ</span>
+                <span className="share-preview-handle">@sekai_sanpo_ · 今</span>
+              </div>
+              <div className="share-preview-text">
+                {finalText.split('\n').map((line, i) => (
+                  <span key={i} className="share-preview-line">
+                    {line.split(/(\s+)/).map((tok, j) =>
+                      tok.startsWith('#') || tok.startsWith('@') ? (
+                        <span key={j} className="share-preview-link">
+                          {tok}
+                        </span>
+                      ) : (
+                        <span key={j}>{tok}</span>
+                      ),
+                    )}
+                    {'\n'}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
         <div className="share-footer">
           <button

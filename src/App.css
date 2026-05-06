@@ -225,17 +225,56 @@
   text-align: right;
   margin-top: -4px;
 }
-.share-preview {
-  white-space: pre-wrap;
-  font-size: 13px;
-  line-height: 1.5;
-  background: #f8fafc;
+/* Tweet-card-style preview — mimics how the post will look on X. */
+.share-preview-card {
+  display: flex;
+  gap: 10px;
+  background: #fff;
   border: 1px solid #e2e8f0;
-  border-radius: 8px;
-  padding: 10px 12px;
-  color: #1e293b;
-  max-height: 200px;
-  overflow-y: auto;
+  border-radius: 14px;
+  padding: 12px 14px;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+.share-preview-avatar {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: #0f172a;
+  display: block;
+}
+.share-preview-content {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.share-preview-author {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
+  margin-bottom: 4px;
+}
+.share-preview-name {
+  font-weight: 800;
+  color: #0f172a;
+  font-size: 14px;
+}
+.share-preview-handle {
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 500;
+  margin-top: 1px;
+}
+.share-preview-text {
+  white-space: pre-wrap;
+  font-size: 14px;
+  line-height: 1.45;
+  color: #0f172a;
+  word-break: break-word;
+}
+.share-preview-line { display: inline; }
+.share-preview-link {
+  color: #1d9bf0;
 }
 .share-footer {
   flex: 0 0 auto;

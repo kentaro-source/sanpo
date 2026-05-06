@@ -53,10 +53,14 @@ const KM_PER_STEP = 0.001;
  */
 /** Hard floor and cap for the displayed/applied effective multiplier.
  *  Floor 0.25 = 1km/h zone (turtle), prevents penalty stacking from
- *  reaching speeds where the marker basically halts. Cap 30 keeps the
- *  emoji range usable and prevents runaway from compound wins. */
+ *  reaching speeds where the marker basically halts. Cap raised to
+ *  1000 (= 4000 km/h, well into 🚀 territory): single triple-N alone
+ *  pays ×180, and compound wins (e.g. triple ×30 ⇨ 大 ×3 next round)
+ *  used to dead-end at the previous ×30 cap, swallowing the second
+ *  hit. The new ceiling lets compound boosts compound visibly while
+ *  still guarding against runaway. */
 const EFFECTIVE_MULT_FLOOR = 0.25;
-const EFFECTIVE_MULT_CAP = 30;
+const EFFECTIVE_MULT_CAP = 1000;
 
 function effectiveMultiplier(boosts: Boost[] | undefined, now: number): number {
   if (!boosts || boosts.length === 0) return 1.0;
