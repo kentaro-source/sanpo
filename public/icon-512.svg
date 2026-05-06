@@ -1,19 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <!-- Background: navy rounded square (matches existing brand) -->
   <rect width="512" height="512" rx="80" fill="#1e293b"/>
-  <!-- Dashed route circle behind figure -->
-  <circle cx="256" cy="256" r="200" fill="none" stroke="#3b82f6" stroke-width="5" stroke-dasharray="14 8" opacity="0.45"/>
-  <!-- Capital dots scattered along route circle -->
-  <circle cx="256" cy="56" r="7" fill="#10b981"/>
-  <circle cx="456" cy="256" r="6" fill="#94a3b8"/>
-  <circle cx="256" cy="456" r="6" fill="#94a3b8"/>
-  <circle cx="56" cy="256" r="6" fill="#94a3b8"/>
-  <circle cx="397" cy="115" r="5" fill="#94a3b8"/>
-  <circle cx="115" cy="397" r="5" fill="#94a3b8"/>
-  <circle cx="397" cy="397" r="5" fill="#94a3b8"/>
-  <circle cx="115" cy="115" r="5" fill="#94a3b8"/>
-  <!-- Walking figure (Material 'directions_walk' silhouette, scaled & centered) -->
-  <g transform="translate(112 100) scale(12)" fill="#10b981">
+  <!-- Subtle globe grid (longitude/latitude) behind walker, low opacity so
+       it reads as world background without competing with the figure. -->
+  <g fill="none" stroke="#60a5fa" stroke-width="2" opacity="0.28">
+    <circle cx="256" cy="256" r="190"/>
+    <ellipse cx="256" cy="256" rx="190" ry="65"/>
+    <ellipse cx="256" cy="256" rx="190" ry="130"/>
+    <ellipse cx="256" cy="256" rx="120" ry="190"/>
+    <ellipse cx="256" cy="256" rx="55" ry="190"/>
+    <line x1="66" y1="256" x2="446" y2="256"/>
+  </g>
+  <!-- Walker silhouette -->
+  <g transform="translate(43.5 52) scale(17)" fill="#10b981">
     <path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7-1.6 8z"/>
   </g>
 </svg>
