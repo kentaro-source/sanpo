@@ -169,30 +169,44 @@ export function ShareToX({ onClose }: Props) {
       lines.push(`👣 ${todaySteps.toLocaleString()}歩`);
     }
 
-    // Today's max / min effective multiplier — only when a Sic Bo
-    // roll happened today (otherwise no band data exists).
+    // Combined steps + Sic Bo wins/losses on one compact line.
+    const todaySteps2 =
+      player.attributedDayStart === todayStart
+        ? player.attributedTodaySteps ?? 0
+        : 0;
+    const wins =
+      player.todayMultiplierDayStart === todayStart
+        ? player.todaySicBoWins ?? 0
+        : 0;
+    const losses =
+      player.todayMultiplierDayStart === todayStart
+        ? player.todaySicBoLosses ?? 0
+        : 0;
+    // (歩数行は上で push 済 — ここでは 🎲 をその後ろに付けたいが、
+    //  既に push しているので歩数行があれば置換、なければ独立で push)
+    if (wins + losses > 0) {
+      const last = lines.length - 1;
+      if (todaySteps2 > 0 && lines[last]?.startsWith('👣')) {
+        lines[last] = `${lines[last]} 🎲 ${wins}勝${losses}負`;
+      } else {
+        lines.push(`🎲 ${wins}勝${losses}負`);
+      }
+    }
+
+    // Speed band: 最高 / 最低 on one line when both are interesting.
     if (player.todayMultiplierDayStart === todayStart) {
       const maxKmh = (player.todayMaxMultiplier ?? 0) * BASE_KMH;
       const minKmh = (player.todayMinMultiplier ?? 0) * BASE_KMH;
       const maxStr = formatSpeed(maxKmh);
       const minStr = formatSpeed(minKmh);
-      if (maxStr) lines.push(`🏃 最高 ${maxStr}`);
-      if (minStr && minKmh < maxKmh) lines.push(`🐢 最低 ${minStr}`);
-    }
-
-    // Sic Bo wins/losses for the day. Only shown when there's been
-    // any rolling activity, so a quiet day doesn't broadcast 0勝0負.
-    if (player.todayMultiplierDayStart === todayStart) {
-      const wins = player.todaySicBoWins ?? 0;
-      const losses = player.todaySicBoLosses ?? 0;
-      if (wins + losses > 0) {
-        lines.push(`🎲 ${wins}勝${losses}負`);
+      if (maxStr && minStr && minKmh < maxKmh) {
+        lines.push(`🏃 ${maxStr} / 🐢 ${minStr}`);
+      } else if (maxStr) {
+        lines.push(`🏃 ${maxStr}`);
       }
     }
 
-    // Distance summary: cumulative km walked plus remaining to lap end,
-    // with progress % so the post answers "how far along am I?" at a
-    // glance.
+    // Distance + ETA combined on one compact line.
     const totalKm = routeData.totalDistanceKm;
     const walkedKm = Math.max(0, player.distanceKm);
     const remainingKm = Math.max(0, totalKm - walkedKm);
@@ -200,31 +214,23 @@ export function ShareToX({ onClose }: Props) {
       km >= 100 ? Math.round(km).toLocaleString() : km.toFixed(1);
     const pct = totalKm > 0 ? (walkedKm / totalKm) * 100 : 0;
     const pctStr = pct < 0.1 ? pct.toFixed(2) : pct.toFixed(1);
-    lines.push(
-      `📏 累計 ${fmt(walkedKm)}km / 残り ${fmt(remainingKm)}km (${pctStr}%)`,
-    );
 
-    // ETA: at this point's km/day pace, how long to complete a lap.
-    // Skip until at least 1 day has passed AND we've actually moved
-    // (otherwise pace is meaningless / infinite).
+    let etaStr = '';
     const elapsedDays =
       (Date.now() - player.startDate) / (1000 * 60 * 60 * 24);
     if (elapsedDays >= 1 && walkedKm > 0 && remainingKm > 0) {
       const kmPerDay = walkedKm / elapsedDays;
       const etaDays = remainingKm / kmPerDay;
       const etaYears = etaDays / 365;
-      let etaStr: string;
-      if (etaYears >= 100) etaStr = '100年以上';
+      if (etaYears >= 100) etaStr = '100年+';
       else if (etaYears >= 1) etaStr = `${etaYears.toFixed(1)}年`;
       else if (etaDays >= 30) etaStr = `${(etaDays / 30).toFixed(1)}ヶ月`;
       else etaStr = `${Math.round(etaDays)}日`;
-      lines.push(`⏳ このペースで完走まで ${etaStr}`);
     }
+    const distLine = `📏 ${fmt(walkedKm)}km (${pctStr}%)${etaStr ? ` / ⏳ ${etaStr}` : ''}`;
+    lines.push(distLine);
 
-    // Long-haul progress line — show the immediate next stop (could be
-    // an intermediate city like 釜山 on the way to ソウル), and the
-    // segment-goal capital in parens so the reader sees both "where the
-    // walker is heading next" and "where this leg ends".
+    // Long-haul progress: immediate next stop + segment goal capital.
     if (nextCapital) {
       const idx = Math.max(1, Math.min(visitedCount, totalCapitals));
       const next = upcomingStops?.[0];
@@ -232,13 +238,13 @@ export function ShareToX({ onClose }: Props) {
         next && next.kind === 'capital' && next.nameJa === nextCapital.nameJa;
       const nextFlag = next?.countryCode ? flagEmoji(next.countryCode) : '';
       const goalFlag = flagEmoji(nextCapital.id);
-      const goalLabel = `${goalFlag} ${nextCapital.nameJa}`;
+      const goalLabel = `${goalFlag}${nextCapital.nameJa}`;
       if (next && !nextIsCapital) {
         lines.push(
-          `🏛 ${idx}/${totalCapitals} カ国目 → ${nextFlag} ${next.nameJa} (→ ${goalLabel})`,
+          `🏛 ${idx}/${totalCapitals} → ${nextFlag}${next.nameJa} (→ ${goalLabel})`,
         );
       } else {
-        lines.push(`🏛 ${idx}/${totalCapitals} カ国目 → ${goalLabel}`);
+        lines.push(`🏛 ${idx}/${totalCapitals} → ${goalLabel}`);
       }
     }
 
