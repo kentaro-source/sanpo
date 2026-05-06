@@ -123,9 +123,10 @@ export function loadGameState(): GameState | null {
         //   v7   : 5000 again
         //   v8   : 1000 (much faster, suits the 1m/step distance model)
         //   v9   : 777 (lucky 7s)
-        // Force any stale stored value (≥1000) down to 777.
-        if (parsed.config && parsed.config.stepsPerDie >= 1000) {
-          parsed.config.stepsPerDie = 777;
+        //   v10  : 500 — chips ~2x faster, targets 1.5y world-tour pace
+        // Force any stale stored value above 500 down to 500.
+        if (parsed.config && parsed.config.stepsPerDie > 500) {
+          parsed.config.stepsPerDie = 500;
         }
         // Token-cap history: 5 (v1-v8 initial) → 50 → 100 (v8 mid-session bumps).
         // Anyone still under 100 didn't get the new bonus economy yet — bump.

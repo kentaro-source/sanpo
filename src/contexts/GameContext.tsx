@@ -249,7 +249,10 @@ function checkMilestones(
 }
 
 const DEFAULT_CONFIG: GameConfig = {
-  stepsPerDie: 777,  // v9: 1000→777 — slightly more frequent chips, 「ラッキーセブン」
+  // v10: 777→500 — balanced for ~10k歩/day yielding 20 chips/day.
+  // At 1m/step + ×3 win-EV Sic Bo, this targets ~600km/day average for
+  // a ~1.5 year world tour pace.
+  stepsPerDie: 500,
   maxDice: 100,      // v8: 5→100 — lets the player hoard for sea-crossing 爆速 sessions
 };
 
@@ -422,7 +425,10 @@ type GameAction =
   | { type: 'SYNC_FROM_GOOGLE_FIT'; steps: number; syncTimestamp: number }
   | { type: 'ROLL_SICBO'; bets: BetSlot[]; dice?: [number, number, number] }
   | { type: 'UPDATE_CONFIG'; config: Partial<GameConfig> }
+  | { type: 'CLAIM_LOGIN_BONUS' }
   | { type: 'RESET_GAME' };
+
+const LOGIN_BONUS_CHIPS = 5;
 
 function gameReducer(state: GameState, action: GameAction): GameState {
   switch (action.type) {
@@ -706,6 +712,39 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case 'CLAIM_LOGIN_BONUS': {
+      const now = Date.now();
+      const d = new Date(now);
+      d.setHours(0, 0, 0, 0);
+      const todayStart = d.getTime();
+      // Already claimed today? No-op.
+      if ((state.player.lastLoginDayStart ?? 0) >= todayStart) {
+        return state;
+      }
+      const event: BonusEvent = {
+        kind: 'milestone',
+        amount: LOGIN_BONUS_CHIPS,
+        label: `🎁 ログインボーナス +${LOGIN_BONUS_CHIPS}`,
+        timestamp: now,
+      };
+      return {
+        ...state,
+        player: {
+          ...state.player,
+          availableDice: Math.min(
+            state.config.maxDice,
+            state.player.availableDice + LOGIN_BONUS_CHIPS,
+          ),
+          lastLoginDayStart: todayStart,
+          recentBonuses: [event, ...(state.player.recentBonuses ?? [])].slice(
+            0,
+            MAX_RECENT_BONUSES,
+          ),
+          lastUpdated: now,
+        },
+      };
+    }
+
     case 'RESET_GAME': {
       clearGameState();
       return createInitialState();
@@ -731,6 +770,13 @@ export function GameProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     saveGameState(state);
   }, [state]);
+
+  // Auto-claim daily login bonus on mount. The reducer is idempotent
+  // (already-claimed-today is a no-op) so it's safe to dispatch on every
+  // app open / SW reload.
+  useEffect(() => {
+    dispatch({ type: 'CLAIM_LOGIN_BONUS' });
+  }, []);
 
   return (
     <GameContext.Provider value={{ state, dispatch }}>

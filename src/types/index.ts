@@ -195,6 +195,12 @@ export interface PlayerState {
   todaySicBoLosses?: number;
   todayNewCapitals?: number;
   todayNewCities?: number;
+  /**
+   * Local-midnight ms of the last day the user claimed the daily login
+   * bonus. Used to gate one bonus per day (no streak tracking — fixed
+   * +5 chips per fresh day, per spec D).
+   */
+  lastLoginDayStart?: number;
 }
 
 export interface DailyRecord {
