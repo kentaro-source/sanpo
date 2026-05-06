@@ -1,18 +1,24 @@
 /**
- * Module-level shared store for the road-snapped player path.
+ * Resolve the player's km-position to an actual road-snapped lat/lng.
  *
- * MapView builds a Directions-API polyline for the visible window of
- * segments (covers a few hundred km around the player). The polyline
- * is much closer to actual roads than the squares-interpolated path
- * exposed by `positionAtKm()` (which drifts into the sea between
- * sparse waypoints). Other consumers (e.g. ShareToX, reverse
- * geocoding) need the same snapped lat/lng for accuracy, so MapView
- * pushes the built path here and others read from it.
+ * Two strategies, both light:
+ *   1. (preferred) Segment-direct cache lookup. Identify the segment
+ *      containing `km`, read its cached Directions polyline (the same
+ *      cache MapView populates), walk the polyline to compute lat/lng
+ *      at the relative offset from segment start. No API call, no
+ *      window-wide build wait — just one cache hit + a linear walk
+ *      of a few hundred polyline points.
+ *   2. (fallback) MapView's pushed window path via setBuiltPath, used
+ *      if the per-segment cache isn't populated yet.
  *
- * Falls back to null when no path has been built yet (e.g. immediately
- * after app start, before MapView's async Directions calls finish).
- * Callers should fall back to positionAtKm in that case.
+ * Returns null when neither is available; callers fall back to
+ * positionAtKm (squares-coarse but always available).
  */
+
+import { routeData } from '../data';
+import { cities } from '../data/cities';
+import { segmentClassifications } from '../data/segmentMeta';
+import { getCachedPolyline } from './directions';
 
 export interface SnappedPosition {
   lat: number;
@@ -24,61 +30,92 @@ interface BuiltPath {
   cumKm: number[];
 }
 
-const STORAGE_KEY = 'sanpo-snapped-path-v1';
-let current: BuiltPath | null = null;
-let loadedFromDisk = false;
-
-/**
- * Lazy-load any persisted path on first read so first-paint of
- * ShareToX doesn't have to wait for MapView's async Directions build
- * (which can take seconds-to-minutes on a fresh visible window).
- * MapView still overwrites with a fresh build when ready.
- */
-function ensureLoaded(): void {
-  if (loadedFromDisk) return;
-  loadedFromDisk = true;
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return;
-    const parsed = JSON.parse(raw) as BuiltPath;
-    if (
-      parsed &&
-      Array.isArray(parsed.allPoints) &&
-      Array.isArray(parsed.cumKm) &&
-      parsed.allPoints.length === parsed.cumKm.length &&
-      parsed.allPoints.length > 1
-    ) {
-      current = parsed;
-    }
-  } catch {
-    // ignore
-  }
-}
+let windowPath: BuiltPath | null = null;
 
 export function setBuiltPath(path: BuiltPath | null): void {
-  current = path;
-  loadedFromDisk = true;
-  try {
-    if (path) localStorage.setItem(STORAGE_KEY, JSON.stringify(path));
-    else localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // quota or unavailable — ignore, in-memory still works
-  }
+  windowPath = path;
 }
 
-/**
- * Return the actual road-snapped lat/lng for the given cumulative km,
- * or null if (a) no path is built yet, or (b) the requested km lies
- * outside the currently-built window.
- */
-export function snappedPositionAtKm(km: number): SnappedPosition | null {
-  ensureLoaded();
-  if (!current || current.cumKm.length < 2) return null;
-  const { allPoints, cumKm } = current;
+/** Haversine km between two lat/lng — used to walk the cached polyline. */
+function kmBetween(a: SnappedPosition, b: SnappedPosition): number {
+  const R = 6371;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const lat1 = toRad(a.lat);
+  const lat2 = toRad(b.lat);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.sin(dLng / 2) ** 2 * Math.cos(lat1) * Math.cos(lat2);
+  return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+function snapFromSegmentCache(km: number): SnappedPosition | null {
+  // Identify the containing segment by capital km bookends.
+  const caps = routeData.capitals;
+  const capDist = routeData.capitalDistances;
+  let segIdx = -1;
+  let segStartKm = 0;
+  for (let i = 0; i < caps.length - 1; i++) {
+    const fromKm = capDist[caps[i].id];
+    const toKm = capDist[caps[i + 1].id];
+    if (fromKm == null || toKm == null) continue;
+    if (km >= fromKm && km <= toKm) {
+      segIdx = i;
+      segStartKm = fromKm;
+      break;
+    }
+  }
+  if (segIdx < 0) return null;
+
+  const fromCap = caps[segIdx];
+  const toCap = caps[segIdx + 1];
+  const meta = segmentClassifications.find(
+    (m) => m.fromCapitalId === fromCap.id && m.toCapitalId === toCap.id,
+  );
+  // Only land/mixed segments produce a road-snapped polyline; sea /
+  // fantasy use straight lines, no snap improvement available.
+  if (!meta || (meta.routeType !== 'land' && meta.routeType !== 'mixed')) {
+    return null;
+  }
+
+  const origin = { lat: fromCap.lat, lng: fromCap.lng };
+  const destination = { lat: toCap.lat, lng: toCap.lng };
+  const waypoints: SnappedPosition[] = [];
+  for (const cityId of meta.waypointCityIds ?? []) {
+    const city = cities.find((c) => c.id === cityId);
+    if (city) waypoints.push({ lat: city.lat, lng: city.lng });
+  }
+
+  const polyline = getCachedPolyline(origin, destination, waypoints);
+  if (!polyline || polyline.length < 2) return null;
+
+  // Walk along the polyline accumulating distance until the requested
+  // offset from segment start is reached.
+  const targetOffset = Math.max(0, km - segStartKm);
+  let traveled = 0;
+  for (let i = 1; i < polyline.length; i++) {
+    const a = polyline[i - 1];
+    const b = polyline[i];
+    const step = kmBetween(a, b);
+    if (traveled + step >= targetOffset) {
+      const f = step > 0 ? (targetOffset - traveled) / step : 0;
+      return {
+        lat: a.lat + (b.lat - a.lat) * f,
+        lng: a.lng + (b.lng - a.lng) * f,
+      };
+    }
+    traveled += step;
+  }
+  return polyline[polyline.length - 1];
+}
+
+function snapFromWindowPath(km: number): SnappedPosition | null {
+  if (!windowPath || windowPath.cumKm.length < 2) return null;
+  const { allPoints, cumKm } = windowPath;
   const lo = cumKm[0];
   const hi = cumKm[cumKm.length - 1];
   if (km < lo - 0.001 || km > hi + 0.001) return null;
-
   let idx = -1;
   for (let i = 0; i < cumKm.length; i++) {
     if (cumKm[i] >= km) {
@@ -97,4 +134,8 @@ export function snappedPositionAtKm(km: number): SnappedPosition | null {
     lat: a.lat + (b.lat - a.lat) * f,
     lng: a.lng + (b.lng - a.lng) * f,
   };
+}
+
+export function snappedPositionAtKm(km: number): SnappedPosition | null {
+  return snapFromSegmentCache(km) ?? snapFromWindowPath(km);
 }

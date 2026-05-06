@@ -22,23 +22,31 @@ interface Cache {
   [key: string]: CacheEntry;
 }
 
+// In-memory mirror of the on-disk cache. Re-parsing the localStorage
+// JSON on every getRoadPolyline / getCachedPolyline call is expensive
+// once the cache grows past a few hundred KB; load once and keep it.
+let memCache: Cache | null = null;
+
 function loadCache(): Cache {
+  if (memCache) return memCache;
   try {
     const raw = localStorage.getItem(CACHE_KEY);
-    if (!raw) return {};
-    return JSON.parse(raw) as Cache;
+    memCache = raw ? (JSON.parse(raw) as Cache) : {};
   } catch {
-    return {};
+    memCache = {};
   }
+  return memCache;
 }
 
 function saveCache(cache: Cache): void {
+  memCache = cache;
   try {
     localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
   } catch {
     // Quota exceeded - clear and retry
     try {
       localStorage.removeItem(CACHE_KEY);
+      memCache = {};
     } catch {
       // ignore
     }
@@ -64,6 +72,26 @@ function getService(): google.maps.DirectionsService {
     directionsService = new google.maps.DirectionsService();
   }
   return directionsService;
+}
+
+/**
+ * Synchronous cache-only lookup. Returns a cached polyline if one
+ * exists for this exact origin/dest/waypoints combo, else null.
+ * Used by ShareToX / playerPath to snap-locate the player without
+ * waiting on MapView's async Directions API build.
+ */
+export function getCachedPolyline(
+  origin: google.maps.LatLngLiteral,
+  destination: google.maps.LatLngLiteral,
+  waypoints: google.maps.LatLngLiteral[] = [],
+): google.maps.LatLngLiteral[] | null {
+  const cacheKey = makeCacheKey(origin, destination, waypoints);
+  const cache = loadCache();
+  const cached = cache[cacheKey];
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    return cached.path;
+  }
+  return null;
 }
 
 /**
