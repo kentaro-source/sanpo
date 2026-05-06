@@ -7,7 +7,6 @@ import type {
   SicBoRoll,
   BonusEvent,
   Boost,
-  DailyRecord,
 } from '../types';
 import { routeData } from '../data';
 import { cities } from '../data/cities';
@@ -282,8 +281,6 @@ function combineDice(
   return Math.min(walkedTo + bonus, cap * TOKEN_HARD_CEILING_FACTOR);
 }
 
-const MAX_DAILY_HISTORY = 60;
-
 function startOfDayMs(now: number): number {
   const d = new Date(now);
   d.setHours(0, 0, 0, 0);
@@ -291,84 +288,11 @@ function startOfDayMs(now: number): number {
 }
 
 /**
- * If the current state's attributedDayStart is from a previous day,
- * close it out: append a DailyRecord for that day to dailyHistory and
- * reset today-accumulators. Returns a partial player update to merge
- * into the next state. Idempotent — safe to call on every action.
+ * Target wall-clock for the one-shot launch reset. 5/7 2026 00:00 JST
+ * = 5/6 2026 15:00 UTC. Hardcoded as a UTC instant so the trigger is
+ * identical regardless of the device's local timezone.
  */
-/** One-shot 5/2 backfill (only). The dailyHistory feature shipped on
- *  5/3, so 5/2 — the day the user already had Sic Bo activity —
- *  would otherwise be missing. Hardcoded one entry, no general rule. */
-function backfillMay2(player: PlayerState): PlayerState {
-  const may2 = new Date(2026, 4, 2); // months are 0-indexed; May = 4
-  may2.setHours(0, 0, 0, 0);
-  const dayMs = may2.getTime();
-  if ((player.dailyHistory ?? []).some((d) => d.dayStart === dayMs)) {
-    return player;
-  }
-  let wins = 0;
-  let losses = 0;
-  for (const r of player.sicBoHistory ?? []) {
-    if (startOfDayMs(r.timestamp) === dayMs) {
-      if (r.totalAdvance > 0) wins++;
-      else losses++;
-    }
-  }
-  const pastKm = Math.max(0, player.distanceKm - (player.todayKm ?? 0));
-  const record: DailyRecord = {
-    dayStart: dayMs,
-    steps: 3500,
-    km: pastKm,
-    sicBoWins: wins,
-    sicBoLosses: losses,
-    newCapitals: 0,
-    newCities: 0,
-  };
-  return {
-    ...player,
-    dailyHistory: [...(player.dailyHistory ?? []), record].sort(
-      (a, b) => a.dayStart - b.dayStart,
-    ),
-  };
-}
-
-function closeOutDayIfNeeded(
-  player: PlayerState,
-  now: number,
-): Partial<PlayerState> {
-  const today = startOfDayMs(now);
-  const prevDayStart = player.attributedDayStart;
-  // Nothing to close if no prior day OR still on same day
-  if (!prevDayStart || prevDayStart === today) return {};
-  const record: DailyRecord = {
-    dayStart: prevDayStart,
-    steps: player.attributedTodaySteps ?? 0,
-    km: player.todayKm ?? 0,
-    sicBoWins: player.todaySicBoWins ?? 0,
-    sicBoLosses: player.todaySicBoLosses ?? 0,
-    newCapitals: player.todayNewCapitals ?? 0,
-    newCities: player.todayNewCities ?? 0,
-  };
-  // Skip empty days (no activity recorded) to avoid noise
-  const empty =
-    record.steps === 0 &&
-    record.km === 0 &&
-    record.sicBoWins === 0 &&
-    record.sicBoLosses === 0 &&
-    record.newCapitals === 0 &&
-    record.newCities === 0;
-  const history = empty
-    ? player.dailyHistory ?? []
-    : [...(player.dailyHistory ?? []), record].slice(-MAX_DAILY_HISTORY);
-  return {
-    dailyHistory: history,
-    todayKm: 0,
-    todaySicBoWins: 0,
-    todaySicBoLosses: 0,
-    todayNewCapitals: 0,
-    todayNewCities: 0,
-  };
-}
+const LAUNCH_RESET_AT_MS = Date.UTC(2026, 4, 6, 15, 0, 0);
 
 function createInitialPlayer(): PlayerState {
   return {
@@ -402,9 +326,7 @@ function createInitialState(): GameState {
 function getInitialState(): GameState {
   const loaded = loadGameState();
   if (loaded) {
-    // One-shot backfill: reconstruct dailyHistory entries for past days
-    // that have Sic Bo activity but predate the dailyHistory feature.
-    return { ...loaded, player: backfillMay2(loaded.player) };
+    return loaded;
   }
   // Loader returned null. Try the watchdog (progress side-channel) before
   // resetting the player to Tokyo Station. The user reported "たびたび
@@ -426,6 +348,7 @@ type GameAction =
   | { type: 'ROLL_SICBO'; bets: BetSlot[]; dice?: [number, number, number] }
   | { type: 'UPDATE_CONFIG'; config: Partial<GameConfig> }
   | { type: 'CLAIM_LOGIN_BONUS' }
+  | { type: 'CHECK_SCHEDULED_RESET' }
   | { type: 'RESET_GAME' };
 
 const LOGIN_BONUS_CHIPS = 5;
@@ -455,6 +378,12 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const oldKm = state.player.distanceKm;
       const newKm = oldKm + conv.km;
 
+      // Snapshot today's starting position the first time we register
+      // any step contribution after a day boundary. ShareToX uses this
+      // for the daily route line ("🇯🇵 横浜 → 浜松"). On same-day calls
+      // we keep the existing snapshot.
+      const todayStartKm = sameDay ? state.player.todayStartKm ?? oldKm : oldKm;
+
       // Detect capital/city crossings between oldKm and newKm.
       const cross = detectCrossings(
         oldKm,
@@ -475,14 +404,10 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       );
 
       const allEvents = [...cross.events, ...ms.events];
-      const dayClose = closeOutDayIfNeeded(state.player, now);
-      const newCapsToday = cross.newCapitals.length - state.player.visitedCapitals.length;
-      const newCitiesToday = cross.newCities.length - (state.player.visitedCities ?? []).length;
       return {
         ...state,
         player: {
           ...state.player,
-          ...dayClose,
           distanceKm: newKm,
           currentSquareIndex: squareIndexAtKm(routeData, newKm),
           boosts: conv.prunedBoosts,
@@ -496,6 +421,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           stepsTowardNextDie: remainder,
           attributedTodaySteps: newAttributed,
           attributedDayStart: dayStart,
+          todayStartKm,
           visitedCapitals: cross.newCapitals,
           visitedCities: cross.newCities,
           completedLaps: state.player.completedLaps + cross.completedLaps,
@@ -504,14 +430,6 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             ? [...allEvents, ...(state.player.recentBonuses ?? [])].slice(0, MAX_RECENT_BONUSES)
             : state.player.recentBonuses,
           lastUpdated: now,
-          // Today accumulators (fall through dayClose reset to 0 if new day)
-          todayKm: ((dayClose.todayKm ?? state.player.todayKm) ?? 0) + conv.km,
-          todayNewCapitals:
-            ((dayClose.todayNewCapitals ?? state.player.todayNewCapitals) ?? 0) +
-            Math.max(0, newCapsToday),
-          todayNewCities:
-            ((dayClose.todayNewCities ?? state.player.todayNewCities) ?? 0) +
-            Math.max(0, newCitiesToday),
         },
       };
     }
@@ -557,6 +475,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const oldKm = state.player.distanceKm;
       const newKm = oldKm + conv.km;
 
+      // Snapshot today's starting position the first time we register
+      // any step contribution after a day boundary. ShareToX uses this
+      // for the daily route line.
+      const todayStartKm = sameDay ? state.player.todayStartKm ?? oldKm : oldKm;
+
       // Detect crossings between oldKm and newKm.
       const cross = detectCrossings(
         oldKm,
@@ -576,14 +499,10 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       );
 
       const allEvents = [...cross.events, ...ms.events];
-      const dayClose = closeOutDayIfNeeded(state.player, now);
-      const newCapsToday = cross.newCapitals.length - state.player.visitedCapitals.length;
-      const newCitiesToday = cross.newCities.length - (state.player.visitedCities ?? []).length;
       return {
         ...state,
         player: {
           ...state.player,
-          ...dayClose,
           distanceKm: newKm,
           currentSquareIndex: squareIndexAtKm(routeData, newKm),
           boosts: conv.prunedBoosts,
@@ -598,6 +517,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           lastSyncTimestamp: action.syncTimestamp,
           attributedTodaySteps: newAttributed,
           attributedDayStart: todayStart,
+          todayStartKm,
           visitedCapitals: cross.newCapitals,
           visitedCities: cross.newCities,
           completedLaps: state.player.completedLaps + cross.completedLaps,
@@ -606,13 +526,6 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             ? [...allEvents, ...(state.player.recentBonuses ?? [])].slice(0, MAX_RECENT_BONUSES)
             : state.player.recentBonuses,
           lastUpdated: now,
-          todayKm: ((dayClose.todayKm ?? state.player.todayKm) ?? 0) + conv.km,
-          todayNewCapitals:
-            ((dayClose.todayNewCapitals ?? state.player.todayNewCapitals) ?? 0) +
-            Math.max(0, newCapsToday),
-          todayNewCities:
-            ((dayClose.todayNewCities ?? state.player.todayNewCities) ?? 0) +
-            Math.max(0, newCitiesToday),
         },
       };
     }
@@ -681,12 +594,22 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             timestamp: now,
           };
 
-      const dayClose = closeOutDayIfNeeded(state.player, now);
+      // Sample the post-roll effective multiplier for today's max/min
+      // tracking. Fresh day → reset both to current value. Same day →
+      // tighten the band.
+      const effAfter = effectiveMultiplier(stackedBoosts, now);
+      const dayMs = startOfDayMs(now);
+      const sameMultDay = state.player.todayMultiplierDayStart === dayMs;
+      const newMaxMult = sameMultDay
+        ? Math.max(state.player.todayMaxMultiplier ?? effAfter, effAfter)
+        : effAfter;
+      const newMinMult = sameMultDay
+        ? Math.min(state.player.todayMinMultiplier ?? effAfter, effAfter)
+        : effAfter;
       return {
         ...state,
         player: {
           ...state.player,
-          ...dayClose,
           // Bet tokens are spent, no advance.
           availableDice: Math.max(0, state.player.availableDice - totalBet),
           // Stack the new boost on top of any active ones (instead of
@@ -695,12 +618,9 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           sicBoHistory: [...(state.player.sicBoHistory ?? []), sicBoRoll],
           recentBonuses: [event, ...(state.player.recentBonuses ?? [])].slice(0, MAX_RECENT_BONUSES),
           lastUpdated: now,
-          todaySicBoWins:
-            ((dayClose.todaySicBoWins ?? state.player.todaySicBoWins) ?? 0) +
-            (result.won ? 1 : 0),
-          todaySicBoLosses:
-            ((dayClose.todaySicBoLosses ?? state.player.todaySicBoLosses) ?? 0) +
-            (result.won ? 0 : 1),
+          todayMaxMultiplier: newMaxMult,
+          todayMinMultiplier: newMinMult,
+          todayMultiplierDayStart: dayMs,
         },
       };
     }
@@ -745,6 +665,44 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case 'CHECK_SCHEDULED_RESET': {
+      const now = Date.now();
+      const flag = state.player.scheduledResetAt;
+
+      // Already fired (or skipped because we're past target on first load).
+      if (flag === 0) return state;
+
+      // First load: decide whether to schedule or skip.
+      if (flag === undefined) {
+        if (now >= LAUNCH_RESET_AT_MS) {
+          // Past target on first load — don't retroactively wipe progress.
+          return {
+            ...state,
+            player: { ...state.player, scheduledResetAt: 0 },
+          };
+        }
+        return {
+          ...state,
+          player: { ...state.player, scheduledResetAt: LAUNCH_RESET_AT_MS },
+        };
+      }
+
+      // Scheduled and target reached → fire reset.
+      if (now >= flag) {
+        clearGameState();
+        const fresh = createInitialState();
+        return {
+          ...fresh,
+          player: {
+            ...fresh.player,
+            scheduledResetAt: 0,
+            startDate: now,
+          },
+        };
+      }
+      return state;
+    }
+
     case 'RESET_GAME': {
       clearGameState();
       return createInitialState();
@@ -770,6 +728,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     saveGameState(state);
   }, [state]);
+
+  // One-shot launch reset (5/7 00:00 JST). Check on mount and every
+  // 60 s thereafter so an open PWA also wipes itself at midnight without
+  // requiring a refresh. The reducer guards against re-firing once
+  // scheduledResetAt has been zeroed.
+  useEffect(() => {
+    dispatch({ type: 'CHECK_SCHEDULED_RESET' });
+    const id = window.setInterval(
+      () => dispatch({ type: 'CHECK_SCHEDULED_RESET' }),
+      60_000,
+    );
+    return () => window.clearInterval(id);
+  }, []);
 
   // Auto-claim daily login bonus on mount. The reducer is idempotent
   // (already-claimed-today is a no-op) so it's safe to dispatch on every

@@ -18,14 +18,42 @@ APK ビルドが必要な場合 (ユーザーが APK 更新依頼):
 - JDK 21 (Android Studio JBR `/c/Program Files/Android/Android Studio/jbr`)、ANDROID_HOME `$LOCALAPPDATA/Android/Sdk` を環境変数で渡して `cd android && ./gradlew.bat assembleDebug`
 - adb は `$LOCALAPPDATA/Android/Sdk/platform-tools/adb.exe`
 
-## 🚀 引継ぎサマリ (2026-05-06 第6セッション末 — X アカウント開設準備 + balance調整)
+## 🚀 引継ぎサマリ (2026-05-06 第7セッション末 — JST自動リセット + dailyHistory撤去 + reverse geocoded share post)
 
 別PCで再開する Claude / 数ヶ月後の自分が**最初に読むべき要点**:
 
-1. **5/7 (明日) X アカウント正式スタート予定** — ハンドル `@sekai_sanpo` は取得済の他人アカウント。代替候補: `@sekaisanpo` / `@sekai_sanpo_jp` / `@sekainosanpo`。ユーザーが取得して報告する流れ
-2. **5/7 0時(JST)に game state を自動リセット予定** — 実装は中途半端。`PlayerState.scheduledResetAt?: number` を types に追加済だが、reducer / GameProvider effect / Hamburger menu trigger は**未実装**。ユーザーは深夜0時(00:00 JST)で自動リセット要求。残タスク
-3. **X 共有機能 (`src/components/layout/ShareToX.tsx`)** で「📅 Day N」表示追加済み(uncommitted, 直前のセッションで edit のみ)。Day 計算は `player.startDate` ベース、local-midnight 単位で繰り下げカウント
-4. **balance 変更** — `stepsPerDie 777→500` (commit 972a541)、daily login bonus (+5 chips) 実装済み (`CLAIM_LOGIN_BONUS` action、 GameProvider mount で auto-dispatch、 idempotent)
+1. **5/7 (明日) X アカウント正式スタート確定** — ハンドル = `@sekai_sanpo_` (末尾アンダースコア)。`ShareToX` の hashtag 行に `@sekai_sanpo_` mention 同梱済
+2. **5/7 0時(JST)に game state 自動リセット 実装完了**:
+   - 定数 `LAUNCH_RESET_AT_MS = Date.UTC(2026, 4, 6, 15, 0, 0)` (5/6 15:00 UTC = 5/7 00:00 JST)
+   - action `CHECK_SCHEDULED_RESET` を `GameProvider` mount + 60秒 interval で dispatch
+   - `PlayerState.scheduledResetAt`: `undefined` → 初回 load で `LAUNCH_RESET_AT_MS` 設定 (or 既に過去なら `0` で skip)、`>0` で発火待ち、`0` で発火済み sentinel (再発火しない)
+   - 発火: `clearGameState()` + `createInitialState()` + `scheduledResetAt: 0` + `startDate: now` で Day 1 再スタート
+3. **dailyHistory 機能 撤去**:
+   - `PlayerState` から `dailyHistory[]` / `todayKm` / `todaySicBoWins` / `todaySicBoLosses` / `todayNewCapitals` / `todayNewCities` 削除
+   - `DailyRecord` 型削除、reducer 内 `closeOutDayIfNeeded` / `backfillMay2` / `MAX_DAILY_HISTORY` 削除
+   - `HamburgerMenu` の「📊 日別記録」エントリ + history view 撤去 (今は 𝕏 投稿 / ⟳ 強制更新 のみ)
+   - storage version 据え置き (旧 save の余分フィールドは害なく無視される)
+4. **ShareToX の X 投稿が世界一周ブロガー風に進化**:
+   - フォーマット (例):
+     ```
+     📅 Day 5
+     🇯🇵 世田谷区深沢 → 磐田市向笠新屋
+     👣 8,423歩
+     🏃 最高 24 km/h
+     🐢 最低 2.0 km/h
+     🏛 → 🇰🇷 ソウル (2/193)
+
+     #せかいさんぽ @sekai_sanpo_
+     ```
+   - 出発地→到着地は **Google Maps Geocoder で reverse geocode**。`src/services/geocode.ts` がラッパー (in-memory + localStorage `sanpo-geocode-cache-v1` キャッシュ、3桁丸めで~110m精度)
+   - JP は `locality + sublocality_level_1` を long_name で結合 (世田谷区深沢)。`sublocality_level_3` (`X丁目`)・`level_4` (banchi) は除外。バグ注意: 単に `getLong('sublocality')` だと配列順の最初 = level_4 の banchi 数字を拾う
+   - 海外は locality 単独 → admin_area_level_2 → sublocality_level_1 → admin_area_level_1 → formatted_address[0]
+   - todayStartKm を `PlayerState` に追加。`ADD_STEPS` / `SYNC_FROM_GOOGLE_FIT` の day-rollover 時に `state.player.distanceKm` を snapshot (sameDay なら既存維持)
+   - `positionAtKm(routeData, km)` で km → lat/lng、Geocoder へ渡す
+   - 速度行 (🏃/🐢) は `todayMaxMultiplier` / `todayMinMultiplier` を ROLL_SICBO で post-roll の effective multiplier から更新。`todayMultiplierDayStart` で当日判定。Base = 4 km/h。今日ロール経験ありのときのみ表示
+   - 国旗 emoji = ISO alpha-2 → Unicode regional indicator (Windows では `JP`/`KR` 風にフォールバックするが Twemoji on X では本物の旗)
+   - **「プライバシー懸念」は誤判断**だった: アプリは仮想ルート上の座標で、ユーザーの実 GPS とは無関係。詳細地名 OK
+5. **balance** — `stepsPerDie 500` (commit 972a541)、daily login bonus +5 chips (`CLAIM_LOGIN_BONUS` を GameProvider mount で auto-dispatch、idempotent)
 5. **アプリ名は「せかいさんぽ」のまま維持** — ユーザーと合意。改名コストの方が大きい
 6. **総距離 = 346,655 km**(waypoint + road factor 込み)。107km/日ペースだと約9年で1周、現実的に Sic Bo ブースト前提で1〜2年計画
 7. **「通過」と「立寄」の使い分け**: 首都=「通過 (+5)」、都市=「立寄 (+3)」、思い出ボーナスは別途上乗せ
@@ -69,21 +97,13 @@ APK ビルドが必要な場合 (ユーザーが APK 更新依頼):
 
 ### 残タスク (次セッションで、優先順)
 
-1. **JST 0時自動リセット実装** ← 最優先。`PlayerState.scheduledResetAt` 型追加だけ済、reducer / dispatch / UI 全部未実装。「2026/5/7 00:00 JST」に自動で東京駅にリセット
-2. **dailyHistory 機能を撤去** ← ユーザーが「日々の記録機能は不要」と明言(2026-05-06 終盤)。撤去対象:
-   - `PlayerState.dailyHistory[]`、`todayKm`/`todaySicBoWins`/`todaySicBoLosses`/`todayNewCapitals`/`todayNewCities`
-   - HamburgerMenu の「📊 日別記録」エントリ + history view
-   - reducer 内の `closeOutDayIfNeeded` 等の day-rollover ロジック
-   - storage migration 不要、フィールドが残ってても害なし
-3. **ShareToX に「今日の最高/最低速度」自動表示** ← X 投稿に `🏃 最高 X km/h / 🐢 最低 Y km/h` 行を追加
-   - 実装案: PlayerState に `todayMaxMultiplier` / `todayMinMultiplier` 追加、ROLL_SICBO で更新、日跨ぎでリセット
-   - 速度 = effectiveMultiplier × 4 km/h
-4. **ShareToX `Day N` の commit** ← edit 済、e990fe8 で commit に含まれる(コードは反映済)
-5. **画像のクオリティ調整** ← ユーザーは現状の banner / casino / map crop を「ひどすぎ」と評価。再デザイン or Canva 等の外部ツール推奨。`public/x-promo/banner-design.svg` の手書きSVG では限界
-6. **横浜以外の都市座標ポリシー記録** ← 市役所基準で統一決定済(意思決定はあるが実 sweep はしてない)
-7. **アカウント取得の確認**: `@sekai_sanpo` は他人取得済。代替候補 `@sekaisanpo` / `@sekai_sanpo_jp` から取れたものをユーザーが報告 → コード側 hashtag/mention 対応
+1. **国境越えゲートでギャンブル機能** ← 第7セッション末でユーザーが希望。「国境越えで 50% コイン投げ、勝つまで入国できない、チップ消費」。実装案: `detectCrossings` で capital crossing を検知した時、capital が前の capital と異なる国 (= 国境越え) かつ未通過の場合、player を国境直前で `pendingBorder: { capitalId, atKm }` 状態に block。UI で「Border roll」ダイアログを出して 1 チップ投げる→勝てば通過、負ければチップだけ消えて再挑戦。`PlayerState.pendingBorder` + 新 action `ROLL_BORDER`
+2. **画像のクオリティ調整** ← banner (1500×500 横長で難しいとユーザー認める) / casino / map crop が「ひどすぎ」評価。再デザイン or Canva 等の外部ツール推奨。`public/x-promo/banner-design.svg` の手書きSVG では限界
+3. **横浜以外の都市座標ポリシー記録** ← 市役所基準で統一決定済 (意思決定はあるが実 sweep はしてない)
+4. **アカウント取得確認**: `@sekai_sanpo_` (末尾アンダースコア) で取得予定。取得後は ShareToX のmention が機能するか実投稿で確認
 
 ### コミット履歴 (このセッション、main → HEAD)
+- 第7セッション分は別途このコミットに含む (multi-feat:JST reset + dailyHistory drop + reverse geocoded share)
 - 00c1d1d chore(x-promo): X アカウント開設用画像一式
 - 68e60d9 feat(icon): 人型 walker icon (破線→球体グリッドに修正済)
 - b16ca6b feat: X 投稿機能（コメント+カジノ勝敗+Day N + 出発地→目的地）

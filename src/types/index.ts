@@ -184,45 +184,36 @@ export interface PlayerState {
   // Recent bonus events for transient toast display. Newest first.
   recentBonuses?: BonusEvent[];
   /**
-   * Per-day rollup of activity. New entries are pushed when the
-   * day boundary (attributedDayStart) advances. Capped at 60 days
-   * to keep storage tiny (~5KB worst case).
-   */
-  dailyHistory?: DailyRecord[];
-  /** Today-in-progress accumulators (reset to zero on day rollover). */
-  todayKm?: number;
-  todaySicBoWins?: number;
-  todaySicBoLosses?: number;
-  todayNewCapitals?: number;
-  todayNewCities?: number;
-  /**
    * Local-midnight ms of the last day the user claimed the daily login
    * bonus. Used to gate one bonus per day (no streak tracking — fixed
    * +5 chips per fresh day, per spec D).
    */
   lastLoginDayStart?: number;
   /**
-   * Unix ms timestamp at which the game state should auto-reset to
-   * Tokyo Station. Used for a clean Day 1 start (e.g. aligned with
-   * X account launch). Cleared after the reset fires.
+   * Sentinel for the one-shot launch reset (5/7 00:00 JST).
+   * - undefined: not yet initialized (first load); reducer will set
+   *   to LAUNCH_RESET_AT_MS or 0 depending on current clock
+   * - > 0: scheduled — when Date.now() reaches this value, reset fires
+   * - 0: reset has already fired (or skipped because we're past target)
    */
   scheduledResetAt?: number;
-}
-
-export interface DailyRecord {
-  /** Unix ms of midnight local time for this day. */
-  dayStart: number;
-  /** Steps walked that day (whatever source credited them). */
-  steps: number;
-  /** km of route progress made that day (after multiplier). */
-  km: number;
-  /** Sic Bo wins / losses count for the day. */
-  sicBoWins: number;
-  sicBoLosses: number;
-  /** Capitals newly visited that day. */
-  newCapitals: number;
-  /** Cities newly visited that day. */
-  newCities: number;
+  /**
+   * Highest / lowest effective speed multiplier observed today, sampled
+   * after each Sic Bo roll. Used by ShareToX to brag about the day's
+   * peak (and admit the day's slog). Reset when the day rolls over,
+   * keyed by todayMultiplierDayStart.
+   */
+  todayMaxMultiplier?: number;
+  todayMinMultiplier?: number;
+  /** Local-midnight ms of the day todayMax/MinMultiplier applies to. */
+  todayMultiplierDayStart?: number;
+  /**
+   * distanceKm at the moment of today's first step contribution
+   * (snapshotted on day-rollover). Used by ShareToX to display
+   * "今日: <start city> → <current city>" — the day's actual route
+   * rather than the long-haul segment goal. Resets each new day.
+   */
+  todayStartKm?: number;
 }
 
 export type BonusEventKind = 'milestone' | 'city' | 'city-irl' | 'capital' | 'capital-landing';
