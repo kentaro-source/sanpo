@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useGame } from '../../hooks/useGame';
 import { cities } from '../../data/cities';
 import { positionAtKm } from '../../data/generateRoute';
@@ -234,7 +235,7 @@ export function ShareToX({ onClose }: Props) {
     onClose();
   };
 
-  return (
+  return createPortal(
     <div className="share-overlay" onClick={onClose}>
       <div className="share-sheet" onClick={(e) => e.stopPropagation()}>
         <header className="share-header">
@@ -263,7 +264,8 @@ export function ShareToX({ onClose }: Props) {
 
           <label className="share-label">プレビュー</label>
           <div className="share-preview">{finalText}</div>
-
+        </div>
+        <div className="share-footer">
           <button
             type="button"
             className="share-post-btn"
@@ -273,6 +275,7 @@ export function ShareToX({ onClose }: Props) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

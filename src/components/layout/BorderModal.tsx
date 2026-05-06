@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useGame } from '../../hooks/useGame';
 import { cities } from '../../data/cities';
 
@@ -226,7 +227,7 @@ export function BorderModal({ onClose }: Props) {
     );
   };
 
-  return (
+  return createPortal(
     <div className="border-overlay">
       <div className="border-sheet" onClick={(e) => e.stopPropagation()}>
         <header className="border-header">
@@ -278,6 +279,7 @@ export function BorderModal({ onClose }: Props) {
           {noChips && <div className="border-no-chips">チップ切れ 🚶</div>}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
