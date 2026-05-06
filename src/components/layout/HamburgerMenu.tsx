@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useGame } from '../../hooks/useGame';
+import { ShareToX } from './ShareToX';
 
 interface Props {
   onForceReload: () => void;
@@ -22,21 +23,25 @@ export function HamburgerMenu({ onForceReload }: Props) {
   const { player } = useGame();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<'menu' | 'history'>('menu');
+  const [shareOpen, setShareOpen] = useState(false);
 
   if (!open) {
     return (
-      <button
-        type="button"
-        className="header-menu"
-        onClick={() => {
-          setOpen(true);
-          setView('menu');
-        }}
-        aria-label="メニュー"
-        title="メニュー"
-      >
-        ☰
-      </button>
+      <>
+        <button
+          type="button"
+          className="header-menu"
+          onClick={() => {
+            setOpen(true);
+            setView('menu');
+          }}
+          aria-label="メニュー"
+          title="メニュー"
+        >
+          ☰
+        </button>
+        {shareOpen && <ShareToX onClose={() => setShareOpen(false)} />}
+      </>
     );
   }
 
@@ -92,6 +97,18 @@ export function HamburgerMenu({ onForceReload }: Props) {
                   onClick={() => setView('history')}
                 >
                   📊 日別記録
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  className="menu-item"
+                  onClick={() => {
+                    setOpen(false);
+                    setShareOpen(true);
+                  }}
+                >
+                  𝕏 投稿
                 </button>
               </li>
               <li>
@@ -158,6 +175,7 @@ export function HamburgerMenu({ onForceReload }: Props) {
           )}
         </div>
       </div>
+      {shareOpen && <ShareToX onClose={() => setShareOpen(false)} />}
     </>
   );
 }
