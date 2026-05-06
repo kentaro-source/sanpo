@@ -1,5 +1,23 @@
 # Sanpo - 歩いて世界一周アプリ
 
+## 🔄 ユーザーが「再開」と言った時、Claude が即実行する手順
+
+**ユーザーは setup を覚えていない**。「再開」「resume」「続き」等のキーワードで以下を順に実行:
+
+1. `git pull --ff-only` (worktree 内で)
+2. `.env.local` が存在しなければ作成: `VITE_GOOGLE_MAPS_API_KEY=AIzaSyAl8HkXqKTy1_PDDU7-XX4cLQNYfXwrwl8` を書く
+3. `node_modules` が無ければ `npm install`
+4. 下の引継ぎサマリの最新セッションを 30 秒で要約 (要点 + 直近の commit + 残タスク) してユーザーに渡す
+5. 「次やるならどれ?」と聞く (引継ぎサマリの「次やる作業」候補から)
+
+完全クローンの場合 (リポジトリすら無い):
+- `git clone https://github.com/kentaro-source/sanpo.git C:\dev\sanpo`
+- 上記 2-5 を実行
+
+APK ビルドが必要な場合 (ユーザーが APK 更新依頼):
+- JDK 21 (Android Studio JBR `/c/Program Files/Android/Android Studio/jbr`)、ANDROID_HOME `$LOCALAPPDATA/Android/Sdk` を環境変数で渡して `cd android && ./gradlew.bat assembleDebug`
+- adb は `$LOCALAPPDATA/Android/Sdk/platform-tools/adb.exe`
+
 ## 🚀 引継ぎサマリ (2026-05-06 第5セッション末 — 全 192 セグメント + Sic Bo v7.1)
 
 別PCで再開する Claude / 数ヶ月後の自分が**最初に読むべき要点**:
