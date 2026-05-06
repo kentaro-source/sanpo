@@ -18,7 +18,71 @@ APK ビルドが必要な場合 (ユーザーが APK 更新依頼):
 - JDK 21 (Android Studio JBR `/c/Program Files/Android/Android Studio/jbr`)、ANDROID_HOME `$LOCALAPPDATA/Android/Sdk` を環境変数で渡して `cd android && ./gradlew.bat assembleDebug`
 - adb は `$LOCALAPPDATA/Android/Sdk/platform-tools/adb.exe`
 
-## 🚀 引継ぎサマリ (2026-05-06 第5セッション末 — 全 192 セグメント + Sic Bo v7.1)
+## 🚀 引継ぎサマリ (2026-05-06 第6セッション末 — X アカウント開設準備 + balance調整)
+
+別PCで再開する Claude / 数ヶ月後の自分が**最初に読むべき要点**:
+
+1. **5/7 (明日) X アカウント正式スタート予定** — ハンドル `@sekai_sanpo` は取得済の他人アカウント。代替候補: `@sekaisanpo` / `@sekai_sanpo_jp` / `@sekainosanpo`。ユーザーが取得して報告する流れ
+2. **5/7 0時(JST)に game state を自動リセット予定** — 実装は中途半端。`PlayerState.scheduledResetAt?: number` を types に追加済だが、reducer / GameProvider effect / Hamburger menu trigger は**未実装**。ユーザーは深夜0時(00:00 JST)で自動リセット要求。残タスク
+3. **X 共有機能 (`src/components/layout/ShareToX.tsx`)** で「📅 Day N」表示追加済み(uncommitted, 直前のセッションで edit のみ)。Day 計算は `player.startDate` ベース、local-midnight 単位で繰り下げカウント
+4. **balance 変更** — `stepsPerDie 777→500` (commit 972a541)、daily login bonus (+5 chips) 実装済み (`CLAIM_LOGIN_BONUS` action、 GameProvider mount で auto-dispatch、 idempotent)
+5. **アプリ名は「せかいさんぽ」のまま維持** — ユーザーと合意。改名コストの方が大きい
+6. **総距離 = 346,655 km**(waypoint + road factor 込み)。107km/日ペースだと約9年で1周、現実的に Sic Bo ブースト前提で1〜2年計画
+7. **「通過」と「立寄」の使い分け**: 首都=「通過 (+5)」、都市=「立寄 (+3)」、思い出ボーナスは別途上乗せ
+8. **都市座標ポリシー = 「市役所基準」** — 横浜が市役所のままで他の都市も同じ基準。改名/移動は迷ったら市役所
+9. **X アカウント素材** は `public/x-promo/` に commit 済 (00c1d1d):
+   - `profile-400.png` / `profile-800.png`: 人型 walker silhouette + 球体グリッド背景
+   - `header-banner.png`: 1500x500 で designed banner (banner-design.svg からレンダ)
+   - `post-map.png` / `post-map-cropped.png`: 縦長 phone-shape の Day1 マップ
+   - `post-casino.png` / `post-casino-cropped.png`: Sic Bo dialog
+   - 本番 URL: https://kentaro-source.github.io/sanpo/x-promo/{ファイル名}.png
+10. **bio + 固定ポスト 確定文面** (下記参照) — ユーザーが X で投稿する時は固定文面を使用
+
+### Bio (160字)
+
+> 自作アプリ『せかいさんぽ』で歩いて世界一周中🚶 1歩=1m、Sic Boで爆速にも足止めにも。東京駅から193首都・449都市・34万kmの旅、毎日の進捗を記録します。2026/5/7スタート🌏
+
+### 固定ポスト (3本スレッド)
+
+**T1 (概要)**:
+> 自分の歩数で世界一周するアプリ『せかいさんぽ』を作って、自分で遊んでます。
+>
+> 1歩 = 地図上で1m進む。10,000歩で10km。
+> 東京駅から193首都・449都市・34万kmの旅。
+> Sic Boの運次第で爆速にも、足止めにも。
+>
+> 2026年5月7日スタート、毎日ここに進捗を記録します🌏
+>
+> #せかいさんぽ
+
+**T2 (経緯+ルート)**:
+> 「歩いた歩数で世界一周できないかな」と前から思ってたのを、Claude Code でようやく形にしました。
+>
+> ルートは193首都だけじゃなく、横浜・浜松・大連・ラスベガス・ヘルシンキみたいな経由都市・思い出の場所も449個配置。通るたびに小ボーナスが出ます。
+
+**T3 (Sic Bo+締め)**:
+> 普通に歩くだけだと完走に何十年もかかるので、移動速度を上げるために Sic Bo（カジノが単純に好き）で運試し。当たれば30分間 ×3〜×180倍速、外せば ×0.5、重なれば ×0.25 まで減速。
+>
+> 何年で世界一周できるか、ここでゆるく実況していきます🚶
+>
+> #せかいさんぽ
+
+### 残タスク (次セッションで)
+
+- **JST 0時自動リセット実装** ← 最優先。`PlayerState.scheduledResetAt` 型追加だけ。reducer / dispatch / UI 全部未実装
+- **ShareToX `Day N` の commit** ← src/components/layout/ShareToX.tsx に edit 済、まだ commit してない
+- **画像のクオリティ調整** ← ユーザーは現状の banner / casino / map crop を「ひどすぎ」と評価。要再デザイン or Canva 等の外部ツール推奨
+- **横浜以外の都市座標ポリシー記録** ← 市役所基準で統一決定済(意思決定はあるが実 sweep はしてない)
+
+### コミット履歴 (このセッション、main → HEAD)
+- 00c1d1d chore(x-promo): X アカウント開設用画像一式
+- 68e60d9 feat(icon): 人型 walker icon (破線→球体グリッドに修正済)
+- b16ca6b feat: X 投稿機能（コメント+カジノ勝敗+Day N + 出発地→目的地）
+- 972a541 feat: 500歩=1チップ、daily login bonus +5
+
+---
+
+## 🗂 旧引継ぎサマリ (2026-05-06 第5セッション末 — 全 192 セグメント + Sic Bo v7.1)
 
 別PCで再開する Claude / 数ヶ月後の自分が**最初に読むべき要点**:
 

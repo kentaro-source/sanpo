@@ -201,6 +201,12 @@ export interface PlayerState {
    * +5 chips per fresh day, per spec D).
    */
   lastLoginDayStart?: number;
+  /**
+   * Unix ms timestamp at which the game state should auto-reset to
+   * Tokyo Station. Used for a clean Day 1 start (e.g. aligned with
+   * X account launch). Cleared after the reset fires.
+   */
+  scheduledResetAt?: number;
 }
 
 export interface DailyRecord {

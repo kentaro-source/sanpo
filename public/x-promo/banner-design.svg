@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1500 500">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1500" y2="500" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e293b"/>
+    </linearGradient>
+  </defs>
+  <rect width="1500" height="500" fill="url(#bg)"/>
+  <!-- Globe grid (subtle background) -->
+  <g fill="none" stroke="#3b82f6" stroke-width="2" opacity="0.18">
+    <circle cx="1180" cy="250" r="220"/>
+    <ellipse cx="1180" cy="250" rx="220" ry="80"/>
+    <ellipse cx="1180" cy="250" rx="220" ry="160"/>
+    <ellipse cx="1180" cy="250" rx="140" ry="220"/>
+    <ellipse cx="1180" cy="250" rx="60" ry="220"/>
+    <line x1="960" y1="250" x2="1400" y2="250"/>
+  </g>
+  <!-- Walker silhouette inside the globe -->
+  <g transform="translate(1100 130) scale(10)" fill="#10b981">
+    <path d="M13.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM9.8 8.9L7 23h2.1l1.8-8 2.1 2v6h2v-7.5l-2.1-2 .6-3C14.8 12 16.8 13 19 13v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1L6 8.3V13h2V9.6l1.8-.7-1.6 8z"/>
+  </g>
+  <!-- Title block (left side) -->
+  <text x="80" y="180" font-family="'Hiragino Sans','Yu Gothic',sans-serif" font-size="92" font-weight="800" fill="#ffffff" letter-spacing="2">せかいさんぽ</text>
+  <text x="84" y="245" font-family="'Hiragino Sans','Yu Gothic',sans-serif" font-size="34" font-weight="500" fill="#cbd5e1">歩いた歩数で、世界一周。</text>
+  <!-- Stats row -->
+  <g font-family="'Hiragino Sans','Yu Gothic',sans-serif" fill="#94a3b8">
+    <text x="84" y="335" font-size="24" font-weight="600" fill="#10b981">▸</text>
+    <text x="115" y="335" font-size="24" font-weight="500">1歩 = 地図上で1m進む</text>
+    <text x="84" y="380" font-size="24" font-weight="600" fill="#10b981">▸</text>
+    <text x="115" y="380" font-size="24" font-weight="500">東京駅から193首都・449都市・34万km</text>
+    <text x="84" y="425" font-size="24" font-weight="600" fill="#10b981">▸</text>
+    <text x="115" y="425" font-size="24" font-weight="500">Sic Boの運次第で爆速にも、足止めにも</text>
+  </g>
+  <!-- Date badge bottom right -->
+  <g transform="translate(1180 410)">
+    <rect x="-110" y="-26" width="220" height="42" rx="21" fill="#10b981"/>
+    <text x="0" y="4" text-anchor="middle" font-family="'Hiragino Sans','Yu Gothic',sans-serif" font-size="20" font-weight="700" fill="#fff">2026.5.7 START</text>
+  </g>
+  <!-- Hashtag bottom left -->
+  <text x="84" y="465" font-family="ui-monospace,monospace" font-size="20" fill="#64748b">#せかいさんぽ</text>
+</svg>

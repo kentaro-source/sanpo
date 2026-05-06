@@ -23,7 +23,18 @@ export function ShareToX({ onClose }: Props) {
     // 出発地 = the capital this segment leaves from (the one we just came past).
     const fromCap = routeData.capitals.find((c) => c.id === currentSegment.fromCapitalId);
 
+    // Day number: count of local-midnight rollovers since startDate, +1.
+    const startMid = new Date(player.startDate);
+    startMid.setHours(0, 0, 0, 0);
+    const nowMid = new Date();
+    nowMid.setHours(0, 0, 0, 0);
+    const dayNum = Math.max(
+      1,
+      Math.floor((nowMid.getTime() - startMid.getTime()) / 86400000) + 1,
+    );
+
     const lines: string[] = [];
+    lines.push(`📅 Day ${dayNum}`);
     if (fromCap && nextCapital) {
       lines.push(`🚶 ${fromCap.nameJa} → ${nextCapital.nameJa}`);
     } else if (nextCapital) {
@@ -46,6 +57,7 @@ export function ShareToX({ onClose }: Props) {
     nextCapital,
     visitedCount,
     totalCapitals,
+    player.startDate,
     player.todayKm,
     player.todaySicBoWins,
     player.todaySicBoLosses,
