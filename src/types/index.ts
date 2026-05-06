@@ -208,6 +208,14 @@ export interface PlayerState {
   /** Local-midnight ms of the day todayMax/MinMultiplier applies to. */
   todayMultiplierDayStart?: number;
   /**
+   * Sic Bo win/loss tally for the day. Resets when the day rolls over,
+   * keyed by todayMultiplierDayStart (shared with the multiplier band).
+   * ShareToX surfaces these as "🎲 N勝M負" so X posts read as a casino
+   * progress report alongside the route.
+   */
+  todaySicBoWins?: number;
+  todaySicBoLosses?: number;
+  /**
    * distanceKm at the moment of today's first step contribution
    * (snapshotted on day-rollover). Used by ShareToX to display
    * "今日: <start city> → <current city>" — the day's actual route

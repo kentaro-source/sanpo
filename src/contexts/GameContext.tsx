@@ -695,7 +695,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
       // Sample the post-roll effective multiplier for today's max/min
       // tracking. Fresh day → reset both to current value. Same day →
-      // tighten the band.
+      // tighten the band. Wins/losses share the same day-rollover key.
       const effAfter = effectiveMultiplier(stackedBoosts, now);
       const dayMs = startOfDayMs(now);
       const sameMultDay = state.player.todayMultiplierDayStart === dayMs;
@@ -705,6 +705,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const newMinMult = sameMultDay
         ? Math.min(state.player.todayMinMultiplier ?? effAfter, effAfter)
         : effAfter;
+      const baseWins = sameMultDay ? state.player.todaySicBoWins ?? 0 : 0;
+      const baseLosses = sameMultDay ? state.player.todaySicBoLosses ?? 0 : 0;
       return {
         ...state,
         player: {
@@ -720,6 +722,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           todayMaxMultiplier: newMaxMult,
           todayMinMultiplier: newMinMult,
           todayMultiplierDayStart: dayMs,
+          todaySicBoWins: baseWins + (result.won ? 1 : 0),
+          todaySicBoLosses: baseLosses + (result.won ? 0 : 1),
         },
       };
     }

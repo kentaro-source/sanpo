@@ -152,14 +152,42 @@ export function ShareToX({ onClose }: Props) {
       lines.push(`👣 ${todaySteps.toLocaleString()}歩`);
     }
 
-    // Today's max / min effective multiplier — only if a roll happened today.
+    // Current speed = product of active boosts × 4 km/h. Always shown
+    // even when no Sic Bo roll happened today, so the post never goes
+    // bare on the speed dimension.
+    const now = Date.now();
+    let currentMult = 1;
+    for (const b of player.boosts ?? []) {
+      if (b.expiresAt > now && Number.isFinite(b.multiplier)) {
+        currentMult *= b.multiplier;
+      }
+    }
+    if (!Number.isFinite(currentMult) || currentMult <= 0) currentMult = 1;
+    if (currentMult < 0.25) currentMult = 0.25;
+    if (currentMult > 30) currentMult = 30;
+    const currentKmh = currentMult * BASE_KMH;
+    const currentStr = formatSpeed(currentKmh);
+    if (currentStr) lines.push(`🚶 現在 ${currentStr}`);
+
+    // Today's max / min effective multiplier — only added if a Sic Bo
+    // roll happened today AND the band is wider than the current speed.
     if (player.todayMultiplierDayStart === todayStart) {
       const maxKmh = (player.todayMaxMultiplier ?? 0) * BASE_KMH;
       const minKmh = (player.todayMinMultiplier ?? 0) * BASE_KMH;
       const maxStr = formatSpeed(maxKmh);
       const minStr = formatSpeed(minKmh);
-      if (maxStr) lines.push(`🏃 最高 ${maxStr}`);
-      if (minStr && minKmh < maxKmh) lines.push(`🐢 最低 ${minStr}`);
+      if (maxStr && maxKmh > currentKmh + 0.5) lines.push(`🏃 最高 ${maxStr}`);
+      if (minStr && minKmh + 0.5 < currentKmh) lines.push(`🐢 最低 ${minStr}`);
+    }
+
+    // Sic Bo wins/losses for the day. Only shown when there's been
+    // any rolling activity, so a quiet day doesn't broadcast 0勝0負.
+    if (player.todayMultiplierDayStart === todayStart) {
+      const wins = player.todaySicBoWins ?? 0;
+      const losses = player.todaySicBoLosses ?? 0;
+      if (wins + losses > 0) {
+        lines.push(`🎲 ${wins}勝${losses}負`);
+      }
     }
 
     // Long-haul progress: which capital we're aiming for, with flag,
@@ -184,6 +212,9 @@ export function ShareToX({ onClose }: Props) {
     player.todayMaxMultiplier,
     player.todayMinMultiplier,
     player.todayMultiplierDayStart,
+    player.todaySicBoWins,
+    player.todaySicBoLosses,
+    player.boosts,
     startLabel,
     currLabel,
     placeNearKm,

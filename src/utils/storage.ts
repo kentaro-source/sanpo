@@ -142,6 +142,15 @@ export function loadGameState(): GameState | null {
         p.availableDice = sanitizeNum(p.availableDice, 0);
         p.completedLaps = sanitizeNum(p.completedLaps, 0);
         p.currentSquareIndex = sanitizeNum(p.currentSquareIndex, 0);
+        // Lazy-init todayStartKm for users coming from earlier builds
+        // where this field didn't exist. Without this, ShareToX's daily
+        // route line stays hidden until the next ADD_STEPS fires.
+        if (
+          typeof p.todayStartKm !== 'number' ||
+          !Number.isFinite(p.todayStartKm)
+        ) {
+          p.todayStartKm = p.distanceKm;
+        }
         return parsed;
       }
       // Version mismatch (fall through to watchdog recovery below).
