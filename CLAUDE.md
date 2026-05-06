@@ -1,6 +1,116 @@
 # Sanpo - 歩いて世界一周アプリ
 
-## 🚀 引継ぎサマリ (2026-05-02 第4セッション末 — Capacitor 化完了)
+## 🚀 引継ぎサマリ (2026-05-06 第5セッション末 — 全 192 セグメント + Sic Bo v7.1)
+
+別PCで再開する Claude / 数ヶ月後の自分が**最初に読むべき要点**:
+
+1. **本番デプロイは 2 系統** (前セッションから据置):
+   - PWA: https://kentaro-source.github.io/sanpo/ (push で自動デプロイ)
+   - **Android APK**: ローカルビルド → 端末に sideload (Play Store 公開はしない、自分用)
+2. **全 192 セグメント実装済**: 世界一周ルート完成。192/192 で Tokyo → 6 大陸 → Tuvalu まで。
+   - Asia + ME + Caucasus + AZ→EG/ST→RU anchor (50): 既存
+   - Batch 4-5 (RU→DE, 22): 東欧/南欧/バルカン/中欧
+   - Batch 6-8 (DE→MT, 20): 北欧/西欧/地中海
+   - Batch 9-13 (MT→TV, 49): 大西洋越え/米州/カリブ/南米/オセアニア
+   - Batch 14 (Africa内部, 53): EG→ST 全アフリカ
+   - Batch 15 (グローバル小都市), 16 (Google弱国補強), 17 (残り gap)
+   - 計 449 都市定義、347 が waypoint 参照、102 は不参照だが **route 200km 圏内自動 project** で全 449 都市が立ち寄り bonus 対象
+3. **Sic Bo ルール v7.1** (`utils/sicbo.ts`):
+   - **大/小/単/双 payout ×3** (real Sic Bo の ×2 から bump、headline +EV ベットに)
+   - per-bet lose multiplier:
+     - 大/小/単/双: ×0.5 (drama)
+     - triple系 (any-triple, triple-1〜6): ×0.85 固定 (lottery、−EV)
+     - 合計 N: ×(1 − win_prob) 自動式 (~+1〜12% EV)
+   - effectiveMultiplier に **floor 0.25 (1km/h 🐢)、cap 30 (120km/h 🚗)**
+   - 各 bet → 1 boost が独立 30分 timer で乗算スタック
+   - 大+単 両外しで 1 ロール → ×0.25 = 1km/h floor 到達可
+   - チップ N 個: 勝 = ×(payout × N) 線形、外 = ×lose_mult (N 無関係)
+   - 全外れ ×0.5 廃止 (per-bet 方式で吸収)
+4. **Sic Bo dice mp3** (`public/sounds/dice-roll.mp3`): freesound 出典の本物 Sic Bo シャッフル音
+   - 1.0s〜3.4s の有意区間だけ再生、shake (1.0-2.6s) → 静止 → thud (3.0-3.4s)
+   - rolling 演出 2.0s で結果遷移、thud が dice reveal に同期
+   - 当たり/ハズレ chime 廃止 (sound.ts に残置だが呼ばれない)
+5. **チップ生成**: `stepsPerDie = 777` (1000→777、ラッキー7、`storage.ts` の migration で stale 値も自動で 777 に)
+6. **首都/都市ボーナス値 (大幅 bump)**:
+   - 首都通過: +5 (was +2)
+   - 首都 IRL 思い出: +5 追加 → 計 +10
+   - 都市立寄: +3 (was +1)
+   - 都市 IRL 思い出: +3 追加 → 計 +6
+7. **UI 改修サマリ**:
+   - ヘッダー左に **☰ ハンバーガーメニュー** (📊 日別記録 + ⟳ 強制更新)
+   - ヘッダーから build tag 削除 (タイトル title= に hover で表示)
+   - **マカオ風カジノチップ icon** (黄色外輪 + 緑内側 + 黄色★) を CSS で実装、ヘッダ&カジノボタン
+   - **国旗 emoji** (🇯🇵 等、Unicode regional indicator) ProgressInfo capital/city 行に
+   - ProgressInfo: 「向かう街」「次の停車地」廃止、4 stops + 最後は次首都固定、tap で description 展開
+   - **速度バナー**: ベース 4km/h × 倍率、emoji が km/h で動く (👶<3, 🚶<6, 🏃<12, 🚴<25, 🛵<60, 🚗<120, 🚄<250, ✈️<700, 🚀≥700)
+   - 加速時オレンジ→赤グラデ、減速 ×0.5+ は青系 + 👶 baby emoji
+   - **カジノモーダル下部に LAST 5** Sic Bo 履歴 (3 ダイス pip 描画 + 合計 + ×倍率/MISS)
+   - **マーカークリックで InfoWindow** (description / IRL star)
+8. **日別記録 (dailyHistory)**:
+   - PlayerState に `dailyHistory?: DailyRecord[]` (60 日上限)
+   - 日跨ぎで `closeOutDayIfNeeded` が前日分を push、accumulator (`todayKm`/`todaySicBoWins`/`todaySicBoLosses`/`todayNewCapitals`/`todayNewCities`) を 0 に
+   - **5/2 のみ ハードコード backfill** (`backfillMay2`): sicBoHistory timestamp から 5/2 の W/L 抽出 + 歩数 3500 + 残 km 全部
+   - ☰ → 📊 日別記録 で今日 (黄色 highlight) + 過去日のリスト表示
+9. **Capacitor 化 (前セッション継続)**:
+   - JDK 21 (Android Studio JBR 使用、`/c/Program Files/Android/Android Studio/jbr`)
+   - APK ビルド: `cd android && ./gradlew.bat assembleDebug`
+   - インストール: `adb install -r app/build/outputs/apk/debug/app-debug.apk`
+   - Health Connect プラグイン `@capgo/capacitor-health@8.4` で background 歩数取得
+   - Capacitor の WebView origin = `https://localhost`、API キー referrer に `https://localhost/*` + `http://localhost/*` 追加済
+10. **マップ修正**:
+    - 初期センタリングが great-circle で Roppongi 辺りにズレてた → polyline 描画完了時に snap 位置に panTo 修正済 (`initialCenterDoneRef` gate)
+    - 📍 recenter ボタンは `position: fixed; bottom: 270px` で bottom-panel の上に浮かせ
+    - JP→KR ルート: 北九州→**大分→宮崎→熊本**→長崎→福岡 (東九州道経由)、ジグザグ解消
+    - 福岡→プサンの **博多港フェリー** (前セッションで Nagasaki→Busan を訂正済)
+
+### 既知の制約・残タスク
+- **Korea/北朝鮮内のルートは Google API で routing 拒否され直線**: 法規制 (韓国地図輸出禁止)、北朝鮮データ無し。回避策なし、都市マーカーで国土感を出すのみ。
+- triple ベットは EV ×0.887 (−11%)、any-triple は ×0.951、ロマン枠で意図通り。
+- iOS APK 未対応 (kentaro-source は Android のみ)。
+- foreground notification (画面 OFF 時の歩数バー表示等) 未実装。
+- precompute 距離スクリプトは API キー referrer 制限で実行不可、land/mixed セグメントは great-circle × 1.4 倍補正。
+
+### コミット履歴 (このセッション、main → HEAD)
+- 70816da fix(storage): stepsPerDie 1000→777 migrate
+- f258dae feat: 777 steps/chip + 強化 bonus + all-city pass-by
+- 663e161 feat(sicbo): v7.1 ルール
+- f9f0081 feat: 5/2 dailyHistory hardcoded
+- d24220f fix(map): polyline snap 初期 pan + recenter
+- f68091e feat: speed display + dailyHistory + ハンバーガー + dice mp3 + IRL flag
+- 0f04f0a feat(sicbo+ui): LAST 5 + flag emoji
+- 2f7a4df feat(sicbo): カジノ内 LAST 5 履歴、前回マス 廃止
+- e8cd4e2 feat: 首都/思い出 bonus stack
+- 2007336 feat: 27 IRL都市フラグ + 向かう街 ラベル削除
+- 8bccda9 fix(ui): 最後 stop は必ず首都
+- 6e8af40 feat(ui): tap-expand stops、max 4
+- 835fe82 feat: InfoWindow + batch 17 都市
+- 2557ef9 feat(route): batch 16 Google弱国
+- 0bd26a1 feat(route): batch 15 グローバル小都市
+- 45bf949 feat(route): batch 14 Africa 53 セグメント (192/192完成)
+- 55c705a feat(route): batch 9-13 米州/オセアニア
+- 9773d21 feat(route): batch 6-8 欧州完結
+- 1c0c9c6 feat(route): batch 4 refine + batch 5 バルカン
+- 4e72d96 feat(route): batch 4 東欧/南欧
+- 3a6d2c8 feat: Capacitor 8 + Health Connect
+
+### Sic Bo EV 表 (1 chip、参照用)
+
+| ベット | payout | win_prob | lose | 期待乗数 |
+|---|---|---|---|---|
+| 大/小/単/双 | ×3 | 0.486 | ×0.5 | **×1.213** |
+| 合計 9/12 | ×7 | 0.116 | ×0.884 | ×1.124 |
+| 合計 8/13 | ×8 | 0.097 | ×0.903 | ×1.116 |
+| 合計 10/11 | ×6 | 0.125 | ×0.875 | ×1.113 |
+| 合計 7/14 | ×12 | 0.069 | ×0.931 | ×1.111 |
+| 合計 6/15 | ×17 | 0.046 | ×0.954 | ×1.089 |
+| 合計 5/16 | ×30 | 0.028 | ×0.972 | ×1.069 |
+| 合計 4/17 | ×60 | 0.014 | ×0.986 | ×1.044 |
+| any-triple | ×30 | 0.0278 | ×0.85 | ×0.951 |
+| triple-1〜6 | ×180 | 0.00463 | ×0.85 | ×0.887 |
+
+---
+
+## 🗂 旧引継ぎサマリ (2026-05-02 第4セッション末 — Capacitor 化完了)
 
 別PCで再開する Claude / 数ヶ月後の自分が**最初に読むべき要点**:
 
