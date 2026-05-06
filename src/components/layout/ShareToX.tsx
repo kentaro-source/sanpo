@@ -193,10 +193,12 @@ export function ShareToX({ onClose }: Props) {
 
     // Long-haul progress: which capital we're aiming for, with flag,
     // plus 何カ国目 for the world-tour-status bragging line.
+    // visitedCount = countries already cleared (includes JP at start),
+    // so it IS the index of the country the player currently stands in.
     if (nextCapital) {
-      const idx = Math.min(visitedCount + 1, totalCapitals);
+      const idx = Math.max(1, Math.min(visitedCount, totalCapitals));
       lines.push(
-        `🏛 → ${flagEmoji(nextCapital.id)} ${nextCapital.nameJa} (${idx}/${totalCapitals} カ国目)`,
+        `🏛 ${idx}/${totalCapitals} カ国目 → ${flagEmoji(nextCapital.id)} ${nextCapital.nameJa}`,
       );
     }
 
