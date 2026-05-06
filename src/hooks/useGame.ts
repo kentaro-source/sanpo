@@ -191,6 +191,11 @@ export function useGame() {
     dispatch({ type: 'SYNC_FROM_GOOGLE_FIT', steps, syncTimestamp });
   const rollSicBo = (bets: BetSlot[], dice?: [number, number, number]) =>
     dispatch({ type: 'ROLL_SICBO', bets, dice });
+  const rollBorder = (
+    choice: 'red' | 'black',
+    outcome: 'win' | 'lose',
+    cardLabel: string,
+  ) => dispatch({ type: 'ROLL_BORDER', choice, outcome, cardLabel });
   const resetGame = () => dispatch({ type: 'RESET_GAME' });
 
   return {
@@ -201,6 +206,7 @@ export function useGame() {
     addSteps,
     syncFromGoogleFit,
     rollSicBo,
+    rollBorder,
     resetGame,
   };
 }

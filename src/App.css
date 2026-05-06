@@ -246,6 +246,270 @@
 }
 .share-post-btn:active { background: #1e293b; }
 
+/* Border-roll (国境ロール) modal */
+.border-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 2200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.border-sheet {
+  background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+  color: #f1f5f9;
+  width: 100%;
+  max-width: 380px;
+  border-radius: 16px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(250, 204, 21, 0.2);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.border-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: rgba(0, 0, 0, 0.3);
+  border-bottom: 1px solid rgba(250, 204, 21, 0.25);
+}
+.border-title {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fde68a;
+}
+.border-body {
+  padding: 18px 18px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.border-target {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 22px;
+  font-weight: 700;
+}
+.border-flag {
+  font-size: 28px;
+  line-height: 1;
+}
+.border-cap-name { color: #fef3c7; }
+.border-cap-country {
+  font-size: 13px;
+  color: #94a3b8;
+  font-weight: 500;
+}
+.border-desc {
+  margin: 0;
+  font-size: 12px;
+  color: #cbd5e1;
+  text-align: center;
+  line-height: 1.5;
+}
+.border-card {
+  position: relative;
+  width: 110px;
+  height: 154px;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 1px #cbd5e1;
+  perspective: 600px;
+  transform-style: preserve-3d;
+  transition: transform 0.4s ease;
+}
+.border-card-flipping {
+  animation: border-card-spin 0.6s ease-in-out;
+}
+@keyframes border-card-spin {
+  0%   { transform: rotateY(0deg); }
+  50%  { transform: rotateY(540deg); }
+  100% { transform: rotateY(1080deg); }
+}
+/* Face-down card back: classic burgundy crosshatch + center medallion */
+.border-card-back {
+  position: absolute;
+  inset: 6px;
+  border-radius: 6px;
+  background:
+    radial-gradient(circle at center, rgba(255,255,255,0.12) 0 14px, transparent 14px),
+    repeating-linear-gradient(45deg, #b91c1c 0 6px, #7f1d1d 6px 12px),
+    repeating-linear-gradient(-45deg, transparent 0 11px, rgba(0,0,0,0.18) 11px 12px);
+  box-shadow:
+    inset 0 0 0 2px #fef3c7,
+    inset 0 0 0 3px #b91c1c;
+}
+.border-card-back::after {
+  content: "♦";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 22px;
+  color: #fef3c7;
+  text-shadow: 0 0 4px rgba(0,0,0,0.5);
+}
+/* Face-up card: classic top-left + center pip + bottom-right corner layout */
+.border-card-face {
+  position: absolute;
+  inset: 4px;
+  border-radius: 6px;
+  background: #fff;
+  font-weight: 800;
+}
+.border-card-face.is-red { color: #dc2626; }
+.border-card-face.is-black { color: #0f172a; }
+.border-card-suit {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 56px;
+  line-height: 1;
+}
+.border-card-corner {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: 16px;
+  line-height: 1;
+  font-weight: 800;
+}
+.border-card-corner-suit { font-size: 14px; line-height: 1; }
+.border-card-corner.top { top: 6px; left: 8px; }
+.border-card-corner.bottom {
+  bottom: 6px;
+  right: 8px;
+  transform: rotate(180deg);
+}
+.border-result {
+  font-size: 14px;
+  font-weight: 700;
+  padding: 8px 12px;
+  border-radius: 8px;
+  text-align: center;
+  width: 100%;
+}
+.border-result-win {
+  background: rgba(34, 197, 94, 0.18);
+  color: #86efac;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+}
+.border-result-lose {
+  background: rgba(239, 68, 68, 0.15);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+.border-cards-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.border-cardslot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: 0;
+  padding: 6px;
+  border-radius: 10px;
+  cursor: pointer;
+  color: inherit;
+  font-family: inherit;
+  transition: background 0.15s, transform 0.1s;
+}
+.border-cardslot:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+.border-cardslot.is-pickable:hover {
+  background: rgba(250, 204, 21, 0.12);
+}
+.border-cardslot.is-pickable:active {
+  transform: translateY(1px);
+}
+.border-cardslot.is-bet {
+  background: rgba(250, 204, 21, 0.18);
+  box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.4);
+}
+.border-cardslot-cta {
+  font-size: 11px;
+  color: #fde68a;
+  margin-top: 2px;
+  letter-spacing: 0.05em;
+}
+.border-cardslot-label {
+  font-size: 12px;
+  color: #cbd5e1;
+  letter-spacing: 0.05em;
+}
+.border-vs {
+  font-size: 14px;
+  font-weight: 800;
+  color: #fde68a;
+  letter-spacing: 0.1em;
+}
+.border-draw-btn {
+  width: 100%;
+  padding: 14px 0;
+  font-size: 16px;
+  font-weight: 800;
+  border-radius: 10px;
+  border: 0;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  color: #0f172a;
+  background: linear-gradient(180deg, #fde68a, #f59e0b);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  transition: transform 0.1s, opacity 0.2s;
+}
+.border-draw-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.border-draw-btn:not(:disabled):active { transform: translateY(1px); }
+.border-chip-count {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 4px;
+}
+.border-no-chips {
+  font-size: 12px;
+  color: #fda4af;
+  text-align: center;
+}
+.border-banner {
+  position: fixed;
+  left: 12px;
+  right: 12px;
+  bottom: 290px;
+  z-index: 1500;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 0;
+  background: linear-gradient(180deg, #f59e0b, #b45309);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  animation: border-banner-pulse 1.6s ease-in-out infinite;
+}
+@keyframes border-banner-pulse {
+  0%,100% { transform: translateY(0); box-shadow: 0 4px 16px rgba(0,0,0,0.35); }
+  50%     { transform: translateY(-2px); box-shadow: 0 6px 22px rgba(245,158,11,0.5); }
+}
+
 .menu-sheet {
   background: #ffffff;
   width: min(90vw, 360px);

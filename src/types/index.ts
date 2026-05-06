@@ -214,6 +214,27 @@ export interface PlayerState {
    * rather than the long-haul segment goal. Resets each new day.
    */
   todayStartKm?: number;
+  /**
+   * If set, the player has walked up to a country border and is blocked
+   * from advancing further until they win the immigration card draw.
+   * The border is the FIRST stop (city or capital) of a country the
+   * player has not yet entered — so for a Tokyo→Seoul leg, the border
+   * fires at Busan (first KR city), not Seoul.
+   *
+   * - kind: whether the border stop is a regular city or a capital
+   * - id: the city or capital id (used to look up name/flag)
+   * - atKm: cumulativeKm of the border. distanceKm cannot exceed this
+   *   while pendingBorder is set.
+   * - country: ISO alpha-2 of the country being entered. On a winning
+   *   roll, the country is added to the visited set so the rest of
+   *   the country (including its capital) doesn't re-trigger a border.
+   */
+  pendingBorder?: {
+    kind: 'city' | 'capital';
+    id: string;
+    atKm: number;
+    country: string;
+  };
 }
 
 export type BonusEventKind = 'milestone' | 'city' | 'city-irl' | 'capital' | 'capital-landing';

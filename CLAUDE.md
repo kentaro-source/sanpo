@@ -18,7 +18,7 @@ APK ビルドが必要な場合 (ユーザーが APK 更新依頼):
 - JDK 21 (Android Studio JBR `/c/Program Files/Android/Android Studio/jbr`)、ANDROID_HOME `$LOCALAPPDATA/Android/Sdk` を環境変数で渡して `cd android && ./gradlew.bat assembleDebug`
 - adb は `$LOCALAPPDATA/Android/Sdk/platform-tools/adb.exe`
 
-## 🚀 引継ぎサマリ (2026-05-06 第7セッション末 — JST自動リセット + dailyHistory撤去 + reverse geocoded share post)
+## 🚀 引継ぎサマリ (2026-05-06 第7セッション末 — JST自動リセット + dailyHistory撤去 + reverse geocoded share + 国境ロール MVP)
 
 別PCで再開する Claude / 数ヶ月後の自分が**最初に読むべき要点**:
 
@@ -95,12 +95,39 @@ APK ビルドが必要な場合 (ユーザーが APK 更新依頼):
 >
 > #せかいさんぽ
 
-### 残タスク (次セッションで、優先順)
+### 国境ロール (BorderModal) — このセッションで実装した MVP
 
-1. **国境越えゲートでギャンブル機能** ← 第7セッション末でユーザーが希望。「国境越えで 50% コイン投げ、勝つまで入国できない、チップ消費」。実装案: `detectCrossings` で capital crossing を検知した時、capital が前の capital と異なる国 (= 国境越え) かつ未通過の場合、player を国境直前で `pendingBorder: { capitalId, atKm }` 状態に block。UI で「Border roll」ダイアログを出して 1 チップ投げる→勝てば通過、負ければチップだけ消えて再挑戦。`PlayerState.pendingBorder` + 新 action `ROLL_BORDER`
+仕組み:
+- `PlayerState.pendingBorder = { kind: 'city'|'capital'; id; atKm; country }`
+- ADD_STEPS / SYNC_FROM_GOOGLE_FIT で `findNextBorder(oldKm, fullNewKm, visitedCountries)` を実行
+  - 未訪問国の最初の stop (city or capital) を見つけて pendingBorder にセット、distanceKm をその km で cap
+  - `visitedCountrySet(visitedCapitals, visitedCities)` で「訪問済み国」を導出 (capital ID = country code、city.countryId 経由)
+- 国境がセットされている間は walking 進行不可 (chip 蓄積は継続)
+- `BorderModal` (`src/components/layout/BorderModal.tsx`):
+  - 2枚のカードを face-down で表示、ユーザーがどちらか tap
+  - クライアント側で2枚のランダムカード引いて、tap した側 = あなた、もう片方 = 審査官
+  - 数字大きい方が勝ち (A=14)、引き分け = 負け
+  - **flip 演出 = 審査官が先に めくれる (0–600ms)、その後プレイヤー (600–1200ms)** — 国境揶揄の演出
+  - カード裏は CSS のみ (赤/burgundy 斜線 + 中央◆メダリオン)、絵札 emoji なし
+  - 結果は 🎉 / 🤝 / 💸 のみ (説明文最小)
+  - チップアイコンは header と同じ `chip-icon` を流用
+  - `border-banner` (オレンジ pulse) で modal 閉じても国境ステート可視化
+- `ROLL_BORDER` action: `{ choice: 'red'|'black'; outcome: 'win'|'lose'; cardLabel: string }` (choice slot は legacy unused)
+  - 勝ち: pendingBorder クリア、city なら +3 (+IRL +3)、capital なら +5 (+IRL +5)、visitedCities/Capitals 追加
+  - 負け: チップ -1 のみ、pendingBorder 残留 → 再挑戦できる
+
+**設計意図 (重要)**: ハズレ時のチップ消費は **「国境は金とられがち」の揶揄** (ユーザー明言)。「ハズレは無料リトライ」みたいな"親切設計"に書き換えないこと。memory `project_border_satire.md` 参照
+
+### 既知の制限と次の改善
+
+**国境位置は first-foreign-stop ヒューリスティック** — 「Tokyo→Seoul」レグなら Busan (最初の KR 都市) で発火。理想は **文字通りの地理的国境** (例: 対馬-釜山間の海峡) だが、それには route データに「国境」を都市と同列の destination として追加する必要がある (~192 国境点)。「border-as-destination」をユーザーが認識・受容済み、別セッションのタスク。
+
+### 残タスク (次セッション以降、優先順)
+
+1. **border-as-destination route データ整備** ← 上記の通り、国境を都市と同様 routeData に登録 (`Border` 型 + `borderDistances`)。`findNextBorder` をそれを優先して見るように切替
 2. **画像のクオリティ調整** ← banner (1500×500 横長で難しいとユーザー認める) / casino / map crop が「ひどすぎ」評価。再デザイン or Canva 等の外部ツール推奨。`public/x-promo/banner-design.svg` の手書きSVG では限界
 3. **横浜以外の都市座標ポリシー記録** ← 市役所基準で統一決定済 (意思決定はあるが実 sweep はしてない)
-4. **アカウント取得確認**: `@sekai_sanpo_` (末尾アンダースコア) で取得予定。取得後は ShareToX のmention が機能するか実投稿で確認
+4. **アカウント取得確認**: `@sekai_sanpo_` (末尾アンダースコア) で取得予定。取得後は ShareToX の mention が機能するか実投稿で確認
 
 ### コミット履歴 (このセッション、main → HEAD)
 - 第7セッション分は別途このコミットに含む (multi-feat:JST reset + dailyHistory drop + reverse geocoded share)
