@@ -4,6 +4,7 @@ import { useGame } from '../../hooks/useGame';
 import { cities, segmentClassifications } from '../../data';
 import { getRoadPolyline } from '../../services/directions';
 import { isRealLifeVisitedCapital } from '../../data/realLifeVisited';
+import { setBuiltPath } from '../../services/playerPath';
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
 
@@ -421,6 +422,10 @@ export function MapView() {
       // Cache the built geometry so the cheap walked/future split effect
       // can re-render on each step without rebuilding from Directions.
       builtPathRef.current = { allPoints, cumKm };
+      // Share with non-map consumers (ShareToX, geocoding) so they can
+      // resolve player position to actual road lat/lng instead of the
+      // squares-coarse interpolation that drifts off-route.
+      setBuiltPath({ allPoints, cumKm });
       renderFromBuilt(builtPathRef.current);
 
       // First-render center alignment: now that the polyline is built we

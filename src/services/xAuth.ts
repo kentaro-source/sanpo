@@ -18,6 +18,7 @@
 import { Browser } from '@capacitor/browser';
 import { Preferences } from '@capacitor/preferences';
 import { App } from '@capacitor/app';
+import { CapacitorHttp } from '@capacitor/core';
 
 const AUTH_URL = 'https://x.com/i/oauth2/authorize';
 const TOKEN_URL = 'https://api.x.com/2/oauth2/token';
@@ -188,35 +189,40 @@ interface XUser {
 }
 
 async function fetchMe(accessToken: string): Promise<XUser> {
-  const r = await fetch('https://api.x.com/2/users/me', {
+  const r = await CapacitorHttp.get({
+    url: 'https://api.x.com/2/users/me',
     headers: { Authorization: `Bearer ${accessToken}` },
   });
-  if (!r.ok) throw new Error(`/users/me failed: ${r.status}`);
-  const j = await r.json();
-  return { id: j.data.id, username: j.data.username };
+  if (r.status < 200 || r.status >= 300)
+    throw new Error(`/users/me failed: ${r.status}`);
+  return { id: r.data.data.id, username: r.data.data.username };
 }
 
+/**
+ * X token endpoint exchange. WebView fetch() into api.x.com fails with
+ * CORS / "Failed to fetch" because the cross-origin preflight from
+ * https://localhost is rejected. CapacitorHttp goes through the native
+ * Android HttpURLConnection so CORS doesn't apply at all.
+ */
 async function exchangeCodeForToken(
   code: string,
   codeVerifier: string,
 ): Promise<StoredToken> {
-  const body = new URLSearchParams({
-    grant_type: 'authorization_code',
-    code,
-    redirect_uri: REDIRECT_URI,
-    client_id: CLIENT_ID,
-    code_verifier: codeVerifier,
-  });
-  const r = await fetch(TOKEN_URL, {
-    method: 'POST',
+  const r = await CapacitorHttp.post({
+    url: TOKEN_URL,
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
+    data: {
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: REDIRECT_URI,
+      client_id: CLIENT_ID,
+      code_verifier: codeVerifier,
+    },
   });
-  if (!r.ok) {
-    const t = await r.text();
-    throw new Error(`Token exchange failed: ${r.status} ${t}`);
+  if (r.status < 200 || r.status >= 300) {
+    throw new Error(`Token exchange failed: ${r.status} ${JSON.stringify(r.data)}`);
   }
-  const j = await r.json();
+  const j = r.data;
   const expiresAt = Date.now() + (Number(j.expires_in) || 7200) * 1000;
   return {
     accessToken: j.access_token,
@@ -226,21 +232,19 @@ async function exchangeCodeForToken(
 }
 
 async function refreshAccessToken(refreshToken: string): Promise<StoredToken> {
-  const body = new URLSearchParams({
-    grant_type: 'refresh_token',
-    refresh_token: refreshToken,
-    client_id: CLIENT_ID,
-  });
-  const r = await fetch(TOKEN_URL, {
-    method: 'POST',
+  const r = await CapacitorHttp.post({
+    url: TOKEN_URL,
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: body.toString(),
+    data: {
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+      client_id: CLIENT_ID,
+    },
   });
-  if (!r.ok) {
-    const t = await r.text();
-    throw new Error(`Token refresh failed: ${r.status} ${t}`);
+  if (r.status < 200 || r.status >= 300) {
+    throw new Error(`Token refresh failed: ${r.status} ${JSON.stringify(r.data)}`);
   }
-  const j = await r.json();
+  const j = r.data;
   const expiresAt = Date.now() + (Number(j.expires_in) || 7200) * 1000;
   const token: StoredToken = {
     accessToken: j.access_token,

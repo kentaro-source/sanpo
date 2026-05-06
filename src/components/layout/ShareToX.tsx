@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useGame } from '../../hooks/useGame';
 import { cities } from '../../data/cities';
+import { positionAtKm } from '../../data/generateRoute';
 import {
   isXAuthConfigured,
   loadStoredToken,
@@ -9,6 +10,11 @@ import {
   clearStoredToken,
 } from '../../services/xAuth';
 import { postTweet, XPostError } from '../../services/xPost';
+import {
+  reverseGeocode,
+  reverseGeocodeCached,
+} from '../../services/geocode';
+import { snappedPositionAtKm } from '../../services/playerPath';
 
 interface PlaceLabel {
   name: string;
@@ -60,6 +66,52 @@ export function ShareToX({ onClose }: Props) {
   // the user can freely tweak/delete/reorder before posting.
   const [text, setText] = useState('');
   const [touched, setTouched] = useState(false);
+
+  // Lat/lng for today's start and current position. Prefers the
+  // road-snapped polyline path (built lazily by MapView via Directions
+  // API) since the squares-coarse positionAtKm drifts off the actual
+  // route — reverse geocoding off the wrong lat/lng was returning
+  // adjacent cities. Falls back to positionAtKm only if MapView hasn't
+  // built the path window yet.
+  const startLatLng = useMemo(() => {
+    if (player.todayStartKm == null) return null;
+    return (
+      snappedPositionAtKm(player.todayStartKm) ??
+      positionAtKm(routeData, player.todayStartKm)
+    );
+  }, [player.todayStartKm, routeData]);
+  const currLatLng = useMemo(
+    () =>
+      snappedPositionAtKm(player.distanceKm) ??
+      positionAtKm(routeData, player.distanceKm),
+    [player.distanceKm, routeData],
+  );
+
+  // Reverse-geocoded labels — seeded synchronously from cache for
+  // instant render on re-open.
+  const [startLabel, setStartLabel] = useState<PlaceLabel | null>(() =>
+    startLatLng ? reverseGeocodeCached(startLatLng.lat, startLatLng.lng) : null,
+  );
+  const [currLabel, setCurrLabel] = useState<PlaceLabel | null>(() =>
+    reverseGeocodeCached(currLatLng.lat, currLatLng.lng),
+  );
+
+  useEffect(() => {
+    let cancel = false;
+    if (startLatLng) {
+      reverseGeocode(startLatLng.lat, startLatLng.lng).then((r) => {
+        if (!cancel && r) setStartLabel(r);
+      });
+    } else {
+      setStartLabel(null);
+    }
+    reverseGeocode(currLatLng.lat, currLatLng.lng).then((r) => {
+      if (!cancel && r) setCurrLabel(r);
+    });
+    return () => {
+      cancel = true;
+    };
+  }, [startLatLng, currLatLng]);
 
   // X OAuth state.
   const [xUsername, setXUsername] = useState<string | null>(null);
@@ -180,14 +232,16 @@ export function ShareToX({ onClose }: Props) {
     const lines: string[] = [];
     lines.push(`📅 Day ${dayNum}`);
 
-    // Daily route line — geocoded address preferred, route-local city fallback.
+    // Daily route line — prefer reverse-geocoded address (works when
+    // MapView's road-snapped path is available), fall back to route-
+    // local nearest city when geocode hasn't resolved.
     const hasTodayStart =
       player.attributedDayStart === todayStart && player.todayStartKm != null;
     const startPlace =
       hasTodayStart && player.todayStartKm != null
-        ? placeNearKm(player.todayStartKm)
+        ? startLabel ?? placeNearKm(player.todayStartKm)
         : null;
-    const currPlace = placeNearKm(player.distanceKm);
+    const currPlace = currLabel ?? placeNearKm(player.distanceKm);
 
     if (startPlace && currPlace) {
       const sCountry = countryJaFor(startPlace.cc);
@@ -317,6 +371,8 @@ export function ShareToX({ onClose }: Props) {
     player.boosts,
     placeNearKm,
     countryJaFor,
+    startLabel,
+    currLabel,
     upcomingStops,
   ]);
 

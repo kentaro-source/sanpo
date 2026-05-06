@@ -4,6 +4,7 @@
  * ~17 posts per 24h per user; the daily-post use case stays under it.
  */
 
+import { CapacitorHttp } from '@capacitor/core';
 import { getAccessToken } from './xAuth';
 
 const TWEETS_URL = 'https://api.x.com/2/tweets';
@@ -15,13 +16,13 @@ export interface PostTweetResult {
 }
 
 export class XPostError extends Error {
-  constructor(
-    message: string,
-    public status: number,
-    public detail?: unknown,
-  ) {
+  status: number;
+  detail?: unknown;
+  constructor(message: string, status: number, detail?: unknown) {
     super(message);
     this.name = 'XPostError';
+    this.status = status;
+    this.detail = detail;
   }
 }
 
@@ -30,24 +31,18 @@ export async function postTweet(text: string): Promise<PostTweetResult> {
   if (!token) {
     throw new XPostError('Not connected to X — run startXAuth first.', 401);
   }
-  const r = await fetch(TWEETS_URL, {
-    method: 'POST',
+  // CapacitorHttp routes through native HTTP, dodging WebView CORS.
+  const r = await CapacitorHttp.post({
+    url: TWEETS_URL,
     headers: {
       Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ text }),
+    data: { text },
   });
-  if (!r.ok) {
-    let detail: unknown;
-    try {
-      detail = await r.json();
-    } catch {
-      detail = await r.text();
-    }
+  if (r.status < 200 || r.status >= 300) {
     // 429 = rate limit. 401 = token died. 403 = scope mismatch / suspended.
-    throw new XPostError(`X post failed: ${r.status}`, r.status, detail);
+    throw new XPostError(`X post failed: ${r.status}`, r.status, r.data);
   }
-  const j = await r.json();
-  return { id: j.data.id, text: j.data.text };
+  return { id: r.data.data.id, text: r.data.data.text };
 }
