@@ -2,12 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useGame } from '../../hooks/useGame';
 import { cities } from '../../data/cities';
-import { positionAtKm } from '../../data/generateRoute';
-import {
-  reverseGeocode,
-  reverseGeocodeCached,
-  type GeocodeResult,
-} from '../../services/geocode';
 import {
   isXAuthConfigured,
   loadStoredToken,
@@ -15,6 +9,11 @@ import {
   clearStoredToken,
 } from '../../services/xAuth';
 import { postTweet, XPostError } from '../../services/xPost';
+
+interface PlaceLabel {
+  name: string;
+  cc: string;
+}
 
 interface Props {
   onClose: () => void;
@@ -61,26 +60,6 @@ export function ShareToX({ onClose }: Props) {
   // the user can freely tweak/delete/reorder before posting.
   const [text, setText] = useState('');
   const [touched, setTouched] = useState(false);
-
-  // Lat/lng for today's start and current position. Memoized so the
-  // geocode effect only re-fires when the player actually moves.
-  const startLatLng = useMemo(() => {
-    if (player.todayStartKm == null) return null;
-    return positionAtKm(routeData, player.todayStartKm);
-  }, [player.todayStartKm, routeData]);
-  const currLatLng = useMemo(
-    () => positionAtKm(routeData, player.distanceKm),
-    [player.distanceKm, routeData],
-  );
-
-  // Reverse-geocoded labels. Seeded synchronously from cache so re-opens
-  // at roughly the same position render instantly.
-  const [startLabel, setStartLabel] = useState<GeocodeResult | null>(() =>
-    startLatLng ? reverseGeocodeCached(startLatLng.lat, startLatLng.lng) : null,
-  );
-  const [currLabel, setCurrLabel] = useState<GeocodeResult | null>(() =>
-    reverseGeocodeCached(currLatLng.lat, currLatLng.lng),
-  );
 
   // X OAuth state.
   const [xUsername, setXUsername] = useState<string | null>(null);
@@ -141,23 +120,6 @@ export function ShareToX({ onClose }: Props) {
     }
   };
 
-  useEffect(() => {
-    let cancel = false;
-    if (startLatLng) {
-      reverseGeocode(startLatLng.lat, startLatLng.lng).then((r) => {
-        if (!cancel && r) setStartLabel(r);
-      });
-    } else {
-      setStartLabel(null);
-    }
-    reverseGeocode(currLatLng.lat, currLatLng.lng).then((r) => {
-      if (!cancel && r) setCurrLabel(r);
-    });
-    return () => {
-      cancel = true;
-    };
-  }, [startLatLng, currLatLng]);
-
   /**
    * Resolve a country code (ISO alpha-2) to its Japanese country name
    * by looking up the matching capital entry. Falls back to the code
@@ -178,9 +140,9 @@ export function ShareToX({ onClose }: Props) {
    * smallest km-distance to the target position.
    */
   const placeNearKm = useMemo(() => {
-    return (km: number): GeocodeResult | null => {
+    return (km: number): PlaceLabel | null => {
       let bestDelta = Infinity;
-      let best: GeocodeResult | null = null;
+      let best: PlaceLabel | null = null;
       for (const cap of routeData.capitals) {
         const ckm = routeData.capitalDistances[cap.id];
         if (ckm == null) continue;
@@ -222,11 +184,10 @@ export function ShareToX({ onClose }: Props) {
     const hasTodayStart =
       player.attributedDayStart === todayStart && player.todayStartKm != null;
     const startPlace =
-      (hasTodayStart && startLabel) ||
-      (hasTodayStart && player.todayStartKm != null
+      hasTodayStart && player.todayStartKm != null
         ? placeNearKm(player.todayStartKm)
-        : null);
-    const currPlace = currLabel ?? placeNearKm(player.distanceKm);
+        : null;
+    const currPlace = placeNearKm(player.distanceKm);
 
     if (startPlace && currPlace) {
       const sCountry = countryJaFor(startPlace.cc);
@@ -354,9 +315,8 @@ export function ShareToX({ onClose }: Props) {
     player.todaySicBoWins,
     player.todaySicBoLosses,
     player.boosts,
-    startLabel,
-    currLabel,
     placeNearKm,
+    countryJaFor,
     upcomingStops,
   ]);
 
