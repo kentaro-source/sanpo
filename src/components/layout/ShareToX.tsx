@@ -344,12 +344,13 @@ export function ShareToX({ onClose }: Props) {
       const next = upcomingStops?.[0];
       const nextIsCapital =
         next && next.kind === 'capital' && next.nameJa === nextCapital.nameJa;
-      const goalLabel = `${flagEmoji(nextCapital.id)} ${nextCapital.countryJa} ${nextCapital.nameJa}`;
+      // 国名は飛ばして flag + 都市/首都名のみ。flag で国がわかるし、
+      // 都市名と国名が並ぶ「韓国 ソウル」は冗長。
+      const goalLabel = `${flagEmoji(nextCapital.id)} ${nextCapital.nameJa}`;
       if (next && !nextIsCapital) {
-        const nextCountry = next.countryCode ? countryJaFor(next.countryCode) : '';
         const nextFlag = next.countryCode ? flagEmoji(next.countryCode) : '';
         lines.push(
-          `🏛 ${idx}/${totalCapitals} → ${nextFlag} ${nextCountry} ${next.nameJa} (→ ${goalLabel})`,
+          `🏛 ${idx}/${totalCapitals} → ${nextFlag} ${next.nameJa} (→ ${goalLabel})`,
         );
       } else {
         lines.push(`🏛 ${idx}/${totalCapitals} → ${goalLabel}`);
