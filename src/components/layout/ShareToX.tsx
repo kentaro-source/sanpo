@@ -344,17 +344,19 @@ export function ShareToX({ onClose }: Props) {
       const next = upcomingStops?.[0];
       const nextIsCapital =
         next && next.kind === 'capital' && next.nameJa === nextCapital.nameJa;
+      // 中継都市が直近目的地のときは首都名 (= 遠い目的地) は冗長として
+      // 落とす。直近で実際に首都へ向かう場合のみ首都名を出す。
       // 国旗 fallback (アルファベット 2 文字) では分からない国名が多い
       // (アゼルバイジャン AZ、サントメ・プリンシペ ST etc) ので
-      // countryJa を必ず併記、首都/中継都市名はその後。
-      const goalLabel = `${flagEmoji(nextCapital.id)} ${nextCapital.countryJa} ${nextCapital.nameJa}`;
+      // countryJa は必ず併記。
       if (next && !nextIsCapital) {
         const nextFlag = next.countryCode ? flagEmoji(next.countryCode) : '';
         const nextCountry = next.countryCode ? countryJaFor(next.countryCode) : '';
         lines.push(
-          `🏛 ${idx}/${totalCapitals} → ${nextFlag} ${nextCountry} ${next.nameJa} (→ ${goalLabel})`,
+          `🏛 ${idx}/${totalCapitals} → ${nextFlag} ${nextCountry} ${next.nameJa}`,
         );
       } else {
+        const goalLabel = `${flagEmoji(nextCapital.id)} ${nextCapital.countryJa} ${nextCapital.nameJa}`;
         lines.push(`🏛 ${idx}/${totalCapitals} → ${goalLabel}`);
       }
     }
