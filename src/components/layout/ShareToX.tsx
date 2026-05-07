@@ -344,20 +344,21 @@ export function ShareToX({ onClose }: Props) {
       const next = upcomingStops?.[0];
       const nextIsCapital =
         next && next.kind === 'capital' && next.nameJa === nextCapital.nameJa;
-      // 中継都市が直近目的地のときは首都名 (= 遠い目的地) は冗長として
-      // 落とす。直近で実際に首都へ向かう場合のみ首都名を出す。
-      // 国旗 fallback (アルファベット 2 文字) では分からない国名が多い
-      // (アゼルバイジャン AZ、サントメ・プリンシペ ST etc) ので
-      // countryJa は必ず併記。
+      // 🏛 行は「次に向かう目的国」を示すのが目的なので、中継都市
+      // (今いる国の途中の街) は出さない。次の segment goal capital の
+      // 国情報 (= 次の foreign country) を表示。
+      // 国旗 fallback (alphabet 2 文字) では分からない国名が多い
+      // (アゼルバイジャン AZ、サントメ ST etc) ので countryJa は必ず併記。
+      // 次の到着が首都自体のとき (= 入国直前の最終アプローチ) のみ
+      // 首都名も出す。
       if (next && !nextIsCapital) {
-        const nextFlag = next.countryCode ? flagEmoji(next.countryCode) : '';
-        const nextCountry = next.countryCode ? countryJaFor(next.countryCode) : '';
         lines.push(
-          `🏛 ${idx}/${totalCapitals} → ${nextFlag} ${nextCountry} ${next.nameJa}`,
+          `🏛 ${idx}/${totalCapitals} → ${flagEmoji(nextCapital.id)} ${nextCapital.countryJa}`,
         );
       } else {
-        const goalLabel = `${flagEmoji(nextCapital.id)} ${nextCapital.countryJa} ${nextCapital.nameJa}`;
-        lines.push(`🏛 ${idx}/${totalCapitals} → ${goalLabel}`);
+        lines.push(
+          `🏛 ${idx}/${totalCapitals} → ${flagEmoji(nextCapital.id)} ${nextCapital.countryJa} ${nextCapital.nameJa}`,
+        );
       }
     }
 
