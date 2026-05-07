@@ -7,6 +7,7 @@ import type {
   SicBoRoll,
   BonusEvent,
   Boost,
+  DailyRecord,
 } from '../types';
 import { routeData } from '../data';
 import { cities } from '../data/cities';
@@ -357,6 +358,55 @@ const BORDER_ROLL_COST = 1;
  */
 const LAUNCH_RESET_AT_MS = Date.UTC(2026, 4, 6, 15, 0, 0);
 
+const MAX_DAILY_HISTORY = 60;
+
+/**
+ * If the previous attributedDayStart is older than today, push a
+ * DailyRecord for that finished day and reset today-accumulators.
+ * Returns a partial PlayerState patch the caller merges in. Idempotent
+ * — safe to call on every state-mutating action.
+ */
+function closeOutDayIfNeeded(
+  player: PlayerState,
+  now: number,
+): Partial<PlayerState> {
+  const today = startOfDayMs(now);
+  const prev = player.attributedDayStart;
+  if (!prev || prev === today) return {};
+  const record: DailyRecord = {
+    dayStart: prev,
+    steps: player.attributedTodaySteps ?? 0,
+    km: player.todayKm ?? 0,
+    sicBoWins: player.todaySicBoWins ?? 0,
+    sicBoLosses: player.todaySicBoLosses ?? 0,
+    newCapitals: player.todayNewCapitals ?? 0,
+    newCities: player.todayNewCities ?? 0,
+  };
+  // Drop empty days (no activity) so the history view isn't padded
+  // with placeholders.
+  const empty =
+    record.steps === 0 &&
+    record.km === 0 &&
+    record.sicBoWins === 0 &&
+    record.sicBoLosses === 0 &&
+    record.newCapitals === 0 &&
+    record.newCities === 0;
+  const history = empty
+    ? player.dailyHistory ?? []
+    : [...(player.dailyHistory ?? []), record].slice(-MAX_DAILY_HISTORY);
+  return {
+    dailyHistory: history,
+    todayKm: 0,
+    todayNewCapitals: 0,
+    todayNewCities: 0,
+    todaySicBoWins: 0,
+    todaySicBoLosses: 0,
+    todayMaxMultiplier: undefined,
+    todayMinMultiplier: undefined,
+    todayMultiplierDayStart: undefined,
+  };
+}
+
 function createInitialPlayer(): PlayerState {
   return {
     distanceKm: 0,
@@ -492,10 +542,16 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       );
 
       const allEvents = [...cross.events, ...ms.events];
+      const dayClose = closeOutDayIfNeeded(state.player, now);
+      const newCapsToday =
+        cross.newCapitals.length - state.player.visitedCapitals.length;
+      const newCitiesToday =
+        cross.newCities.length - (state.player.visitedCities ?? []).length;
       return {
         ...state,
         player: {
           ...state.player,
+          ...dayClose,
           distanceKm: newKm,
           currentSquareIndex: squareIndexAtKm(routeData, newKm),
           boosts: conv.prunedBoosts,
@@ -519,6 +575,14 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             ? [...allEvents, ...(state.player.recentBonuses ?? [])].slice(0, MAX_RECENT_BONUSES)
             : state.player.recentBonuses,
           lastUpdated: now,
+          todayKm:
+            ((dayClose.todayKm ?? state.player.todayKm) ?? 0) + conv.km,
+          todayNewCapitals:
+            ((dayClose.todayNewCapitals ?? state.player.todayNewCapitals) ?? 0) +
+            Math.max(0, newCapsToday),
+          todayNewCities:
+            ((dayClose.todayNewCities ?? state.player.todayNewCities) ?? 0) +
+            Math.max(0, newCitiesToday),
         },
       };
     }
@@ -601,10 +665,16 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       );
 
       const allEvents = [...cross.events, ...ms.events];
+      const dayClose = closeOutDayIfNeeded(state.player, now);
+      const newCapsToday =
+        cross.newCapitals.length - state.player.visitedCapitals.length;
+      const newCitiesToday =
+        cross.newCities.length - (state.player.visitedCities ?? []).length;
       return {
         ...state,
         player: {
           ...state.player,
+          ...dayClose,
           distanceKm: newKm,
           currentSquareIndex: squareIndexAtKm(routeData, newKm),
           boosts: conv.prunedBoosts,
@@ -628,6 +698,14 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           recentBonuses: allEvents.length
             ? [...allEvents, ...(state.player.recentBonuses ?? [])].slice(0, MAX_RECENT_BONUSES)
             : state.player.recentBonuses,
+          todayKm:
+            ((dayClose.todayKm ?? state.player.todayKm) ?? 0) + conv.km,
+          todayNewCapitals:
+            ((dayClose.todayNewCapitals ?? state.player.todayNewCapitals) ?? 0) +
+            Math.max(0, newCapsToday),
+          todayNewCities:
+            ((dayClose.todayNewCities ?? state.player.todayNewCities) ?? 0) +
+            Math.max(0, newCitiesToday),
           lastUpdated: now,
         },
       };
@@ -711,10 +789,12 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         : effAfter;
       const baseWins = sameMultDay ? state.player.todaySicBoWins ?? 0 : 0;
       const baseLosses = sameMultDay ? state.player.todaySicBoLosses ?? 0 : 0;
+      const dayClose = closeOutDayIfNeeded(state.player, now);
       return {
         ...state,
         player: {
           ...state.player,
+          ...dayClose,
           // Bet tokens are spent, no advance.
           availableDice: Math.max(0, state.player.availableDice - totalBet),
           // Stack the new boost on top of any active ones (instead of

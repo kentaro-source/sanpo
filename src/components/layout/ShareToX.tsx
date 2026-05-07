@@ -323,7 +323,10 @@ export function ShareToX({ onClose }: Props) {
     let etaStr = '';
     const elapsedDays =
       (Date.now() - player.startDate) / (1000 * 60 * 60 * 24);
-    if (elapsedDays >= 1 && walkedKm > 0 && remainingKm > 0) {
+    // 1 時間以上経過 + 何 km か進んでいる → 早出し ETA。Day 1 でも
+    // 「このペースだと N 年」が見える。startDate が未来 (= 自動 reset
+    // の予定時刻、まだ launch 前) の場合は elapsedDays < 0 なのでスキップ。
+    if (elapsedDays >= 1 / 24 && walkedKm > 0 && remainingKm > 0) {
       const kmPerDay = walkedKm / elapsedDays;
       const etaDays = remainingKm / kmPerDay;
       const etaYears = etaDays / 365;

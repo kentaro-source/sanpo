@@ -190,6 +190,17 @@ export interface PlayerState {
    */
   lastLoginDayStart?: number;
   /**
+   * Per-day rollup of activity, pushed when the day boundary
+   * (attributedDayStart) advances. Capped at 60 days. Surfaced via
+   * HamburgerMenu's 「📊 日別記録」 history view.
+   */
+  dailyHistory?: DailyRecord[];
+  /** Today-in-progress accumulators that get rolled into dailyHistory
+   *  when the day boundary crosses. Reset to zero on rollover. */
+  todayKm?: number;
+  todayNewCapitals?: number;
+  todayNewCities?: number;
+  /**
    * Sentinel for the one-shot launch reset (5/7 00:00 JST).
    * - undefined: not yet initialized (first load); reducer will set
    *   to LAUNCH_RESET_AT_MS or 0 depending on current clock
@@ -243,6 +254,22 @@ export interface PlayerState {
     atKm: number;
     country: string;
   };
+}
+
+export interface DailyRecord {
+  /** Unix ms of midnight local time for this day. */
+  dayStart: number;
+  /** Steps walked that day (whatever source credited them). */
+  steps: number;
+  /** km of route progress made that day (after multiplier). */
+  km: number;
+  /** Sic Bo wins / losses count for the day. */
+  sicBoWins: number;
+  sicBoLosses: number;
+  /** Capitals newly visited that day. */
+  newCapitals: number;
+  /** Cities newly visited that day. */
+  newCities: number;
 }
 
 export type BonusEventKind = 'milestone' | 'city' | 'city-irl' | 'capital' | 'capital-landing';
