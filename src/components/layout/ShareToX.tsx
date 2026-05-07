@@ -344,16 +344,16 @@ export function ShareToX({ onClose }: Props) {
       const next = upcomingStops?.[0];
       const nextIsCapital =
         next && next.kind === 'capital' && next.nameJa === nextCapital.nameJa;
-      // 🏛 行は「次に向かう目的国」を示すのが目的なので、中継都市
-      // (今いる国の途中の街) は出さない。次の segment goal capital の
-      // 国情報 (= 次の foreign country) を表示。
-      // 国旗 fallback (alphabet 2 文字) では分からない国名が多い
-      // (アゼルバイジャン AZ、サントメ ST etc) ので countryJa は必ず併記。
-      // 次の到着が首都自体のとき (= 入国直前の最終アプローチ) のみ
-      // 首都名も出す。
+      // 🏛 行: 次の都市 (中継 stop) + 次の国 (segment goal) を併記。
+      // 中継都市の country 名は daily route 行 (🚶 日本 … → …) に
+      // 既に出ているので、ここでは flag + 都市名のみ。次国 (== 段の
+      // ゴール国) は countryJa を必ず付ける (flag fallback 不可な
+      // obscure 国対策 — アゼルバイジャン AZ、サントメ ST etc)。
+      // 次の到着 = 首都自体のとき (= 最終アプローチ) は単一表示。
       if (next && !nextIsCapital) {
+        const nextFlag = next.countryCode ? flagEmoji(next.countryCode) : '';
         lines.push(
-          `🏛 ${idx}/${totalCapitals} → ${flagEmoji(nextCapital.id)} ${nextCapital.countryJa}`,
+          `🏛 ${idx}/${totalCapitals} → ${nextFlag} ${next.nameJa} (→ ${flagEmoji(nextCapital.id)} ${nextCapital.countryJa})`,
         );
       } else {
         lines.push(
