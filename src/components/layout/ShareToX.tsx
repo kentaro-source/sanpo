@@ -335,7 +335,14 @@ export function ShareToX({ onClose }: Props) {
       else if (etaDays >= 30) etaStr = `${(etaDays / 30).toFixed(1)}ヶ月`;
       else etaStr = `${Math.round(etaDays)}日`;
     }
-    const distLine = `📏 ${fmt(walkedKm)}km (${pctStr}%)${etaStr ? ` / ⏳ ${etaStr}` : ''}`;
+    // Day 2 以降は当日分の進捗 (今日 +Xkm) を 📏 行の先頭に追加。
+    // Day 1 では todayKm ≈ walkedKm なので冗長になり省略。「累計」
+    // ラベルは context で自明 (大きい km = 累計) なので付けない。
+    const todayKm =
+      player.attributedDayStart === todayStart ? player.todayKm ?? 0 : 0;
+    const todayPart =
+      dayNum > 1 && todayKm > 0 ? `今日 +${fmt(todayKm)}km / ` : '';
+    const distLine = `📏 ${todayPart}${fmt(walkedKm)}km (${pctStr}%)${etaStr ? ` / ⏳ ${etaStr}` : ''}`;
     lines.push(distLine);
 
     // Long-haul progress: immediate next stop + segment goal capital.
@@ -372,6 +379,7 @@ export function ShareToX({ onClose }: Props) {
     player.attributedTodaySteps,
     player.attributedDayStart,
     player.todayStartKm,
+    player.todayKm,
     player.todayMaxMultiplier,
     player.todayMinMultiplier,
     player.todayMultiplierDayStart,
