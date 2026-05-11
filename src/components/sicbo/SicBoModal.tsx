@@ -402,10 +402,9 @@ function massLabel(count: number, mult: number): string {
 }
 
 /**
- * Compose the X post pre-fill text for a Sic Bo roll. Highlights
- * triples / large wins / total losses since those are the worth-posting
- * cases. Kept short so the auto-gen stats can still fit in the 280-char
- * budget after.
+ * Compose the X post pre-fill text for a Sic Bo roll. Minimal — just
+ * the facts (dice + sum + outcome), plus a ゾロ目 highlight when
+ * triple. パターン判定はユーザーが editable textarea で自由に書く想定。
  */
 function buildSicBoComment(r: {
   dice: [number, number, number];
@@ -417,13 +416,11 @@ function buildSicBoComment(r: {
   const sum = a + b + c;
   const triple = a === b && b === c;
   const diceStr = `${a}-${b}-${c}`;
+  const outcome = r.won ? `×${r.multiplier} 加速` : 'ハズレ';
   if (triple) {
-    return `🎲 ${diceStr} ゾロ目！合計${sum}・×${r.multiplier} 加速`;
+    return `🎲 ${diceStr} ゾロ目！合計${sum}・${outcome}`;
   }
-  if (r.won) {
-    return `🎲 ${diceStr} 合計${sum}・×${r.multiplier} 加速`;
-  }
-  return `🎲 ${diceStr} 合計${sum}・ハズレ`;
+  return `🎲 ${diceStr} 合計${sum}・${outcome}`;
 }
 
 /** Format ms duration as "24h" / "4h30m" / "16分". */
