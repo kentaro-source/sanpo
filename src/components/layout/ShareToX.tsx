@@ -310,14 +310,16 @@ export function ShareToX({ onClose, initialComment, mode = 'daily' }: Props) {
       }
     }
 
-    // 平均速度 (今日 0時以降の経過時間で割った km/h)。同 km/h ベース
-    // (= 4km/h 等倍) と比較しやすいので最高/最低より状態認識しやすい。
-    const todayElapsedHours =
-      (Date.now() - todayStart) / (1000 * 60 * 60);
-    if (todayElapsedHours > 0.1) {
-      const todayKmForAvg =
-        player.attributedDayStart === todayStart ? player.todayKm ?? 0 : 0;
-      const avgKmh = todayKmForAvg / todayElapsedHours;
+    // 平均速度 = todayKm / 推定歩行時間。
+    // 推定歩行時間 = todaySteps / 100 steps-per-min (歩行ケイデンス
+    // 仮定)。wall-clock 時間で割ると寝てる時間 etc 含まれて 1 km/h
+    // 未満に出るが、それは「歩いてない時間」が大半な日のノイズで、
+    // 「歩いてる時の平均速度」というユーザーの直感と合わない。
+    const todayKmForAvg =
+      player.attributedDayStart === todayStart ? player.todayKm ?? 0 : 0;
+    if (todaySteps2 >= 100 && todayKmForAvg > 0) {
+      // todayKm × 6000 / todaySteps = km/h (100 歩/分 = 6000 歩/時)
+      const avgKmh = (todayKmForAvg * 6000) / todaySteps2;
       const avgStr = formatSpeed(avgKmh);
       if (avgStr) lines.push(`🚶 平均 ${avgStr}`);
     }
