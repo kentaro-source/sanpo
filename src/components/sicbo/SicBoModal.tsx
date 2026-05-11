@@ -38,7 +38,9 @@ export function SicBoModal({ open, onClose }: Props) {
     /** Each individual bet's win state and the multiplier it would have triggered. */
     perBet: { bet: BetSlot; won: boolean; payout: number }[];
   } | null>(null);
-  const [shareOpen, setShareOpen] = useState(false);
+  // Holds the pre-fill comment for ShareToX. Set from the current
+  // result-phase roll OR from a tapped past entry in LAST 5.
+  const [shareComment, setShareComment] = useState<string | null>(null);
 
   const totalTokens = useMemo(
     () => Array.from(bets.values()).reduce((s, v) => s + v, 0),
@@ -286,6 +288,17 @@ export function SicBoModal({ open, onClose }: Props) {
                         <li
                           key={`${h.timestamp}-${i}`}
                           className={`sicbo-history-row ${won ? 'won' : 'lost'}`}
+                          onClick={() =>
+                            setShareComment(
+                              buildSicBoComment({
+                                dice: h.dice,
+                                won,
+                                multiplier: h.totalAdvance,
+                                perBet: [],
+                              }),
+                            )
+                          }
+                          title="この結果を X に投稿"
                         >
                           <span className="sicbo-history-dice">
                             <Die face={h.dice[0]} size={32} />
@@ -296,6 +309,7 @@ export function SicBoModal({ open, onClose }: Props) {
                           <span className="sicbo-history-result">
                             {won ? `×${h.totalAdvance}` : 'MISS'}
                           </span>
+                          <span className="sicbo-history-share">𝕏</span>
                         </li>
                       );
                     })}
@@ -355,7 +369,7 @@ export function SicBoModal({ open, onClose }: Props) {
               </button>
               <button
                 className="sicbo-share-btn"
-                onClick={() => setShareOpen(true)}
+                onClick={() => setShareComment(buildSicBoComment(resultRoll))}
                 title="この結果を X に投稿"
               >
                 𝕏
@@ -370,10 +384,10 @@ export function SicBoModal({ open, onClose }: Props) {
             </div>
           </div>
         )}
-        {shareOpen && resultRoll && (
+        {shareComment != null && (
           <ShareToX
-            onClose={() => setShareOpen(false)}
-            initialComment={buildSicBoComment(resultRoll)}
+            onClose={() => setShareComment(null)}
+            initialComment={shareComment}
           />
         )}
       </div>
