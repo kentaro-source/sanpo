@@ -388,6 +388,7 @@ export function SicBoModal({ open, onClose }: Props) {
           <ShareToX
             onClose={() => setShareComment(null)}
             initialComment={shareComment}
+            mode="sicbo"
           />
         )}
       </div>
@@ -401,10 +402,15 @@ function massLabel(count: number, mult: number): string {
   return `+${tokens * mult}`;
 }
 
+/** Base walking speed at multiplier 1.0× (km/h). */
+const BASE_KMH = 4;
+
 /**
  * Compose the X post pre-fill text for a Sic Bo roll. Minimal — just
  * the facts (dice + sum + outcome), plus a ゾロ目 highlight when
- * triple. パターン判定はユーザーが editable textarea で自由に書く想定。
+ * triple. 勝ち時は インラインで km/h 換算も付けて moment-speed を体感
+ * させる (×30 = 120 km/h、車速感)。負け時は km/h 省略 (penalty で
+ * 2 km/h と書いても情報価値が低い)。
  */
 function buildSicBoComment(r: {
   dice: [number, number, number];
@@ -416,7 +422,17 @@ function buildSicBoComment(r: {
   const sum = a + b + c;
   const triple = a === b && b === c;
   const diceStr = `${a}-${b}-${c}`;
-  const outcome = r.won ? `×${r.multiplier} 加速` : 'ハズレ';
+  let outcome: string;
+  if (r.won) {
+    const speedKmh = r.multiplier * BASE_KMH;
+    const speedStr =
+      speedKmh >= 10
+        ? `${Math.round(speedKmh)} km/h`
+        : `${speedKmh.toFixed(1)} km/h`;
+    outcome = `×${r.multiplier} 加速 (${speedStr})`;
+  } else {
+    outcome = 'ハズレ';
+  }
   if (triple) {
     return `🎲 ${diceStr} ゾロ目！合計${sum}・${outcome}`;
   }

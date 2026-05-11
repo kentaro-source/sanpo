@@ -29,6 +29,13 @@ interface Props {
    * interesting roll (triple, big win/loss) with one tap.
    */
   initialComment?: string;
+  /**
+   * 'daily' (default): full daily progress template — Day count, route,
+   *   steps, speed, distance, segment goal. The X account's main feed.
+   * 'sicbo': lightweight casino-moment template — just the dice line
+   *   + current location + hashtag. No daily stats noise.
+   */
+  mode?: 'daily' | 'sicbo';
 }
 
 const HASHTAG_LINE = '#せかいさんぽ';
@@ -63,7 +70,7 @@ function flagEmoji(cc: string): string {
     .join('');
 }
 
-export function ShareToX({ onClose, initialComment }: Props) {
+export function ShareToX({ onClose, initialComment, mode = 'daily' }: Props) {
   const { nextCapital, visitedCount, totalCapitals, player, routeData, upcomingStops } =
     useGame();
   // The full editable text. Initialized from the auto-generated template
@@ -397,14 +404,48 @@ export function ShareToX({ onClose, initialComment }: Props) {
     upcomingStops,
   ]);
 
+  // sicbo モード用の stats — 直近のロール履歴 (偏り context) + 現在地。
+  // 各ロールに 大/小/ゾロ インラインタグを付けて、目の偏りが一目で
+  // 読み取れるようにする (大連続 → 大-大-大… 等)。Day / 歩数 / 距離等
+  // は daily-feed 用なので casino post には載せない。
+  const sicboStats = useMemo(() => {
+    const lines: string[] = [];
+    const recent = (player.sicBoHistory ?? []).slice(-5);
+    if (recent.length > 0) {
+      const diceList = recent
+        .map((r) => {
+          const [a, b, c] = r.dice;
+          const sum = a + b + c;
+          const isTriple = a === b && b === c;
+          const tag = isTriple ? 'ゾロ' : sum >= 11 ? '大' : '小';
+          return `${a}-${b}-${c}${tag}`;
+        })
+        .join(' / ');
+      lines.push(`📜 直近: ${diceList}`);
+    }
+    const currPlace = placeNearKm(player.distanceKm);
+    if (currPlace) {
+      lines.push(
+        `${flagEmoji(currPlace.cc)} ${countryJaFor(currPlace.cc)} ${currPlace.name}`,
+      );
+    }
+    return lines.join('\n');
+  }, [
+    player.sicBoHistory,
+    player.distanceKm,
+    placeNearKm,
+    countryJaFor,
+  ]);
+
   // Auto-generated template (= what we'd post if user did nothing).
   // initialComment (例: Sic Bo の結果) があれば stats の前に挟む。
   const template = useMemo(() => {
     const head = initialComment?.trim()
       ? `${initialComment.trim()}\n\n`
       : '';
-    return `${head}${stats}\n\n${HASHTAG_LINE}`;
-  }, [stats, initialComment]);
+    const body = mode === 'sicbo' ? sicboStats : stats;
+    return `${head}${body}\n\n${HASHTAG_LINE}`;
+  }, [stats, sicboStats, initialComment, mode]);
 
   // Initialize / refresh the textarea from template when modal opens
   // OR when stats change AND user hasn't manually touched the text yet.
