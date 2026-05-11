@@ -2149,8 +2149,8 @@
 }
 
 .sicbo-close-btn,
-.sicbo-newround {
-  flex: 1;
+.sicbo-newround,
+.sicbo-share-btn {
   border: 1.5px solid #2c1810;
   border-radius: 4px;
   padding: 10px;
@@ -2158,6 +2158,18 @@
   font-weight: 700;
   cursor: pointer;
   font-family: inherit;
+}
+.sicbo-close-btn,
+.sicbo-newround {
+  flex: 1;
+}
+.sicbo-share-btn {
+  flex: 0 0 44px;
+  background: #fffaf0;
+  color: #2c1810;
+}
+.sicbo-share-btn:active {
+  background: #f1f5f9;
 }
 
 .sicbo-close-btn {

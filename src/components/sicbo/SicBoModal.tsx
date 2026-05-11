@@ -15,6 +15,7 @@ import {
   playTokenGain,
 } from '../../services/sound';
 import { Die } from './Die';
+import { ShareToX } from '../layout/ShareToX';
 
 interface Props {
   open: boolean;
@@ -37,6 +38,7 @@ export function SicBoModal({ open, onClose }: Props) {
     /** Each individual bet's win state and the multiplier it would have triggered. */
     perBet: { bet: BetSlot; won: boolean; payout: number }[];
   } | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const totalTokens = useMemo(
     () => Array.from(bets.values()).reduce((s, v) => s + v, 0),
@@ -352,6 +354,13 @@ export function SicBoModal({ open, onClose }: Props) {
                 CLOSE
               </button>
               <button
+                className="sicbo-share-btn"
+                onClick={() => setShareOpen(true)}
+                title="この結果を X に投稿"
+              >
+                𝕏
+              </button>
+              <button
                 className="sicbo-newround"
                 onClick={handleNewRound}
                 disabled={player.availableDice <= 0}
@@ -360,6 +369,12 @@ export function SicBoModal({ open, onClose }: Props) {
               </button>
             </div>
           </div>
+        )}
+        {shareOpen && resultRoll && (
+          <ShareToX
+            onClose={() => setShareOpen(false)}
+            initialComment={buildSicBoComment(resultRoll)}
+          />
         )}
       </div>
     </div>
@@ -370,6 +385,31 @@ export function SicBoModal({ open, onClose }: Props) {
 function massLabel(count: number, mult: number): string {
   const tokens = count > 0 ? count : 1;
   return `+${tokens * mult}`;
+}
+
+/**
+ * Compose the X post pre-fill text for a Sic Bo roll. Highlights
+ * triples / large wins / total losses since those are the worth-posting
+ * cases. Kept short so the auto-gen stats can still fit in the 280-char
+ * budget after.
+ */
+function buildSicBoComment(r: {
+  dice: [number, number, number];
+  won: boolean;
+  multiplier: number;
+  perBet: { bet: BetSlot; won: boolean; payout: number }[];
+}): string {
+  const [a, b, c] = r.dice;
+  const sum = a + b + c;
+  const triple = a === b && b === c;
+  const diceStr = `${a}-${b}-${c}`;
+  if (triple) {
+    return `🎲 ${diceStr} ゾロ目！合計${sum}・×${r.multiplier} 加速`;
+  }
+  if (r.won) {
+    return `🎲 ${diceStr} 合計${sum}・×${r.multiplier} 加速`;
+  }
+  return `🎲 ${diceStr} 合計${sum}・ハズレ`;
 }
 
 /** Format ms duration as "24h" / "4h30m" / "16分". */

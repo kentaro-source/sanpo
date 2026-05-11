@@ -23,10 +23,15 @@ interface PlaceLabel {
 
 interface Props {
   onClose: () => void;
+  /**
+   * Pre-fill the editable post text with this comment prepended to the
+   * auto-generated stats template. Used by SicBoModal to share an
+   * interesting roll (triple, big win/loss) with one tap.
+   */
+  initialComment?: string;
 }
 
 const HASHTAG_LINE = '#せかいさんぽ';
-const BASE_KMH = 4;
 const X_CHAR_BUDGET = 280;
 
 /**
@@ -58,7 +63,7 @@ function flagEmoji(cc: string): string {
     .join('');
 }
 
-export function ShareToX({ onClose }: Props) {
+export function ShareToX({ onClose, initialComment }: Props) {
   const { nextCapital, visitedCount, totalCapitals, player, routeData, upcomingStops } =
     useGame();
   // The full editable text. Initialized from the auto-generated template
@@ -298,17 +303,16 @@ export function ShareToX({ onClose }: Props) {
       }
     }
 
-    // Speed band: 最高 / 最低 on one line when both are interesting.
-    if (player.todayMultiplierDayStart === todayStart) {
-      const maxKmh = (player.todayMaxMultiplier ?? 0) * BASE_KMH;
-      const minKmh = (player.todayMinMultiplier ?? 0) * BASE_KMH;
-      const maxStr = formatSpeed(maxKmh);
-      const minStr = formatSpeed(minKmh);
-      if (maxStr && minStr && minKmh < maxKmh) {
-        lines.push(`🏃 ${maxStr} / 🐢 ${minStr}`);
-      } else if (maxStr) {
-        lines.push(`🏃 ${maxStr}`);
-      }
+    // 平均速度 (今日 0時以降の経過時間で割った km/h)。同 km/h ベース
+    // (= 4km/h 等倍) と比較しやすいので最高/最低より状態認識しやすい。
+    const todayElapsedHours =
+      (Date.now() - todayStart) / (1000 * 60 * 60);
+    if (todayElapsedHours > 0.1) {
+      const todayKmForAvg =
+        player.attributedDayStart === todayStart ? player.todayKm ?? 0 : 0;
+      const avgKmh = todayKmForAvg / todayElapsedHours;
+      const avgStr = formatSpeed(avgKmh);
+      if (avgStr) lines.push(`🚶 平均 ${avgStr}`);
     }
 
     // Distance + ETA combined on one compact line.
@@ -394,10 +398,13 @@ export function ShareToX({ onClose }: Props) {
   ]);
 
   // Auto-generated template (= what we'd post if user did nothing).
-  const template = useMemo(
-    () => `${stats}\n\n${HASHTAG_LINE}`,
-    [stats],
-  );
+  // initialComment (例: Sic Bo の結果) があれば stats の前に挟む。
+  const template = useMemo(() => {
+    const head = initialComment?.trim()
+      ? `${initialComment.trim()}\n\n`
+      : '';
+    return `${head}${stats}\n\n${HASHTAG_LINE}`;
+  }, [stats, initialComment]);
 
   // Initialize / refresh the textarea from template when modal opens
   // OR when stats change AND user hasn't manually touched the text yet.
