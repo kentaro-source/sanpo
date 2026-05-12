@@ -4,7 +4,7 @@ import { useGame } from '../../hooks/useGame';
 import { cities, segmentClassifications } from '../../data';
 import { getRoadPolyline } from '../../services/directions';
 import { isRealLifeVisitedCapital } from '../../data/realLifeVisited';
-import { setBuiltPath } from '../../services/playerPath';
+import { setBuiltPath, setStopKm } from '../../services/playerPath';
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
 
@@ -426,6 +426,41 @@ export function MapView() {
       // resolve player position to actual road lat/lng instead of the
       // squares-coarse interpolation that drifts off-route.
       setBuiltPath({ allPoints, cumKm });
+
+      // Push snap-cumulative km for each capital/city in this window
+      // into playerPath overrides, so upcomingStops / ShareToX
+      // compute "next stop" against the same km axis as the rendered
+      // polyline. Fixes the "湖西市にいるのに浜松はこれから" desync.
+      const findNearestIdx = (lat: number, lng: number): number => {
+        let bestIdx = -1;
+        let bestD = Infinity;
+        for (let i = 0; i < allPoints.length; i++) {
+          const p = allPoints[i];
+          const dLat = p.lat - lat;
+          const dLng = p.lng - lng;
+          const d = dLat * dLat + dLng * dLng;
+          if (d < bestD) {
+            bestD = d;
+            bestIdx = i;
+          }
+        }
+        return bestIdx;
+      };
+      for (const seg of visibleSegs) {
+        for (const id of [seg.fromCapitalId, seg.toCapitalId]) {
+          const cap = routeData.capitals.find((c) => c.id === id);
+          if (!cap) continue;
+          const idx = findNearestIdx(cap.lat, cap.lng);
+          if (idx >= 0) setStopKm('capital', id, cumKm[idx]);
+        }
+        for (const cityId of seg.waypointCityIds ?? []) {
+          const city = cities.find((c) => c.id === cityId);
+          if (!city) continue;
+          const idx = findNearestIdx(city.lat, city.lng);
+          if (idx >= 0) setStopKm('city', cityId, cumKm[idx]);
+        }
+      }
+
       renderFromBuilt(builtPathRef.current);
 
       // First-render center alignment: now that the polyline is built we

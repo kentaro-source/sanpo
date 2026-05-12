@@ -16,6 +16,7 @@ import {
   isRealLifeVisitedCapital,
   isRealLifeVisitedCity,
 } from '../data/realLifeVisited';
+import { getCapitalKm, getCityKm } from '../services/playerPath';
 import {
   loadGameState,
   saveGameState,
@@ -142,8 +143,9 @@ function detectCrossings(
     const localStart = cursor - lapStart;
     const localEnd = segEnd - lapStart;
     for (const cap of routeData.capitals) {
-      const capKm = routeData.capitalDistances[cap.id];
-      if (capKm == null) continue;
+      const origKm = routeData.capitalDistances[cap.id];
+      if (origKm == null) continue;
+      const capKm = getCapitalKm(cap.id, origKm);
       if (capKm > localStart && capKm <= localEnd) {
         if (!newCapitalsSet.has(cap.id)) {
           newCapitalsSet.add(cap.id);
@@ -173,7 +175,7 @@ function detectCrossings(
     }
     // Cities crossed in this lap window
     for (const cid of Object.keys(routeData.cityDistances)) {
-      const cityKm = routeData.cityDistances[cid];
+      const cityKm = getCityKm(cid, routeData.cityDistances[cid]);
       if (cityKm > localStart && cityKm <= localEnd) {
         if (!newCitiesSet.has(cid)) {
           newCitiesSet.add(cid);
@@ -332,13 +334,15 @@ function findNextBorder(
     if (!best || km < best.atKm) best = info;
   };
   for (const cap of routeData.capitals) {
-    const km = routeData.capitalDistances[cap.id];
-    if (km == null) continue;
+    const orig = routeData.capitalDistances[cap.id];
+    if (orig == null) continue;
+    const km = getCapitalKm(cap.id, orig);
     consider(km, { kind: 'capital', id: cap.id, atKm: km, country: cap.id });
   }
   for (const city of cities) {
-    const km = routeData.cityDistances[city.id];
-    if (km == null) continue;
+    const orig = routeData.cityDistances[city.id];
+    if (orig == null) continue;
+    const km = getCityKm(city.id, orig);
     consider(km, {
       kind: 'city',
       id: city.id,

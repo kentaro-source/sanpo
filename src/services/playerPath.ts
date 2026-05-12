@@ -36,6 +36,35 @@ export function setBuiltPath(path: BuiltPath | null): void {
   windowPath = path;
 }
 
+/**
+ * Snap-cumulative km overrides for capitals/cities within MapView's
+ * built window. Lets ShareToX / upcomingStops use the same km values
+ * as the actual rendered polyline, fixing the "湖西市にいるのに浜松は
+ * これから" mismatch caused by squares-coarse × 1.4 vs real road km
+ * divergence. Out-of-window stops keep the original routeData km.
+ */
+const capitalKmOverrides = new Map<string, number>();
+const cityKmOverrides = new Map<string, number>();
+
+export function setStopKm(
+  kind: 'capital' | 'city',
+  id: string,
+  km: number,
+): void {
+  if (kind === 'capital') capitalKmOverrides.set(id, km);
+  else cityKmOverrides.set(id, km);
+}
+
+export function getCapitalKm(id: string, fallback: number): number {
+  const v = capitalKmOverrides.get(id);
+  return v != null ? v : fallback;
+}
+
+export function getCityKm(id: string, fallback: number): number {
+  const v = cityKmOverrides.get(id);
+  return v != null ? v : fallback;
+}
+
 /** Haversine km between two lat/lng — used to walk the cached polyline. */
 function kmBetween(a: SnappedPosition, b: SnappedPosition): number {
   const R = 6371;

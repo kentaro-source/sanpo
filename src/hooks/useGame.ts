@@ -4,6 +4,7 @@ import { routeData } from '../data';
 import { cities } from '../data/cities';
 import { positionAtKm, squareIndexAtKm } from '../data/generateRoute';
 import { isRealLifeVisitedCapital } from '../data/realLifeVisited';
+import { getCapitalKm, getCityKm } from '../services/playerPath';
 import type { BetSlot } from '../types';
 
 export interface UpcomingStop {
@@ -45,10 +46,24 @@ export function useGame() {
     // Next capital ahead (in km terms).
     const capitals = routeData.capitals;
     const capitalDistances = routeData.capitalDistances;
+    // Use snap-cumulative km overrides when available (MapView populates
+    // these for the visible window so route km matches what's drawn on
+    // the map). Out-of-window stops fall back to routeData's
+    // squares-coarse × 1.4 estimate.
+    const capKmFor = (id: string): number | null => {
+      const orig = capitalDistances[id];
+      if (orig == null) return null;
+      return getCapitalKm(id, orig);
+    };
+    const cityKmFor = (id: string): number | null => {
+      const orig = routeData.cityDistances[id];
+      if (orig == null) return null;
+      return getCityKm(id, orig);
+    };
     let nextCapital: typeof capitals[number] | null = null;
     let nextCapitalKm = Infinity;
     for (const cap of capitals) {
-      const capKm = capitalDistances[cap.id];
+      const capKm = capKmFor(cap.id);
       if (capKm == null) continue;
       let delta = capKm - localKm;
       if (delta <= 0) delta += total; // wrap around
@@ -62,7 +77,7 @@ export function useGame() {
     // Are we standing right on a capital? (within 500m)
     const currentCapital = (() => {
       for (const cap of capitals) {
-        const capKm = capitalDistances[cap.id];
+        const capKm = capKmFor(cap.id);
         if (capKm != null && Math.abs(capKm - localKm) < 0.5) return cap;
       }
       return null;
@@ -77,11 +92,12 @@ export function useGame() {
     type Stop = { km: number; kind: 'capital' | 'city'; id: string };
     const allStops: Stop[] = [];
     for (const cap of capitals) {
-      const km = capitalDistances[cap.id];
+      const km = capKmFor(cap.id);
       if (km != null) allStops.push({ km, kind: 'capital', id: cap.id });
     }
     for (const cid of Object.keys(routeData.cityDistances)) {
-      allStops.push({ km: routeData.cityDistances[cid], kind: 'city', id: cid });
+      const km = cityKmFor(cid);
+      if (km != null) allStops.push({ km, kind: 'city', id: cid });
     }
 
     // Sort by relative km from current position (wrapping around).
