@@ -1,10 +1,14 @@
-import { useContext, useMemo } from 'react';
+import { useContext, useEffect, useMemo, useState } from 'react';
 import { GameContext } from '../contexts/GameContext';
 import { routeData } from '../data';
 import { cities } from '../data/cities';
 import { positionAtKm, squareIndexAtKm } from '../data/generateRoute';
 import { isRealLifeVisitedCapital } from '../data/realLifeVisited';
-import { getCapitalKm, getCityKm } from '../services/playerPath';
+import {
+  getCapitalKm,
+  getCityKm,
+  subscribeOverrides,
+} from '../services/playerPath';
 import type { BetSlot } from '../types';
 
 export interface UpcomingStop {
@@ -31,6 +35,14 @@ export function useGame() {
 
   const { state, dispatch } = ctx;
   const { player } = state;
+
+  // Bump on every playerPath override change so the useMemo below
+  // re-runs and picks up the new snap-cumulative km values. Module-level
+  // override map is invisible to React's reconciler otherwise.
+  const [overrideVersion, setOverrideVersion] = useState(0);
+  useEffect(() => {
+    return subscribeOverrides(() => setOverrideVersion((v) => v + 1));
+  }, []);
 
   const derived = useMemo(() => {
     const total = routeData.totalDistanceKm;
@@ -200,6 +212,7 @@ export function useGame() {
     player.distanceKm,
     player.visitedCapitals.length,
     player.boosts,
+    overrideVersion,
   ]);
 
   const addSteps = (steps: number) => dispatch({ type: 'ADD_STEPS', steps });

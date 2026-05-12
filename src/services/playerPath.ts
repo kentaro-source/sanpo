@@ -45,14 +45,34 @@ export function setBuiltPath(path: BuiltPath | null): void {
  */
 const capitalKmOverrides = new Map<string, number>();
 const cityKmOverrides = new Map<string, number>();
+// React subscribers (useGame) so useMemo re-runs when overrides update.
+const overrideListeners = new Set<() => void>();
+
+export function subscribeOverrides(cb: () => void): () => void {
+  overrideListeners.add(cb);
+  return () => overrideListeners.delete(cb);
+}
+
+function notifyOverrideListeners(): void {
+  overrideListeners.forEach((cb) => {
+    try {
+      cb();
+    } catch {
+      // ignore listener errors
+    }
+  });
+}
 
 export function setStopKm(
   kind: 'capital' | 'city',
   id: string,
   km: number,
 ): void {
-  if (kind === 'capital') capitalKmOverrides.set(id, km);
-  else cityKmOverrides.set(id, km);
+  const map = kind === 'capital' ? capitalKmOverrides : cityKmOverrides;
+  const prev = map.get(id);
+  if (prev === km) return; // no-op: don't notify if unchanged
+  map.set(id, km);
+  notifyOverrideListeners();
 }
 
 export function getCapitalKm(id: string, fallback: number): number {
