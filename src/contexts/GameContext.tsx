@@ -16,7 +16,11 @@ import {
   isRealLifeVisitedCapital,
   isRealLifeVisitedCity,
 } from '../data/realLifeVisited';
-import { getCapitalKm, getCityKm } from '../services/playerPath';
+import {
+  getCapitalKm,
+  getCityKm,
+  subscribeOverrides,
+} from '../services/playerPath';
 import {
   loadGameState,
   saveGameState,
@@ -466,6 +470,7 @@ type GameAction =
   | { type: 'UPDATE_CONFIG'; config: Partial<GameConfig> }
   | { type: 'CLAIM_LOGIN_BONUS' }
   | { type: 'CHECK_SCHEDULED_RESET' }
+  | { type: 'RECHECK_CROSSINGS' }
   | { type: 'FORCE_LAUNCH_RESET' }
   | { type: 'ROLL_BORDER'; choice: 'red' | 'black'; outcome: 'win' | 'lose'; cardLabel: string }
   | { type: 'RESET_GAME' };
@@ -969,6 +974,94 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       };
     }
 
+    case 'RECHECK_CROSSINGS': {
+      // 用途: MapView が snap-cumulative km override を更新したとき、
+      // 既に player.distanceKm が override 後の km を超えていれば
+      // bonus 未発火の通過がある。それを catch-up。
+      const now = Date.now();
+      const km = state.player.distanceKm;
+      const total = routeData.totalDistanceKm;
+      const localKm = ((km % total) + total) % total;
+      const visitedCapitalsSet = new Set(state.player.visitedCapitals);
+      const visitedCitiesSet = new Set(state.player.visitedCities ?? []);
+      let bonusTokens = 0;
+      const events: BonusEvent[] = [];
+
+      for (const cap of routeData.capitals) {
+        if (visitedCapitalsSet.has(cap.id)) continue;
+        const orig = routeData.capitalDistances[cap.id];
+        if (orig == null) continue;
+        const capKm = getCapitalKm(cap.id, orig);
+        if (capKm > 0 && capKm <= localKm) {
+          visitedCapitalsSet.add(cap.id);
+          const irl = isRealLifeVisitedCapital(cap.id);
+          bonusTokens += 5;
+          events.push({
+            kind: 'capital',
+            amount: 5,
+            label: `🏛 ${cap.nameJa}（${cap.countryJa}）通過 +5`,
+            timestamp: now,
+          });
+          if (irl) {
+            bonusTokens += 5;
+            events.push({
+              kind: 'capital-landing',
+              amount: 5,
+              label: `★ 懐かしの${cap.nameJa} 思い出ボーナス +5`,
+              timestamp: now,
+            });
+          }
+        }
+      }
+      for (const city of cities) {
+        if (visitedCitiesSet.has(city.id)) continue;
+        const orig = routeData.cityDistances[city.id];
+        if (orig == null) continue;
+        const cityKm = getCityKm(city.id, orig);
+        if (cityKm > 0 && cityKm <= localKm) {
+          visitedCitiesSet.add(city.id);
+          const irl =
+            city.visitedInRealLife === true || isRealLifeVisitedCity(city.id);
+          bonusTokens += 3;
+          events.push({
+            kind: 'city',
+            amount: 3,
+            label: `📍 ${city.nameJa} 立ち寄り +3`,
+            timestamp: now,
+          });
+          if (irl) {
+            bonusTokens += 3;
+            events.push({
+              kind: 'city-irl',
+              amount: 3,
+              label: `★ 懐かしの${city.nameJa} 思い出ボーナス +3`,
+              timestamp: now,
+            });
+          }
+        }
+      }
+      if (events.length === 0) return state;
+      return {
+        ...state,
+        player: {
+          ...state.player,
+          visitedCapitals: Array.from(visitedCapitalsSet),
+          visitedCities: Array.from(visitedCitiesSet),
+          availableDice: combineDice(
+            state.player.availableDice,
+            0,
+            bonusTokens,
+            state.config.maxDice,
+          ),
+          recentBonuses: [...events, ...(state.player.recentBonuses ?? [])].slice(
+            0,
+            MAX_RECENT_BONUSES,
+          ),
+          lastUpdated: now,
+        },
+      };
+    }
+
     case 'CHECK_SCHEDULED_RESET': {
       const now = Date.now();
       const flag = state.player.scheduledResetAt;
@@ -1084,6 +1177,16 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // app open / SW reload.
   useEffect(() => {
     dispatch({ type: 'CLAIM_LOGIN_BONUS' });
+  }, []);
+
+  // When MapView pushes new snap-cumulative km overrides, retroactively
+  // award any bonuses for stops that the player already passed under
+  // the original route km but whose override km also sits below
+  // distanceKm. Idempotent (visited stops are skipped).
+  useEffect(() => {
+    return subscribeOverrides(() => {
+      dispatch({ type: 'RECHECK_CROSSINGS' });
+    });
   }, []);
 
   return (
