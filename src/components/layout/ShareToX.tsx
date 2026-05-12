@@ -310,16 +310,19 @@ export function ShareToX({ onClose, initialComment, mode = 'daily' }: Props) {
       }
     }
 
-    // 平均速度 = todayKm / 推定歩行時間。
-    // 推定歩行時間 = todaySteps / 100 steps-per-min (歩行ケイデンス
-    // 仮定)。wall-clock 時間で割ると寝てる時間 etc 含まれて 1 km/h
-    // 未満に出るが、それは「歩いてない時間」が大半な日のノイズで、
-    // 「歩いてる時の平均速度」というユーザーの直感と合わない。
+    // 平均速度 = 平均 effective multiplier × BASE_KMH (4)。
+    // todayKm / (todaySteps × 0.001) で当日の平均倍率を算出、
+    // × 4 km/h で速度に換算。
+    // 旧式 (×6000 / cadence 仮定) は人によって 80-110 歩/分とブレ、
+    // ゲーム内モデル (multiplier × 4) とも乖離していた。新式は ad-hoc
+    // 仮定なし、ゲーム表示と内部整合。例:
+    //   10km / 10000歩 → 等倍 4 km/h
+    //   30km / 10000歩 → ×3 boost = 12 km/h
+    //   5km / 20000歩 → ×0.25 penalty floor = 1 km/h
     const todayKmForAvg =
       player.attributedDayStart === todayStart ? player.todayKm ?? 0 : 0;
     if (todaySteps2 >= 100 && todayKmForAvg > 0) {
-      // todayKm × 6000 / todaySteps = km/h (100 歩/分 = 6000 歩/時)
-      const avgKmh = (todayKmForAvg * 6000) / todaySteps2;
+      const avgKmh = (todayKmForAvg * 4000) / todaySteps2;
       const avgStr = formatSpeed(avgKmh);
       if (avgStr) lines.push(`🚶 平均 ${avgStr}`);
     }
