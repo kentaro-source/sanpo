@@ -18,6 +18,94 @@ APK ビルドが必要な場合 (ユーザーが APK 更新依頼):
 - JDK 21 (Android Studio JBR `/c/Program Files/Android/Android Studio/jbr`)、ANDROID_HOME `$LOCALAPPDATA/Android/Sdk` を環境変数で渡して `cd android && ./gradlew.bat assembleDebug`
 - adb は `$LOCALAPPDATA/Android/Sdk/platform-tools/adb.exe`
 
+## 🚀 引継ぎサマリ (2026-05-08 第8セッション末 — X 投稿改修 + snap-km override + 国名併記 + 日別記録復元)
+
+**最重要事項**:
+
+1. **X API 402 で直接投稿不可** — Free tier が POST /2/tweets を許可してない (Payment Required)。CapacitorHttp 経由で CORS は突破できたが Free tier の制限変更で投稿エンドポイント自体が課金必須化。Basic plan は $100/月で個人趣味用途には合わない。intent URL モード (`𝕏 で開く` ボタン) で当面運用するしかない。OAuth/Token 取得・/me lookup 等の認証部分は機能している (将来 X が変更したら使える)
+
+2. **ShareToX 全面改修**:
+   - **textarea が全文編集可能** (旧: コメント別欄 + 自動 stats プレビュー → 統合)
+   - `mode: 'daily' | 'sicbo'` prop で 2 系統:
+     - `daily` (☰メニュー経由): 📅Day / 🇯🇵日本 出発→到着 / 👣歩数🎲勝敗 / 🚶平均速度 / 📏今日+km/累計/% / ⏳ETA / 🏛次の街+次の国 / ハッシュタグ
+     - `sicbo` (Sic Bo 結果からの 𝕏 ボタン経由): 🎲ダイス結果 (ゾロ目+km/h) / 📜直近5ロール (大/小/ゾロ ラベル付き) / 🇯🇵現在地 / ハッシュタグ
+   - X weighted-char (CJK=2) で残り字数表示、超過時 post ボタン無効化
+   - `@sekai_sanpo_` self-mention は削除 (自分のアカウントから投稿するのに self-mention は無意味)
+   - プレビューは textarea そのまま (= 名前/アバター/モック X カード等のフェイク UI なし)、ハッシュタグ/メンションは X-blue ハイライト
+
+3. **平均速度 = `todayKm × 4000 / todaySteps`** (= 平均 effective multiplier × BASE_KMH 4 km/h)。cadence 仮定なし、ゲーム内モデルと整合。例: 10km/10k歩 = 4 km/h、30km/10k歩 = 12 km/h (×3 boost 平均)
+
+4. **🏛 行 = 「次の街 + 次の国」併記** — 中継経由時は `🏛 1/193 → 🇯🇵 浜松 (→ 🇰🇷 韓国)`、首都最終アプローチ時は `🏛 1/193 → 🇰🇷 韓国 ソウル`。中継 stop の国名は daily route 行で明示済なので省略 (-4 chars)、次の国は countryJa 併記 (flag fallback "AZ", "ST" 等 obscure 国対策)。`🏛 N/M` の N は visitedCount (現在いる国 ID base、+1 ではない)
+
+5. **国旗 fallback 対策で countryJa 併記** — Windows / 非 Twemoji 環境で `🇰🇷` が `KR` の 2 文字に潰れる。countryJaFor lookup で「韓国」併記、`🇰🇷 韓国 ソウル` 形式が常時可読
+
+6. **snap-km override system (重要) — route km と地図表示の乖離を解消**:
+   - 問題: route 内部 km (= 直線距離 × 1.4 factor) と Directions API snap polyline cumulative km の差で、地図 marker が 湖西市 にいても share post が「浜松まで 37.8km」と表示
+   - `src/services/playerPath.ts` が `capitalKmOverrides` / `cityKmOverrides` Map を持つ + `subscribeOverrides` で pub/sub
+   - MapView が build 完了時、visible window 内の各 capital/city の `findNearestIdx(lat,lng)` で snap-cumulative km を計算し `setStopKm` で push
+   - `useGame.ts`: `getCapitalKm` / `getCityKm` 経由で override 優先 (out-of-window は routeData fallback)、`overrideVersion` で useMemo 再計算 trigger
+   - `GameContext.detectCrossings` / `findNextBorder` も override-aware
+   - `RECHECK_CROSSINGS` action: override 更新時に dispatch、player.localKm を超えた未訪問 stop を catch-up bonus 発火 (浜松通過漏れ等を retroactive 補完)。既訪問は visitedCapitals/Cities で skip、二重発火なし
+   - `GameProvider` が `subscribeOverrides` で MapView の push を購読、自動 dispatch
+
+7. **dailyHistory 復活 (📊 日別記録)** — 第7セッションで「不要」と撤去 → 第8セッションで user 翻意で再復元
+   - `PlayerState.dailyHistory[]` / `DailyRecord` 型 / `todayKm` / `todayNewCapitals` / `todayNewCities` 復活
+   - `closeOutDayIfNeeded` helper 復元、ADD_STEPS/SYNC/ROLL_SICBO で merge
+   - HamburgerMenu の「📊 日別記録」エントリ + history view 復活 (今日 = 黄色ハイライト、過去日 60件まで逆時系列)
+   - 60 日上限、空の日 (アクティビティなし) は記録しない
+
+8. **「5/7 Day 1 リセット」ボタン撤去** — 5/8 過ぎたので役目終了。HamburgerMenu から削除。`FORCE_LAUNCH_RESET` action は残置 (再利用可)
+
+9. **ETA threshold 1日 → 1時間に緩和** — Day 1 でも `⏳ X年` が見えるように
+
+10. **Sic Bo 結果共有: 自動 + 過去ロール tap**:
+   - result phase の 𝕏 ボタン → 直近ロール共有 (CLOSE と AGAIN の間に 40px の chip-icon-tone ボタン)
+   - LAST 5 各行 tap → 過去ロール共有 (履歴 row click event で同じ ShareToX 開く)
+   - buildSicBoComment フォーマット: `🎲 6-6-6 ゾロ目！合計18・×30 加速 (120 km/h)` (勝ち時 km/h 併記、負け時 km/h 省略)
+
+11. **平均速度: 1km/h 切り問題** — wall-clock 時間で割ると寝てる時間含めて低出する → 歩数ベース推定時間 → `× BASE_KMH` 方式に最終決着 (項目 3 参照)
+
+### コミット履歴 (このセッション、main → HEAD)
+
+最新が一番上:
+- d54b648 RECHECK_CROSSINGS で snap-km override 更新時の retroactive bonus
+- e4c002a snap km override の React 通知 (subscribeOverrides pub/sub)
+- 7685de4 snap-cumulative km override で route km と地図表示を一致
+- ae8554a 平均速度を multiplier × BASE_KMH 方式に
+- cf5b2fd 平均速度を歩数ベース推定時間で算出 (cadence 仮定)
+- f3b4b61 sicbo X プレビュー — 直近履歴(大/小/ゾロ)+km/h
+- de48b70 buildSicBoComment 簡素化
+- 1165708 🏛 行を「次の都市(国名抜き) + 次の国」 形式に
+- d3b653b 🏛 行を「中継都市」から「次の目的国」に切替 (途中で撤回)
+- 4e5ba8a / dc02384 🏛 行に国名併記を戻す revert
+- d9d6007 今日 +Xkm を 📏 行に追加
+- b1d228d 📊 日別記録 復活、5/7 リセット撤去、ETA 早出し
+- a838ae0 ShareToX 全面改修
+- 8b56fbc 投稿テキスト圧縮 (230→172 weighted)
+- eaf9e2f X OAuth 2.0 PKCE 直接投稿
+- 6d5513a CapacitorHttp で fetch CORS 回避
+- 9ea995a reverse geocoding 撤去 (route waypoint ベースに) ← その後 snap 経由で reenable
+- df6c509 modal を portal で document.body に
+- a379b92 出発地→到着地 / 速度 / カジノ勝率 修正
+- 76821da 5/7 Day 1 リセットボタン + カ国目復活 + reset時ログインボーナス
+- (第7まではその前)
+
+### 残タスク (次セッション以降、優先順)
+
+1. **X API 402 対応** — 直接投稿は Free tier 不可で確定 (Basic は $100/月)。短期: intent URL モードのまま運用。長期検討: Basic 加入、または別 API (Bluesky/Mastodon 等) への multi-broadcast、または GitHub Actions 経由でブログ-to-tweet 自動化等
+
+2. **Sic Bo 勝率検証** — user が「大/小 片側賭けで毎日 33% 以下」と報告。理論は 48.6%。10 ロール中 3 以下 = ~18% 確率、3 日連続 = ~0.6%。コード (`rollDice` / `betWon`) はバグなし確認済。100+ ロール積んでまだ 33% 続くなら `Math.random` の seed 問題等 深掘り (現状は変動範囲内)
+
+3. **国境 land segment 隣接都市 cities.ts / segmentMeta.ts 追加** (第7セッションから繰り越し) — 各 land 国境の到着側に国境隣接都市を waypoint で追加。例: KP→CN 丹東、CN→KZ ホルゴス、RU→FI Vyborg。完璧目指さず順次
+
+4. **画像クオリティ調整** (第7から繰り越し) — banner / casino / map crop の再デザイン or Canva 等外部ツール
+
+5. **都市座標ポリシー sweep** (第7から繰り越し) — 市役所基準で統一決定済だが実 sweep 未
+
+6. **X 投稿の reply chain 自動化** — pinned launch post に reply で thread 形成 (現状 intent URL では in_reply_to 効かない、OAuth 必須)
+
+---
+
 ## 🐦 X (Twitter) OAuth 直接投稿 — セットアップ手順
 
 **ファイル**: `src/services/xAuth.ts` (PKCE flow + token mgr) / `src/services/xPost.ts` (POST /2/tweets) / `ShareToX.tsx` の連携 UI
@@ -37,7 +125,7 @@ APK ビルドが必要な場合 (ユーザーが APK 更新依頼):
 
 **deep link**: `AndroidManifest.xml` に scheme `com.kentarosource.sanpo` host `oauth-callback` の intent-filter 追加済 (.MainActivity 内、launchMode=singleTask)。Capacitor App プラグインの `appUrlOpen` イベントで callback 受け取り
 
-**Free tier 制限**: 17 投稿/24h。1日1投稿運用なら余裕。429 時はトーストで通知
+**Free tier の現状 (2026-05-08 確認)**: 直接投稿 (POST /2/tweets) は **402 Payment Required** で不可。Basic plan ($100/月) 必須化された模様。OAuth flow と認証部分 (token 取得 / refresh / /me lookup) は機能してるが、最終 post で 402 を投げる。intent URL fallback ボタン (`𝕏 で開く`) は常時併設してるので普段運用はそちら経由
 
 **Token 寿命**: access 2h、refresh 数ヶ月。`getAccessToken()` が自動 refresh、失敗時は再連携要求
 
