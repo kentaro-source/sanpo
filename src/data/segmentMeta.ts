@@ -36,7 +36,10 @@ export const segmentClassifications: SegmentClassification[] = [
       'JP-KYOTO',        // ~110 km
       'JP-OSAKA',        // ~40 km
       'JP-KOBE',         // ~28 km
-      'JP-HIROSHIMA',    // ~270 km (driving fallback OK)
+      'JP-HIMEJI',       // ~55 km — 世界遺産・姫路城
+      'JP-OKAYAMA',      // ~85 km — 後楽園
+      'JP-FUKUYAMA',     // ~70 km — 鞆の浦
+      'JP-HIROSHIMA',    // ~80 km
       'JP-YAMAGUCHI',    // ~135 km
       'JP-SHIMONOSEKI',  // ~50 km
       'JP-KITAKYUSHU',   // ~30 km (Kanmon strait)
@@ -44,7 +47,8 @@ export const segmentClassifications: SegmentClassification[] = [
       // along the east coast all the way south to Miyazaki, before
       // looping back west through Kumamoto to Nagasaki.
       'JP-OITA',         // ~145 km
-      'JP-MIYAZAKI',     // ~210 km (故郷)
+      'JP-NOBEOKA',      // ~95 km — 東九州道
+      'JP-MIYAZAKI',     // ~95 km (故郷)
       'JP-KUMAMOTO',     // ~140 km
       'JP-NAGASAKI',     // ~170 km
       'JP-FUKUOKA',      // ~150 km — back north for the Hakata ferry
@@ -57,14 +61,14 @@ export const segmentClassifications: SegmentClassification[] = [
     ],
     // Indices into [origin=Tokyo, ...waypoints, dest=Seoul]:
     //   0=Tokyo, 1=Yokohama, 2=Hamamatsu, 3=Nagoya, 4=Kyoto,
-    //   5=Osaka, 6=Kobe,    7=Hiroshima, 8=Yamaguchi, 9=Shimonoseki,
-    //   10=Kitakyushu, 11=Oita, 12=Miyazaki, 13=Kumamoto, 14=Nagasaki,
-    //   15=Fukuoka, 16=Busan, 17=Daegu, 18=Daejeon, 19=Cheongju,
-    //   20=Suwon, 21=Seoul
-    // Only Fukuoka→Busan (15→16) is the sea crossing (Hakata ferry).
-    seaSegments: [[15, 16]],
+    //   5=Osaka, 6=Kobe, 7=Himeji, 8=Okayama, 9=Fukuyama, 10=Hiroshima,
+    //   11=Yamaguchi, 12=Shimonoseki, 13=Kitakyushu, 14=Oita,
+    //   15=Nobeoka, 16=Miyazaki, 17=Kumamoto, 18=Nagasaki, 19=Fukuoka,
+    //   20=Busan, 21=Daegu, 22=Daejeon, 23=Cheongju, 24=Suwon, 25=Seoul
+    // Only Fukuoka→Busan (19→20) is the sea crossing (Hakata ferry).
+    seaSegments: [[19, 20]],
     notes:
-      '東京→横浜→浜松→名古屋→京都→大阪→神戸→広島→山口→下関→[関門海峡]→北九州→大分→宮崎(故郷)→熊本→長崎→福岡→[博多-プサン フェリー]→プサン→大邱→大田→清州→水原→ソウル',
+      '東京→横浜→浜松→名古屋→京都→大阪→神戸→姫路→岡山→福山→広島→山口→下関→[関門海峡]→北九州→大分→延岡→宮崎(故郷)→熊本→長崎→福岡→[博多-プサン フェリー]→プサン→大邱→大田→清州→水原→ソウル',
   },
   // Seoul → Pyongyang via Kaesong (open via the now-defunct Kaesong
   // Industrial Region road in the post-war geography).
