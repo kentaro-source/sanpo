@@ -4139,6 +4139,7 @@ export const cities: City[] = [
     lng: 130.9408,
     type: 'historic',
     description: '本州最西端、関門海峡の港町',
+    visitedInRealLife: true,
   },
   {
     id: 'CN-ZHANGJIAKOU',
