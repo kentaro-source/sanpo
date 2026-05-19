@@ -87,9 +87,11 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'CN',
     routeType: 'mixed',
     waypointCityIds: [
-      'KP-HAMHUNG',     // ~280 km from Pyongyang up the east coast
-      'KP-WONSAN',      // ~180 km — back south briefly, east coast port
-      'RU-VLADIVOSTOK', // ~600 km (closed DPRK-Russia border, fallback straight)
+      'KP-WONSAN',      // ~150 km — east coast port (Pyongyang→Wonsan)
+      'KP-HAMHUNG',     // ~100 km north up the east coast
+      'KP-CHONGJIN',    // ~270 km — 北東部の港
+      'KP-RASON',       // ~70 km — RU 国境の経済特区
+      'RU-VLADIVOSTOK', // ~200 km (closed DPRK-Russia border, fallback straight)
       'RU-KHABAROVSK',  // ~600 km (driving in Russia)
       'CN-HARBIN',      // ~900 km (closed China-Russia border, fallback straight)
       'CN-CHANGCHUN',   // ~250 km (driving in China)
@@ -97,10 +99,11 @@ export const segmentClassifications: SegmentClassification[] = [
       'CN-DALIAN',      // ~360 km (driving)
       'CN-TIANJIN',     // ~720 km (Bohai SEA ferry)
     ],
-    // [origin=Pyongyang, 1=Hamhung, 2=Wonsan, 3=Vladivostok, 4=Khabarovsk,
-    //  5=Harbin, 6=Changchun, 7=Shenyang, 8=Dalian, 9=Tianjin, 10=Beijing]
-    // 2→3 DPRK-RU border closed; 4→5 China-Russia border closed; 8→9 Bohai ferry.
-    seaSegments: [[2, 3], [4, 5], [8, 9]],
+    // [origin=Pyongyang, 1=Wonsan, 2=Hamhung, 3=Chongjin, 4=Rason,
+    //  5=Vladivostok, 6=Khabarovsk, 7=Harbin, 8=Changchun, 9=Shenyang,
+    //  10=Dalian, 11=Tianjin, 12=Beijing]
+    // 4→5 DPRK-RU border closed; 6→7 China-Russia border closed; 10→11 Bohai ferry.
+    seaSegments: [[4, 5], [6, 7], [10, 11]],
     notes:
       '平壌→咸興→元山→[国境]→ウラジオストク→ハバロフスク→[国境]→ハルビン→瀋陽→大連→[渤海フェリー]→天津→北京',
   },

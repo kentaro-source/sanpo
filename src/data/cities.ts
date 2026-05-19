@@ -4934,6 +4934,28 @@ export const cities: City[] = [
     type: 'metropolis',
     description: '北朝鮮第二の都市、咸鏡南道の中心',
   },
+  {
+    id: 'KP-CHONGJIN',
+    name: 'Chongjin',
+    nameJa: '清津',
+    countryId: 'KP',
+    countryJa: '北朝鮮',
+    lat: 41.7956,
+    lng: 129.7758,
+    type: 'metropolis',
+    description: '北東部の港湾工業都市、咸鏡北道の中心',
+  },
+  {
+    id: 'KP-RASON',
+    name: 'Rason',
+    nameJa: '羅先',
+    countryId: 'KP',
+    countryJa: '北朝鮮',
+    lat: 42.2566,
+    lng: 130.2949,
+    type: 'tourist',
+    description: 'ロシア国境の経済特区、日本海最北の港',
+  },
 
   // --- Iran (additional) ---
   {
