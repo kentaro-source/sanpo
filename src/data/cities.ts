@@ -1187,6 +1187,17 @@ export const cities: City[] = [
 
   // === ロシア (Russia) ===
   {
+    id: 'RU-KHASAN',
+    name: 'Khasan',
+    nameJa: 'ハサン',
+    countryId: 'RU',
+    countryJa: 'ロシア',
+    lat: 42.4267,
+    lng: 130.6406,
+    type: 'tourist',
+    description: '北朝鮮国境の村、豆満江友誼橋',
+  },
+  {
     id: 'RU-VLADIVOSTOK',
     name: 'Vladivostok',
     nameJa: 'ウラジオストク',
