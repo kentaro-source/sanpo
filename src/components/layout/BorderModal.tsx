@@ -43,6 +43,83 @@ const RANK_DEFS: Array<{ label: string; value: number }> = [
   { label: 'A', value: 14 },
 ];
 
+/** Canonical pip positions ([left%, top%, flipped]) for number cards.
+ *  Face cards (J/Q/K) and the Ace render a single large center pip. */
+const PIP_LAYOUTS: Record<number, Array<[number, number, boolean]>> = {
+  2: [
+    [50, 17, false],
+    [50, 83, true],
+  ],
+  3: [
+    [50, 17, false],
+    [50, 50, false],
+    [50, 83, true],
+  ],
+  4: [
+    [31, 17, false],
+    [69, 17, false],
+    [31, 83, true],
+    [69, 83, true],
+  ],
+  5: [
+    [31, 17, false],
+    [69, 17, false],
+    [50, 50, false],
+    [31, 83, true],
+    [69, 83, true],
+  ],
+  6: [
+    [31, 17, false],
+    [69, 17, false],
+    [31, 50, false],
+    [69, 50, false],
+    [31, 83, true],
+    [69, 83, true],
+  ],
+  7: [
+    [31, 17, false],
+    [69, 17, false],
+    [50, 33, false],
+    [31, 50, false],
+    [69, 50, false],
+    [31, 83, true],
+    [69, 83, true],
+  ],
+  8: [
+    [31, 17, false],
+    [69, 17, false],
+    [50, 33, false],
+    [31, 50, false],
+    [69, 50, false],
+    [50, 67, true],
+    [31, 83, true],
+    [69, 83, true],
+  ],
+  9: [
+    [31, 15, false],
+    [69, 15, false],
+    [31, 38, false],
+    [69, 38, false],
+    [50, 50, false],
+    [31, 62, true],
+    [69, 62, true],
+    [31, 85, true],
+    [69, 85, true],
+  ],
+  10: [
+    [31, 15, false],
+    [69, 15, false],
+    [50, 28, false],
+    [31, 38, false],
+    [69, 38, false],
+    [31, 62, true],
+    [69, 62, true],
+    [50, 72, true],
+    [31, 85, true],
+    [69, 85, true],
+  ],
+};
+
 function drawCard(): DrawnCard {
   const suit = SUITS[Math.floor(Math.random() * SUITS.length)];
   const r = RANK_DEFS[Math.floor(Math.random() * RANK_DEFS.length)];
@@ -354,7 +431,25 @@ export function BorderModal({ onClose }: Props) {
                     {card.rank}
                     <span className="border-card-corner-suit">{card.suit}</span>
                   </span>
-                  <span className="border-card-suit">{card.suit}</span>
+                  {PIP_LAYOUTS[card.value] ? (
+                    PIP_LAYOUTS[card.value].map(([x, y, flip], i) => (
+                      <span
+                        key={i}
+                        className="border-card-pip"
+                        style={{
+                          left: `${x}%`,
+                          top: `${y}%`,
+                          transform: `translate(-50%, -50%)${
+                            flip ? ' rotate(180deg)' : ''
+                          }`,
+                        }}
+                      >
+                        {card.suit}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="border-card-suit">{card.suit}</span>
+                  )}
                   <span className="border-card-corner bottom">
                     {card.rank}
                     <span className="border-card-corner-suit">{card.suit}</span>
@@ -449,13 +544,10 @@ export function BorderModal({ onClose }: Props) {
             </button>
           )}
           <div className="border-chip-count">
-            審査料 {cost} <span className="chip-icon" aria-hidden="true" /> ・
-            手持ち {player.availableDice}{' '}
-            <span className="chip-icon" aria-hidden="true" />
+            <span className="chip-icon" aria-hidden="true" />{' '}
+            {player.availableDice}
           </div>
-          {noChips && pb && (
-            <div className="border-no-chips">審査料 {cost}🪙 に足りない 🚶</div>
-          )}
+          {noChips && pb && <div className="border-no-chips">チップ切れ 🚶</div>}
         </div>
       </div>
     </div>,
