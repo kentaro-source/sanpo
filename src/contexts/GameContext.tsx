@@ -354,9 +354,15 @@ function findNextBorder(
       country: city.countryId,
     });
   }
-  return best;
+  // The immigration draw demands a random 1–5 chip "fee" — fixed once
+  // here for this border ("borders take your money" satire).
+  const picked = best as BorderInfo | null;
+  if (picked) picked.cost = 1 + Math.floor(Math.random() * 5);
+  return picked;
 }
 
+/** Fallback border-roll cost for pre-cost saves (pendingBorder.cost
+ *  may be undefined on a state loaded before the random fee existed). */
 const BORDER_ROLL_COST = 1;
 
 /**
@@ -864,7 +870,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     case 'ROLL_BORDER': {
       const pb = state.player.pendingBorder;
       if (!pb) return state;
-      if (state.player.availableDice < BORDER_ROLL_COST) return state;
+      const cost = pb.cost ?? BORDER_ROLL_COST;
+      if (state.player.availableDice < cost) return state;
       // Resolve display info for the border stop (city or capital).
       const stopName = (() => {
         if (pb.kind === 'capital') {
@@ -877,12 +884,12 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
       const now = Date.now();
       const win = action.outcome === 'win';
-      const spent = state.player.availableDice - BORDER_ROLL_COST;
+      const spent = state.player.availableDice - cost;
       if (!win) {
         const event: BonusEvent = {
           kind: 'city',
           amount: 0,
-          label: `🎴 ${stopName} 入国審査 ハズレ (-${BORDER_ROLL_COST}🪙)`,
+          label: `🎴 ${stopName} 入国審査 ハズレ (-${cost}🪙)`,
           timestamp: now,
         };
         return {

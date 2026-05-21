@@ -2,8 +2,18 @@ import { useContext, useEffect, useMemo, useState } from 'react';
 import { GameContext } from '../contexts/GameContext';
 import { routeData } from '../data';
 import { cities } from '../data/cities';
+import { segmentClassifications } from '../data/segmentMeta';
 import { positionAtKm, squareIndexAtKm } from '../data/generateRoute';
 import { isRealLifeVisitedCapital } from '../data/realLifeVisited';
+
+/** City IDs that are explicit route waypoints. Non-waypoint cities are
+ *  only "projected" onto the nearest route point (for pass-by bonuses)
+ *  and must NOT appear in the upcoming-stops list — projecting e.g.
+ *  光州 (off to the side of the KR route) makes it look like a stop on
+ *  a leg it isn't actually on. */
+const WAYPOINT_CITY_IDS = new Set<string>(
+  segmentClassifications.flatMap((s) => s.waypointCityIds ?? []),
+);
 import {
   getCapitalKm,
   getCityKm,
@@ -108,6 +118,8 @@ export function useGame() {
       if (km != null) allStops.push({ km, kind: 'capital', id: cap.id });
     }
     for (const cid of Object.keys(routeData.cityDistances)) {
+      // Only real route waypoints — skip projected off-route cities.
+      if (!WAYPOINT_CITY_IDS.has(cid)) continue;
       const km = cityKmFor(cid);
       if (km != null) allStops.push({ km, kind: 'city', id: cid });
     }
@@ -123,14 +135,13 @@ export function useGame() {
       .sort((a, b) => a.delta - b.delta);
 
     const upcomingStops: UpcomingStop[] = [];
-    // Tuned down from 6 → 4 so each row in ProgressInfo is taller and
-    // easier to tap without accidental neighbor hits. The last slot is
-    // always reserved for the next capital so the player can always
-    // see "where this leg ends" even when many cities crowd in front.
-    const MAX_STOPS = 4;
-    const MAX_CITIES = MAX_STOPS - 1;
+    // Show the next few stops regardless of leg/capital boundaries so
+    // the chain stays interesting — the player sees cities AND capitals
+    // beyond the current leg's end, not just up to the next capital.
+    const MAX_STOPS = 5;
     let prevDelta = 0;
     for (const s of stopsWithDelta) {
+      if (upcomingStops.length >= MAX_STOPS) break;
       if (s.kind === 'capital') {
         const cap = capitals.find((c) => c.id === s.id);
         if (cap) {
@@ -147,12 +158,8 @@ export function useGame() {
             description: `${cap.country} の首都`,
           });
           prevDelta = s.delta;
-          break; // stop chain ends at next capital
         }
       } else {
-        // Skip cities once we've filled the city slots — keep the
-        // remaining iterations searching for the next capital.
-        if (upcomingStops.length >= MAX_CITIES) continue;
         const city = cities.find((c) => c.id === s.id);
         if (city) {
           upcomingStops.push({

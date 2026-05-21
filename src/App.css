@@ -351,6 +351,7 @@
   color: #f1f5f9;
   width: 100%;
   max-width: 380px;
+  max-height: 92vh;
   border-radius: 16px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(250, 204, 21, 0.2);
   overflow: hidden;
@@ -372,11 +373,37 @@
   color: #fde68a;
 }
 .border-body {
-  padding: 18px 18px 20px;
+  padding: 14px 18px 18px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
+  gap: 9px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+/* Immigration officer — feathered cutout that melts into the sheet bg */
+.border-officer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  margin-top: -4px;
+}
+.border-officer-img {
+  width: 246px;
+  max-width: 78%;
+  height: auto;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+  filter: drop-shadow(0 5px 12px rgba(0, 0, 0, 0.55));
+}
+.border-officer-line {
+  font-size: 12px;
+  color: #fcd34d;
+  font-weight: 600;
+  text-align: center;
+  margin-top: -10px;
 }
 .border-target {
   display: flex;
@@ -402,40 +429,46 @@
   text-align: center;
   line-height: 1.5;
 }
+/* 3D squeeze card — two backface-hidden faces flipped by drag */
 .border-card {
   position: relative;
-  width: 110px;
-  height: 154px;
-  border-radius: 10px;
-  background: #fff;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5),
-    inset 0 0 0 1px #cbd5e1;
-  perspective: 600px;
+  width: 112px;
+  height: 156px;
+  perspective: 900px;
+}
+.border-card.is-grabbable {
+  cursor: grab;
+  touch-action: none;
+}
+.border-card.is-grabbable:active { cursor: grabbing; }
+.border-card.is-squeezing {
+  filter: drop-shadow(0 12px 18px rgba(0, 0, 0, 0.6));
+}
+.border-card-inner {
+  position: absolute;
+  inset: 0;
   transform-style: preserve-3d;
-  transition: transform 0.4s ease;
+  will-change: transform;
 }
-.border-card-flipping {
-  animation: border-card-spin 0.6s ease-in-out;
-}
-@keyframes border-card-spin {
-  0%   { transform: rotateY(0deg); }
-  50%  { transform: rotateY(540deg); }
-  100% { transform: rotateY(1080deg); }
+.border-card-side {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 /* Face-down card back: classic burgundy crosshatch + center medallion */
-.border-card-back {
-  position: absolute;
-  inset: 6px;
-  border-radius: 6px;
+.border-card-side--back {
   background:
     radial-gradient(circle at center, rgba(255,255,255,0.12) 0 14px, transparent 14px),
     repeating-linear-gradient(45deg, #b91c1c 0 6px, #7f1d1d 6px 12px),
     repeating-linear-gradient(-45deg, transparent 0 11px, rgba(0,0,0,0.18) 11px 12px);
   box-shadow:
     inset 0 0 0 2px #fef3c7,
-    inset 0 0 0 3px #b91c1c;
+    inset 0 0 0 3px #b91c1c,
+    0 6px 18px rgba(0, 0, 0, 0.5);
 }
-.border-card-back::after {
+.border-card-side--back::after {
   content: "♦";
   position: absolute;
   top: 50%;
@@ -445,16 +478,14 @@
   color: #fef3c7;
   text-shadow: 0 0 4px rgba(0,0,0,0.5);
 }
-/* Face-up card: classic top-left + center pip + bottom-right corner layout */
-.border-card-face {
-  position: absolute;
-  inset: 4px;
-  border-radius: 6px;
+/* Face-up card: white with corner + center pips */
+.border-card-side--front {
   background: #fff;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5), inset 0 0 0 1px #cbd5e1;
   font-weight: 800;
 }
-.border-card-face.is-red { color: #dc2626; }
-.border-card-face.is-black { color: #0f172a; }
+.border-card-side--front.is-red { color: #dc2626; }
+.border-card-side--front.is-black { color: #0f172a; }
 .border-card-suit {
   position: absolute;
   top: 50%;
@@ -482,10 +513,14 @@
 .border-result {
   font-size: 14px;
   font-weight: 700;
-  padding: 8px 12px;
+  padding: 12px 14px;
   border-radius: 8px;
   text-align: center;
   width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
 }
 .border-result-win {
   background: rgba(34, 197, 94, 0.18);
@@ -496,6 +531,40 @@
   background: rgba(239, 68, 68, 0.15);
   color: #fca5a5;
   border: 1px solid rgba(239, 68, 68, 0.35);
+}
+.border-result-emoji {
+  font-size: 40px;
+  line-height: 1;
+  animation: border-result-pop 0.45s ease-out;
+}
+@keyframes border-result-pop {
+  0%   { transform: scale(0.2); opacity: 0; }
+  60%  { transform: scale(1.25); opacity: 1; }
+  100% { transform: scale(1); }
+}
+.border-result-head {
+  font-size: 15px;
+  font-weight: 800;
+}
+.border-result-line {
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0.95;
+}
+.border-result-total {
+  margin-top: 4px;
+  font-size: 20px;
+  font-weight: 900;
+  color: #fde68a;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.border-cardcompare {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #cbd5e1;
 }
 .border-cards-row {
   display: flex;

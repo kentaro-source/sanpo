@@ -379,3 +379,139 @@ export function playClick(): void {
   const now = c.currentTime;
   clack(now, 30, 0.1);
 }
+
+/** A single paper/card snap — a sharp broadband transient that decays
+ *  very fast (paper doesn't ring). Highpassed so it reads crisp rather
+ *  than boomy, with a mild mid peak for the card's body. The fast
+ *  exponential decay (decayPow) is what makes it sound like card stock
+ *  rather than a generic noise click. */
+function paperSnap(when: number, gain: number, decayPow: number): void {
+  const c = getCtx();
+  if (!c) return;
+  const sr = c.sampleRate;
+  const durationMs = 60;
+  const len = Math.floor((durationMs / 1000) * sr);
+  const buf = c.createBuffer(1, len, sr);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) {
+    data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, decayPow);
+  }
+  const src = c.createBufferSource();
+  src.buffer = buf;
+  // Highpass kills the boom → keeps the crisp paper character.
+  const hp = c.createBiquadFilter();
+  hp.type = 'highpass';
+  hp.frequency.value = 1100 + Math.random() * 350;
+  // Gentle peak gives the card a touch of "body".
+  const peak = c.createBiquadFilter();
+  peak.type = 'peaking';
+  peak.frequency.value = 2400 + Math.random() * 900;
+  peak.Q.value = 1.6;
+  peak.gain.value = 6;
+  const g = c.createGain();
+  g.gain.value = gain;
+  src.connect(hp);
+  hp.connect(peak);
+  peak.connect(g);
+  g.connect(c.destination);
+  src.start(when);
+  src.stop(when + durationMs / 1000);
+}
+
+/** Synthesized card flip — two layered paper-snaps (quiet flick +
+ *  louder landing). Fallback for when the recorded sample can't load. */
+function synthesizeCardFlip(): void {
+  const c = getCtx();
+  if (!c) return;
+  unlockAudio();
+  const now = c.currentTime;
+  paperSnap(now, 0.06, 6); // flick — quiet, very fast decay
+  paperSnap(now + 0.05 + Math.random() * 0.02, 0.17, 4); // landing snap
+}
+
+/** Generic one-shot sample player. A base <audio> is kept for the URL
+ *  and cloned per call so rapid/overlapping plays don't cut each other
+ *  off. Falls back to the supplied synthesizer if the file can't load
+ *  or playback is rejected. */
+function makeSamplePlayer(
+  url: string,
+  fallback: () => void,
+): (volume?: number, startAt?: number) => void {
+  let base: HTMLAudioElement | null = null;
+  let failed = false;
+  const getBase = (): HTMLAudioElement | null => {
+    if (failed) return null;
+    if (base) return base;
+    try {
+      const a = new Audio(url);
+      a.preload = 'auto';
+      a.addEventListener('error', () => {
+        failed = true;
+        base = null;
+      });
+      base = a;
+      return a;
+    } catch {
+      failed = true;
+      return null;
+    }
+  };
+  return (volume = 0.9, startAt = 0) => {
+    if (muted) return;
+    if (!failed) {
+      const b = getBase();
+      if (b) {
+        try {
+          const a = b.cloneNode(true) as HTMLAudioElement;
+          a.volume = volume;
+          if (startAt > 0) {
+            try {
+              a.currentTime = startAt;
+            } catch {
+              // currentTime may not be settable until metadata loads.
+            }
+          }
+          const p = a.play();
+          if (p && typeof p.then === 'function') {
+            p.catch(() => {
+              failed = true;
+              fallback();
+            });
+          }
+          return;
+        } catch {
+          failed = true;
+        }
+      }
+    }
+    fallback();
+  };
+}
+
+/** Pre-recorded card samples (mixkit "Poker card flick" / "Poker card
+ *  placement", free license). Real recordings read as genuine card
+ *  stock in a way synthesis can't. */
+const cardFlipSample = makeSamplePlayer(
+  `${import.meta.env.BASE_URL}sounds/card-flip.mp3`,
+  synthesizeCardFlip,
+);
+const cardPlaceSample = makeSamplePlayer(
+  `${import.meta.env.BASE_URL}sounds/card-place.mp3`,
+  () => {
+    const c = getCtx();
+    if (c) paperSnap(c.currentTime, 0.22, 4);
+  },
+);
+
+/** Card flick — the card turning. Used for the officer's auto-flip and
+ *  (at low volume) as the crackle while the player squeezes their card.
+ *  `volume` lets the squeeze crackle sit quieter than a full flip. */
+export function playCardFlip(volume = 0.9): void {
+  cardFlipSample(volume, 0.06);
+}
+
+/** Card placement — the firm "tak" of a card set down. Used when the
+ *  player's squeeze completes and the card is fully revealed. */
+export function playCardPlace(volume = 0.9): void {
+  cardPlaceSample(volume, 0.04);
+}

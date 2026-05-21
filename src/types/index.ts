@@ -247,12 +247,16 @@ export interface PlayerState {
    * - country: ISO alpha-2 of the country being entered. On a winning
    *   roll, the country is added to the visited set so the rest of
    *   the country (including its capital) doesn't re-trigger a border.
+   * - cost: chips the immigration draw demands (random 1–5, fixed per
+   *   border). Each attempt spends this many — "borders take your
+   *   money" satire. Optional for back-compat with pre-cost saves.
    */
   pendingBorder?: {
     kind: 'city' | 'capital';
     id: string;
     atKm: number;
     country: string;
+    cost?: number;
   };
 }
 

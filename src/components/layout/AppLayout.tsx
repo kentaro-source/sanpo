@@ -13,11 +13,12 @@ export function AppLayout({ map, panel }: Props) {
   const hasBorder = !!player.pendingBorder;
   const [borderOpen, setBorderOpen] = useState(false);
 
-  // Auto-open the modal whenever a fresh border is armed (transition
-  // from no-border to border). User can close it; the indicator stays.
+  // Auto-open the modal whenever a fresh border is armed. We deliberately
+  // do NOT auto-close when pendingBorder clears — a win clears it, but the
+  // modal must stay up to play its flip animation + celebration. The modal
+  // closes itself via onClose once the player dismisses the result.
   useEffect(() => {
     if (hasBorder) setBorderOpen(true);
-    else setBorderOpen(false);
   }, [hasBorder]);
 
   return (
@@ -34,7 +35,7 @@ export function AppLayout({ map, panel }: Props) {
           🛂 国境で足止め中 — タップで入国審査
         </button>
       )}
-      {borderOpen && hasBorder && (
+      {borderOpen && (
         <BorderModal onClose={() => setBorderOpen(false)} />
       )}
     </div>
