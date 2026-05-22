@@ -138,7 +138,9 @@ export function useGame() {
     // Show the next few stops regardless of leg/capital boundaries so
     // the chain stays interesting — the player sees cities AND capitals
     // beyond the current leg's end, not just up to the next capital.
-    const MAX_STOPS = 5;
+    // Kept at 4 so the bottom panel height (and the 現在地 button
+    // clearance above it) stays as tuned.
+    const MAX_STOPS = 4;
     let prevDelta = 0;
     for (const s of stopsWithDelta) {
       if (upcomingStops.length >= MAX_STOPS) break;

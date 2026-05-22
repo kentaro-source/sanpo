@@ -775,7 +775,7 @@
 .map-recenter {
   /* Float above the bottom-panel (which is position: fixed; bottom: 0
      and overlaps the map's bottom). 270px is a safe clearance for the
-     ProgressInfo + dice button stack on typical phones. */
+     ProgressInfo (4 stop rows) + dice button stack on typical phones. */
   position: fixed;
   right: 12px;
   bottom: calc(270px + env(safe-area-inset-bottom));
