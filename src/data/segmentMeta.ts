@@ -77,10 +77,12 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'KP',
     routeType: 'land',
     waypointCityIds: [
-      'KP-KAESONG', // ~75 km from Seoul, just past the DMZ
-      // Kaesong → Pyongyang ~125 km
+      'KR-PAJU',     // ~30 km north of Seoul, DMZ南端
+      'KP-KAESONG',  // ~35 km — crosses DMZ (closed border、fallback straight)
+      'KP-SARIWON',  // ~70 km — 黄海北道の道都
+      // Sariwon → Pyongyang ~60 km
     ],
-    notes: 'ソウル→[38度線・実際は不通]→開城→平壌',
+    notes: 'ソウル→坡州→[38度線/板門店]→開城→沙里院→平壌',
   },
   {
     fromCapitalId: 'KP',

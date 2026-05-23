@@ -4910,6 +4910,17 @@ export const cities: City[] = [
     type: 'metropolis',
     description: '韓国南西部の中心、民主化運動の地',
   },
+  {
+    id: 'KR-PAJU',
+    name: 'Paju',
+    nameJa: '坡州',
+    countryId: 'KR',
+    countryJa: '韓国',
+    lat: 37.76,
+    lng: 126.78,
+    type: 'historic',
+    description: 'DMZ南端の都市、臨津江と統一展望台',
+  },
 
   // --- North Korea ---
   {
@@ -4922,6 +4933,17 @@ export const cities: City[] = [
     lng: 126.5544,
     type: 'historic',
     description: '高麗王朝の旧都、38度線近くの古都',
+  },
+  {
+    id: 'KP-SARIWON',
+    name: 'Sariwon',
+    nameJa: '沙里院',
+    countryId: 'KP',
+    countryJa: '北朝鮮',
+    lat: 38.5072,
+    lng: 125.7547,
+    type: 'metropolis',
+    description: '黄海北道の道都、開城と平壌の中継地',
   },
   {
     id: 'KP-WONSAN',
