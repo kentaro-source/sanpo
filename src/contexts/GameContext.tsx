@@ -486,7 +486,7 @@ function createInitialState(): GameState {
   };
 }
 
-const STATE_CLEANUP_KEY = 'sanpo-state-cleanup-v5';
+const STATE_CLEANUP_KEY = 'sanpo-state-cleanup-v6';
 
 /**
  * One-shot state cleanup for saves where the old RECHECK bug and the
@@ -570,6 +570,10 @@ function migrateCrossedBorders(loaded: GameState): GameState {
       distanceKm: restoredDistance,
       crossedBorders: Array.from(recoveredCrossed),
       borderAdvanceTarget: undefined,
+      // Clear any stale pendingBorder from previous retroactive-arm
+      // passes — the player is now at restoredDistance and the missed
+      // border is intentionally NOT re-armed (see disabled RETRY).
+      pendingBorder: undefined,
     },
   };
 }
