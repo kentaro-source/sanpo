@@ -486,7 +486,7 @@ function createInitialState(): GameState {
   };
 }
 
-const STATE_CLEANUP_KEY = 'sanpo-state-cleanup-v3';
+const STATE_CLEANUP_KEY = 'sanpo-state-cleanup-v4';
 
 /**
  * One-shot state cleanup for saves where the old RECHECK bug and the
@@ -531,12 +531,16 @@ function migrateCrossedBorders(loaded: GameState): GameState {
     0,
   );
   const restoredDistance = Math.max(distance, maxVisitedCapitalKm);
+  // Preserve crossedBorders — they only get populated via legitimate
+  // ROLL_BORDER wins now, and resetting them would force the player to
+  // re-play borders they've already cleared. Clear borderAdvanceTarget
+  // (the shrink bug polluted it) and bring distance forward.
   return {
     ...loaded,
     player: {
       ...loaded.player,
       distanceKm: restoredDistance,
-      crossedBorders: [],
+      crossedBorders: loaded.player.crossedBorders ?? [],
       borderAdvanceTarget: undefined,
     },
   };
