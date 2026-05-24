@@ -238,6 +238,8 @@ export function useGame() {
   const resetGame = () => dispatch({ type: 'RESET_GAME' });
   const retryMissedBorder = () =>
     dispatch({ type: 'RETRY_LAST_MISSED_BORDER' });
+  const setDistanceKm = (km: number) =>
+    dispatch({ type: 'SET_DISTANCE_KM', km });
 
   return {
     ...derived,
@@ -251,5 +253,6 @@ export function useGame() {
     forceLaunchReset,
     resetGame,
     retryMissedBorder,
+    setDistanceKm,
   };
 }

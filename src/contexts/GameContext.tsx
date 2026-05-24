@@ -608,6 +608,7 @@ type GameAction =
   | { type: 'RETRY_LAST_MISSED_BORDER' }
   | { type: 'FORCE_LAUNCH_RESET' }
   | { type: 'ROLL_BORDER'; choice: 'red' | 'black'; outcome: 'win' | 'lose'; cardLabel: string }
+  | { type: 'SET_DISTANCE_KM'; km: number }
   | { type: 'RESET_GAME' };
 
 const LOGIN_BONUS_CHIPS = 5;
@@ -1357,6 +1358,48 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           startDate: LAUNCH_RESET_AT_MS,
           availableDice: LOGIN_BONUS_CHIPS,
           lastLoginDayStart: startOfDayMs(now),
+        },
+      };
+    }
+
+    case 'SET_DISTANCE_KM': {
+      // Manual distance correction — used to roll back the v6 cleanup
+      // over-credit. Trims any visited capitals/cities/crossedBorders
+      // that sit beyond the new distance so the state stays consistent.
+      const km = Math.max(
+        0,
+        Math.min(action.km, routeData.totalDistanceKm),
+      );
+      const visitedCapitals = state.player.visitedCapitals.filter((id) => {
+        if (id === routeData.capitals[0].id) return true; // keep start
+        const capKm = routeData.capitalDistances[id];
+        return capKm == null || capKm <= km;
+      });
+      const visitedCities = (state.player.visitedCities ?? []).filter(
+        (id) => {
+          const cityKm = routeData.cityDistances[id];
+          return cityKm == null || cityKm <= km;
+        },
+      );
+      const crossedBorders = (state.player.crossedBorders ?? []).filter(
+        (id) => {
+          const capKm = routeData.capitalDistances[id];
+          const cityKm = routeData.cityDistances[id];
+          const stopKm = capKm ?? cityKm;
+          return stopKm == null || stopKm <= km;
+        },
+      );
+      return {
+        ...state,
+        player: {
+          ...state.player,
+          distanceKm: km,
+          visitedCapitals,
+          visitedCities,
+          crossedBorders,
+          pendingBorder: undefined,
+          borderAdvanceTarget: undefined,
+          lastUpdated: Date.now(),
         },
       };
     }

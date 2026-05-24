@@ -20,7 +20,7 @@ function formatDay(ts: number): string {
 }
 
 export function HamburgerMenu({ onForceReload }: Props) {
-  const { player } = useGame();
+  const { player, setDistanceKm } = useGame();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<'menu' | 'history'>('menu');
   const [shareOpen, setShareOpen] = useState(false);
@@ -109,6 +109,26 @@ export function HamburgerMenu({ onForceReload }: Props) {
                   onClick={() => setView('history')}
                 >
                   📊 日別記録
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  className="menu-item"
+                  onClick={() => {
+                    const cur = player.distanceKm.toFixed(1);
+                    const input = window.prompt(
+                      `距離を手動でセット (現在 ${cur}km)`,
+                      cur,
+                    );
+                    if (input == null) return;
+                    const km = parseFloat(input);
+                    if (!Number.isFinite(km) || km < 0) return;
+                    setDistanceKm(km);
+                    setOpen(false);
+                  }}
+                >
+                  📏 距離リセット
                 </button>
               </li>
               <li>

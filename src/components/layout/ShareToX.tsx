@@ -38,7 +38,9 @@ interface Props {
   mode?: 'daily' | 'sicbo';
 }
 
-const HASHTAG_LINE = '#せかいさんぽ';
+// `#バーチャル世界一周` を併記して X 側のアルゴリズムにも投稿がゲーム
+// (実渡航ではない) と分かるようにしている。
+const HASHTAG_LINE = '#せかいさんぽ #バーチャル世界一周';
 const X_CHAR_BUDGET = 280;
 
 /**
@@ -272,6 +274,11 @@ export function ShareToX({ onClose, initialComment, mode = 'daily' }: Props) {
 
     const todayStart = nowMid.getTime();
     const lines: string[] = [];
+    // Make it unambiguous to readers (and X's automated label system)
+    // that this is a step-tracker game's virtual progress, not real
+    // travel. Without this, posts naming foreign cities ("🇰🇷 ソウル")
+    // can be misread as misleading geo claims.
+    lines.push(`🎮 アプリで仮想世界一周中`);
     lines.push(`📅 Day ${dayNum}`);
 
     // Daily route line — prefer reverse-geocoded address (works when
@@ -447,6 +454,8 @@ export function ShareToX({ onClose, initialComment, mode = 'daily' }: Props) {
   // は daily-feed 用なので casino post には載せない。
   const sicboStats = useMemo(() => {
     const lines: string[] = [];
+    // Same virtual-progress disclaimer as the daily template.
+    lines.push(`🎮 アプリで仮想世界一周中`);
     const recent = (player.sicBoHistory ?? []).slice(-5);
     if (recent.length > 0) {
       const diceList = recent
