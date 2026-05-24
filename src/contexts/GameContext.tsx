@@ -487,41 +487,18 @@ function createInitialState(): GameState {
 }
 
 /**
- * Back-compat migration for saves predating crossedBorders. For each
- * route border-stop, if the country's capital is in visitedCapitals we
- * assume the entry draw was legitimately completed and mark the stop as
- * crossed. Border-stops in countries whose capital isn't visited are
- * left uncrossed — RETRY_LAST_MISSED_BORDER will surface them on the
- * next mount.
+ * Initialise `crossedBorders` for saves that predate it. We deliberately
+ * DON'T try to back-fill from `visitedCapitals` — the old RECHECK bug
+ * could silently credit the capital too, so "capital visited" isn't
+ * proof the entry draw was actually played. Better to leave the array
+ * empty and let RETRY_LAST_MISSED_BORDER surface anything behind the
+ * player; legitimately-already-won borders just get replayed once.
  */
 function migrateCrossedBorders(loaded: GameState): GameState {
   if (loaded.player.crossedBorders) return loaded;
-  const visited = new Set(loaded.player.visitedCapitals);
-  // Precompute border-stop ids using ROUTE-ORDER km (no overrides at
-  // module init time).
-  const stops: Array<{ id: string; km: number; country: string }> = [];
-  for (const cap of routeData.capitals) {
-    const km = routeData.capitalDistances[cap.id];
-    if (km == null) continue;
-    stops.push({ id: cap.id, km, country: cap.id });
-  }
-  for (const city of cities) {
-    const km = routeData.cityDistances[city.id];
-    if (km == null) continue;
-    stops.push({ id: city.id, km, country: city.countryId });
-  }
-  stops.sort((a, b) => a.km - b.km);
-  const crossed: string[] = [];
-  let prev: string | null = null;
-  for (const s of stops) {
-    if (prev !== null && prev !== s.country && visited.has(s.country)) {
-      crossed.push(s.id);
-    }
-    prev = s.country;
-  }
   return {
     ...loaded,
-    player: { ...loaded.player, crossedBorders: crossed },
+    player: { ...loaded.player, crossedBorders: [] },
   };
 }
 

@@ -39,7 +39,10 @@ export function Header() {
     <header className="header">
       <HamburgerMenu onForceReload={hardReload} />
       <h1 className="header-title" title={`v${BUILD_TAG}`}>せかいさんぽ</h1>
-      <div className="header-meta">{visitedCount}/{totalCapitals}</div>
+      <div className="header-meta">
+        {visitedCount}/{totalCapitals}
+        <span className="header-build">v{BUILD_TAG}</span>
+      </div>
       <div className="header-dice" title="所持チップ">
         <span className="chip-icon" aria-hidden="true" />
         <span className="dice-count">{player.availableDice}/{config.maxDice}</span>
