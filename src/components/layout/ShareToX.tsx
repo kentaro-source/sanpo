@@ -73,6 +73,36 @@ function flagEmoji(cc: string): string {
 export function ShareToX({ onClose, initialComment, mode = 'daily' }: Props) {
   const { nextCapital, visitedCount, totalCapitals, player, routeData, upcomingStops } =
     useGame();
+
+  // Country of the next UNCROSSED border in route order. Differs from
+  // `nextCapital` when the player's visitedCapitals has stale entries
+  // (e.g. KP capital silent-credited by the old RECHECK bug while the
+  // KP border draw was never actually played). The 🏛 share line should
+  // reflect "next country to enter" by border-roll progress, not by
+  // capital-visit set.
+  const nextBorderCountry = useMemo(() => {
+    const crossedSet = new Set(player.crossedBorders ?? []);
+    type S = { id: string; km: number; country: string };
+    const stops: S[] = [];
+    for (const cap of routeData.capitals) {
+      const km = routeData.capitalDistances[cap.id];
+      if (km != null) stops.push({ id: cap.id, km, country: cap.id });
+    }
+    for (const city of cities) {
+      const km = routeData.cityDistances[city.id];
+      if (km != null) stops.push({ id: city.id, km, country: city.countryId });
+    }
+    stops.sort((a, b) => a.km - b.km);
+    let prev: string | null = null;
+    for (const s of stops) {
+      if (prev !== null && prev !== s.country && !crossedSet.has(s.id)) {
+        const cap = routeData.capitals.find((c) => c.id === s.country);
+        if (cap) return cap;
+      }
+      prev = s.country;
+    }
+    return null;
+  }, [player.crossedBorders, routeData]);
   // The full editable text. Initialized from the auto-generated template
   // when the modal opens (and again on demand via the reset button) so
   // the user can freely tweak/delete/reorder before posting.
@@ -373,14 +403,15 @@ export function ShareToX({ onClose, initialComment, mode = 'daily' }: Props) {
       // ゴール国) は countryJa を必ず付ける (flag fallback 不可な
       // obscure 国対策 — アゼルバイジャン AZ、サントメ ST etc)。
       // 次の到着 = 首都自体のとき (= 最終アプローチ) は単一表示。
+      const goalCap = nextBorderCountry ?? nextCapital;
       if (next && !nextIsCapital) {
         const nextFlag = next.countryCode ? flagEmoji(next.countryCode) : '';
         lines.push(
-          `🏛 ${idx}/${totalCapitals} → ${nextFlag} ${next.nameJa} (→ ${flagEmoji(nextCapital.id)} ${nextCapital.countryJa})`,
+          `🏛 ${idx}/${totalCapitals} → ${nextFlag} ${next.nameJa} (→ ${flagEmoji(goalCap.id)} ${goalCap.countryJa})`,
         );
       } else {
         lines.push(
-          `🏛 ${idx}/${totalCapitals} → ${flagEmoji(nextCapital.id)} ${nextCapital.countryJa} ${nextCapital.nameJa}`,
+          `🏛 ${idx}/${totalCapitals} → ${flagEmoji(goalCap.id)} ${goalCap.countryJa} ${goalCap.nameJa}`,
         );
       }
     }
@@ -388,6 +419,7 @@ export function ShareToX({ onClose, initialComment, mode = 'daily' }: Props) {
     return lines.join('\n');
   }, [
     nextCapital,
+    nextBorderCountry,
     visitedCount,
     totalCapitals,
     player.startDate,
