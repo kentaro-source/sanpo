@@ -618,20 +618,16 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         ? state.player.attributedTodaySteps ?? 0
         : 0;
 
-      // First Fit sync OF TODAY: adopt the absolute as baseline without
-      // crediting it. We deliberately key off lastSyncTimestamp (not
-      // attributedTodaySteps) because attributedTodaySteps can be > 0 by
-      // the time the first Fit sync arrives — the pedometer is auto-on
-      // and may have already added a few (real or false-positive) steps
-      // before Fit's first response lands. Crediting Fit's accumulated
-      // daily total on top of those would yank the player far ahead
-      // (the '+6732歩 三軒茶屋' bug).
-      const lastSyncMs = state.player.lastSyncTimestamp ?? 0;
-      const isFirstFitSyncToday = lastSyncMs < todayStart;
-
-      const contribution = isFirstFitSyncToday
-        ? 0
-        : Math.max(0, todayAbsolute - attributedSoFar);
+      // Credit the delta — today's absolute total from HC minus what's
+      // already been attributed (via the foreground pedometer or prior
+      // syncs). Earlier we suppressed the first sync of the day to dodge
+      // a '+6732歩' jump bug, but that lost every step walked before the
+      // app was opened — which is most of them when the phone is in
+      // a pocket and HC is the only counter running. The
+      // `todayAbsolute - attributedSoFar` math already prevents
+      // double-counting whatever the pedometer credited in foreground,
+      // so the special case isn't needed.
+      const contribution = Math.max(0, todayAbsolute - attributedSoFar);
       const newAttributed = Math.max(attributedSoFar, todayAbsolute);
 
       const now = Date.now();
@@ -1121,58 +1117,73 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
     case 'RETRY_LAST_MISSED_BORDER': {
       // One-shot recovery: the older RECHECK_CROSSINGS would silently
-      // credit a country's entry city as visited (skipping the border
-      // draw). For saves where that already happened, this action picks
-      // the latest such country (highest-capital-km among capitals not
-      // visited but with cities visited) and re-arms its earliest stop
-      // as a pendingBorder, un-crediting the city. The GameProvider
+      // credit border-crossings (skipping the immigration draw). This
+      // action detects any unvisited-capital country whose earliest
+      // route stop the player has already walked past, picks the latest
+      // such country (largest capital km), un-credits all of its cities,
+      // and re-arms pendingBorder at its earliest stop. The GameProvider
       // dispatches this once per save, gated by a localStorage flag.
       if (state.player.pendingBorder) return state;
+      const km = state.player.distanceKm;
+      const total = routeData.totalDistanceKm;
+      const localKm = ((km % total) + total) % total;
       const visitedCapitalsSet = new Set(state.player.visitedCapitals);
       const visitedCitiesSet = new Set(state.player.visitedCities ?? []);
 
       let pickedCountry: string | null = null;
       let pickedCapitalKm = -Infinity;
+      let pickedEarliestKm = Infinity;
+      let pickedEarliestId: string | null = null;
+      let pickedEarliestKind: 'city' | 'capital' = 'city';
+
       for (const cap of routeData.capitals) {
         if (visitedCapitalsSet.has(cap.id)) continue;
-        const hasCity = (state.player.visitedCities ?? []).some((cityId) => {
-          const c = cities.find((cc) => cc.id === cityId);
-          return c?.countryId === cap.id;
-        });
-        if (!hasCity) continue;
         const capOrig = routeData.capitalDistances[cap.id];
         if (capOrig == null) continue;
         const capKm = getCapitalKm(cap.id, capOrig);
+
+        // Find this country's EARLIEST route stop (city or capital).
+        let earliestKm = capKm;
+        let earliestId = cap.id;
+        let earliestKind: 'city' | 'capital' = 'capital';
+        for (const c of cities) {
+          if (c.countryId !== cap.id) continue;
+          const cOrig = routeData.cityDistances[c.id];
+          if (cOrig == null) continue;
+          const cKm = getCityKm(c.id, cOrig);
+          if (cKm < earliestKm) {
+            earliestKm = cKm;
+            earliestId = c.id;
+            earliestKind = 'city';
+          }
+        }
+
+        // Has the player walked past this country's earliest stop?
+        // (A few km of slack so we don't re-arm a border the player is
+        // legitimately right at.)
+        if (localKm <= earliestKm + 1) continue;
+
         if (capKm > pickedCapitalKm) {
           pickedCapitalKm = capKm;
           pickedCountry = cap.id;
+          pickedEarliestKm = earliestKm;
+          pickedEarliestId = earliestId;
+          pickedEarliestKind = earliestKind;
         }
       }
-      if (!pickedCountry) return state;
+      if (!pickedCountry || !pickedEarliestId) return state;
 
-      // Earliest visited city in that country = the silent-skipped
-      // entry stop. Un-credit it and arm pendingBorder there.
-      let earliestCityId: string | null = null;
-      let earliestCityKm = Infinity;
+      // Un-credit ALL cities of the picked country (in case multiple
+      // were silent-skipped) — they sit behind the freshly-armed border.
       for (const c of cities) {
-        if (c.countryId !== pickedCountry) continue;
-        if (!visitedCitiesSet.has(c.id)) continue;
-        const orig = routeData.cityDistances[c.id];
-        if (orig == null) continue;
-        const km = getCityKm(c.id, orig);
-        if (km < earliestCityKm) {
-          earliestCityKm = km;
-          earliestCityId = c.id;
-        }
+        if (c.countryId === pickedCountry) visitedCitiesSet.delete(c.id);
       }
-      if (!earliestCityId) return state;
 
-      visitedCitiesSet.delete(earliestCityId);
       const cost = 1 + Math.floor(Math.random() * 5);
       const armed: NonNullable<PlayerState['pendingBorder']> = {
-        kind: 'city',
-        id: earliestCityId,
-        atKm: earliestCityKm,
+        kind: pickedEarliestKind,
+        id: pickedEarliestId,
+        atKm: pickedEarliestKm,
         country: pickedCountry,
         cost,
       };
@@ -1182,7 +1193,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           ...state.player,
           visitedCities: Array.from(visitedCitiesSet),
           pendingBorder: armed,
-          distanceKm: Math.max(0, earliestCityKm - 0.001),
+          distanceKm: Math.max(0, pickedEarliestKm - 0.001),
           lastUpdated: Date.now(),
         },
       };
@@ -1312,7 +1323,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // silent-crediting unvisited-country stops, so this hook is just a
   // back-compat catch-up.
   useEffect(() => {
-    const KEY = 'sanpo-retry-missed-border-once-v1';
+    const KEY = 'sanpo-retry-missed-border-once-v2';
     try {
       if (localStorage.getItem(KEY) === '1') return;
       dispatch({ type: 'RETRY_LAST_MISSED_BORDER' });
