@@ -486,16 +486,36 @@ function createInitialState(): GameState {
   };
 }
 
+const CROSSED_BORDERS_RESET_KEY = 'sanpo-crossed-borders-reset-v1';
+
 /**
- * Initialise `crossedBorders` for saves that predate it. We deliberately
- * DON'T try to back-fill from `visitedCapitals` — the old RECHECK bug
- * could silently credit the capital too, so "capital visited" isn't
- * proof the entry draw was actually played. Better to leave the array
- * empty and let RETRY_LAST_MISSED_BORDER surface anything behind the
- * player; legitimately-already-won borders just get replayed once.
+ * Initialise / one-shot-reset `crossedBorders`. An earlier build's
+ * migration populated this field from `visitedCapitals`, but the old
+ * RECHECK bug could silently credit capitals too — so those entries
+ * were unreliable. Wipe them once per install (gated by a localStorage
+ * flag) and let RETRY_LAST_MISSED_BORDER re-arm anything behind the
+ * player. After this one-time reset, ROLL_BORDER wins populate the
+ * array properly going forward, so subsequent loads pass through.
  */
 function migrateCrossedBorders(loaded: GameState): GameState {
-  if (loaded.player.crossedBorders) return loaded;
+  let alreadyReset = false;
+  try {
+    alreadyReset = localStorage.getItem(CROSSED_BORDERS_RESET_KEY) === '1';
+  } catch {
+    // localStorage unavailable — fall through; we'll just init.
+  }
+  if (alreadyReset) {
+    if (loaded.player.crossedBorders) return loaded;
+    return {
+      ...loaded,
+      player: { ...loaded.player, crossedBorders: [] },
+    };
+  }
+  try {
+    localStorage.setItem(CROSSED_BORDERS_RESET_KEY, '1');
+  } catch {
+    // ignore
+  }
   return {
     ...loaded,
     player: { ...loaded.player, crossedBorders: [] },
