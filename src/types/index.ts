@@ -258,6 +258,14 @@ export interface PlayerState {
     country: string;
     cost?: number;
   };
+  /**
+   * Country IDs (ISO alpha-2) where the entry border-draw has been won
+   * (or completed). Used by RETRY_LAST_MISSED_BORDER to skip countries
+   * that the player has already legitimately played — without this we
+   * couldn't tell "city visited via legit border win" apart from "city
+   * silently credited by the old RECHECK bug".
+   */
+  borderRollsWon?: string[];
 }
 
 export interface DailyRecord {

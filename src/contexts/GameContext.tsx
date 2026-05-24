@@ -439,6 +439,7 @@ function createInitialPlayer(): PlayerState {
     startDate: Date.now(),
     lastUpdated: Date.now(),
     completedLaps: 0,
+    borderRollsWon: [],
   };
 }
 
@@ -961,6 +962,10 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           nextVisitedCities = [...nextVisitedCities, pb.id];
         }
       }
+      const prevWon = state.player.borderRollsWon ?? [];
+      const nextWon = prevWon.includes(pb.country)
+        ? prevWon
+        : [...prevWon, pb.country];
       return {
         ...state,
         player: {
@@ -969,6 +974,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           visitedCapitals: nextVisitedCapitals,
           visitedCities: nextVisitedCities,
           pendingBorder: undefined,
+          borderRollsWon: nextWon,
           recentBonuses: [...events, ...(state.player.recentBonuses ?? [])].slice(
             0,
             MAX_RECENT_BONUSES,
@@ -1116,19 +1122,17 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'RETRY_LAST_MISSED_BORDER': {
-      // One-shot recovery: the older RECHECK_CROSSINGS would silently
-      // credit border-crossings (skipping the immigration draw). This
-      // action detects any unvisited-capital country whose earliest
-      // route stop the player has already walked past, picks the latest
-      // such country (largest capital km), un-credits all of its cities,
-      // and re-arms pendingBorder at its earliest stop. The GameProvider
-      // dispatches this once per save, gated by a localStorage flag.
+      // Idempotent recovery for the old RECHECK silent-credit bug.
+      // Skips countries whose entry border has been legitimately won
+      // (tracked in borderRollsWon). For any country where the capital
+      // isn't visited AND at least one of its cities is in visitedCities
+      // AND no win recorded → the entry was silently credited; re-arm
+      // pendingBorder at the country's earliest stop and un-credit all
+      // of its cities. Safe to dispatch on every mount.
       if (state.player.pendingBorder) return state;
-      const km = state.player.distanceKm;
-      const total = routeData.totalDistanceKm;
-      const localKm = ((km % total) + total) % total;
       const visitedCapitalsSet = new Set(state.player.visitedCapitals);
       const visitedCitiesSet = new Set(state.player.visitedCities ?? []);
+      const wonSet = new Set(state.player.borderRollsWon ?? []);
 
       let pickedCountry: string | null = null;
       let pickedCapitalKm = -Infinity;
@@ -1138,6 +1142,17 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
       for (const cap of routeData.capitals) {
         if (visitedCapitalsSet.has(cap.id)) continue;
+        if (wonSet.has(cap.id)) continue;
+        // Country must have at least one city in visitedCities to
+        // qualify as a silent-skip candidate.
+        const hasVisitedCity = (state.player.visitedCities ?? []).some(
+          (cityId) => {
+            const c = cities.find((cc) => cc.id === cityId);
+            return c?.countryId === cap.id;
+          },
+        );
+        if (!hasVisitedCity) continue;
+
         const capOrig = routeData.capitalDistances[cap.id];
         if (capOrig == null) continue;
         const capKm = getCapitalKm(cap.id, capOrig);
@@ -1158,11 +1173,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           }
         }
 
-        // Has the player walked past this country's earliest stop?
-        // (A few km of slack so we don't re-arm a border the player is
-        // legitimately right at.)
-        if (localKm <= earliestKm + 1) continue;
-
+        // Most recent silent-skip = largest capital km.
         if (capKm > pickedCapitalKm) {
           pickedCapitalKm = capKm;
           pickedCountry = cap.id;
@@ -1173,8 +1184,8 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       }
       if (!pickedCountry || !pickedEarliestId) return state;
 
-      // Un-credit ALL cities of the picked country (in case multiple
-      // were silent-skipped) — they sit behind the freshly-armed border.
+      // Un-credit ALL cities of the picked country — they sit behind
+      // the freshly-armed border.
       for (const c of cities) {
         if (c.countryId === pickedCountry) visitedCitiesSet.delete(c.id);
       }
@@ -1316,21 +1327,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'CLAIM_LOGIN_BONUS' });
   }, []);
 
-  // One-shot recovery for saves where the old RECHECK_CROSSINGS silently
-  // credited a border-crossing city as visited (skipping the immigration
-  // draw). Gated by a localStorage flag so it runs at most once per
-  // install. Going forward, RECHECK now arms pendingBorder instead of
-  // silent-crediting unvisited-country stops, so this hook is just a
-  // back-compat catch-up.
+  // Recovery for saves where the old RECHECK_CROSSINGS silently credited
+  // a border-crossing city as visited (skipping the immigration draw).
+  // Idempotent — the reducer skips countries already in borderRollsWon
+  // (= a legit win recorded), so this is safe to dispatch on every
+  // mount. Once the user plays the re-armed border and wins, future
+  // mounts no-op for that country.
   useEffect(() => {
-    const KEY = 'sanpo-retry-missed-border-once-v2';
-    try {
-      if (localStorage.getItem(KEY) === '1') return;
-      dispatch({ type: 'RETRY_LAST_MISSED_BORDER' });
-      localStorage.setItem(KEY, '1');
-    } catch {
-      // localStorage unavailable — best-effort skip.
-    }
+    dispatch({ type: 'RETRY_LAST_MISSED_BORDER' });
   }, []);
 
   // When MapView pushes new snap-cumulative km overrides, retroactively
