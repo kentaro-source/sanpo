@@ -477,6 +477,7 @@ type GameAction =
   | { type: 'CLAIM_LOGIN_BONUS' }
   | { type: 'CHECK_SCHEDULED_RESET' }
   | { type: 'RECHECK_CROSSINGS' }
+  | { type: 'RETRY_LAST_MISSED_BORDER' }
   | { type: 'FORCE_LAUNCH_RESET' }
   | { type: 'ROLL_BORDER'; choice: 'red' | 'black'; outcome: 'win' | 'lose'; cardLabel: string }
   | { type: 'RESET_GAME' };
@@ -985,39 +986,66 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       // 用途: MapView が snap-cumulative km override を更新したとき、
       // 既に player.distanceKm が override 後の km を超えていれば
       // bonus 未発火の通過がある。それを catch-up。
+      // 注意: 未訪問国の停車地は silent にクレジットしない — その停車地
+      // は国境ロールの対象なので、未着手なら pendingBorder にセットして
+      // 距離をその km まで戻す（国境を素通りさせない）。
       const now = Date.now();
       const km = state.player.distanceKm;
       const total = routeData.totalDistanceKm;
       const localKm = ((km % total) + total) % total;
       const visitedCapitalsSet = new Set(state.player.visitedCapitals);
       const visitedCitiesSet = new Set(state.player.visitedCities ?? []);
+      const visitedCountries = visitedCountrySet(
+        state.player.visitedCapitals,
+        state.player.visitedCities ?? [],
+      );
       let bonusTokens = 0;
       const events: BonusEvent[] = [];
+
+      // The earliest stop in an unvisited country that the player has
+      // somehow already walked past — arm pendingBorder instead of
+      // silently crediting it.
+      let missedBorderKm = Infinity;
+      let missedBorderInfo: BorderInfo | null = null;
+      const considerMissed = (info: BorderInfo) => {
+        if (info.atKm < missedBorderKm) {
+          missedBorderKm = info.atKm;
+          missedBorderInfo = info;
+        }
+      };
 
       for (const cap of routeData.capitals) {
         if (visitedCapitalsSet.has(cap.id)) continue;
         const orig = routeData.capitalDistances[cap.id];
         if (orig == null) continue;
         const capKm = getCapitalKm(cap.id, orig);
-        if (capKm > 0 && capKm <= localKm) {
-          visitedCapitalsSet.add(cap.id);
-          const irl = isRealLifeVisitedCapital(cap.id);
+        if (!(capKm > 0 && capKm <= localKm)) continue;
+        if (!visitedCountries.has(cap.id)) {
+          considerMissed({
+            kind: 'capital',
+            id: cap.id,
+            atKm: capKm,
+            country: cap.id,
+          });
+          continue;
+        }
+        visitedCapitalsSet.add(cap.id);
+        const irl = isRealLifeVisitedCapital(cap.id);
+        bonusTokens += 5;
+        events.push({
+          kind: 'capital',
+          amount: 5,
+          label: `🏛 ${cap.nameJa}（${cap.countryJa}）通過 +5`,
+          timestamp: now,
+        });
+        if (irl) {
           bonusTokens += 5;
           events.push({
-            kind: 'capital',
+            kind: 'capital-landing',
             amount: 5,
-            label: `🏛 ${cap.nameJa}（${cap.countryJa}）通過 +5`,
+            label: `★ 懐かしの${cap.nameJa} 思い出ボーナス +5`,
             timestamp: now,
           });
-          if (irl) {
-            bonusTokens += 5;
-            events.push({
-              kind: 'capital-landing',
-              amount: 5,
-              label: `★ 懐かしの${cap.nameJa} 思い出ボーナス +5`,
-              timestamp: now,
-            });
-          }
         }
       }
       for (const city of cities) {
@@ -1025,29 +1053,49 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         const orig = routeData.cityDistances[city.id];
         if (orig == null) continue;
         const cityKm = getCityKm(city.id, orig);
-        if (cityKm > 0 && cityKm <= localKm) {
-          visitedCitiesSet.add(city.id);
-          const irl =
-            city.visitedInRealLife === true || isRealLifeVisitedCity(city.id);
+        if (!(cityKm > 0 && cityKm <= localKm)) continue;
+        if (!visitedCountries.has(city.countryId)) {
+          considerMissed({
+            kind: 'city',
+            id: city.id,
+            atKm: cityKm,
+            country: city.countryId,
+          });
+          continue;
+        }
+        visitedCitiesSet.add(city.id);
+        const irl =
+          city.visitedInRealLife === true || isRealLifeVisitedCity(city.id);
+        bonusTokens += 3;
+        events.push({
+          kind: 'city',
+          amount: 3,
+          label: `📍 ${city.nameJa} 立ち寄り +3`,
+          timestamp: now,
+        });
+        if (irl) {
           bonusTokens += 3;
           events.push({
-            kind: 'city',
+            kind: 'city-irl',
             amount: 3,
-            label: `📍 ${city.nameJa} 立ち寄り +3`,
+            label: `★ 懐かしの${city.nameJa} 思い出ボーナス +3`,
             timestamp: now,
           });
-          if (irl) {
-            bonusTokens += 3;
-            events.push({
-              kind: 'city-irl',
-              amount: 3,
-              label: `★ 懐かしの${city.nameJa} 思い出ボーナス +3`,
-              timestamp: now,
-            });
-          }
         }
       }
-      if (events.length === 0) return state;
+
+      // Arm the missed border (if any) and clamp player back to its km.
+      // Don't overwrite an already-pending border.
+      const mb = missedBorderInfo as BorderInfo | null;
+      let nextPending = state.player.pendingBorder;
+      let nextDistance = state.player.distanceKm;
+      if (mb && !nextPending) {
+        mb.cost = 1 + Math.floor(Math.random() * 5);
+        nextPending = mb;
+        nextDistance = Math.max(0, mb.atKm - 0.001);
+      }
+
+      if (events.length === 0 && !mb) return state;
       return {
         ...state,
         player: {
@@ -1060,11 +1108,82 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             bonusTokens,
             state.config.maxDice,
           ),
+          distanceKm: nextDistance,
+          pendingBorder: nextPending,
           recentBonuses: [...events, ...(state.player.recentBonuses ?? [])].slice(
             0,
             MAX_RECENT_BONUSES,
           ),
           lastUpdated: now,
+        },
+      };
+    }
+
+    case 'RETRY_LAST_MISSED_BORDER': {
+      // One-shot recovery: the older RECHECK_CROSSINGS would silently
+      // credit a country's entry city as visited (skipping the border
+      // draw). For saves where that already happened, this action picks
+      // the latest such country (highest-capital-km among capitals not
+      // visited but with cities visited) and re-arms its earliest stop
+      // as a pendingBorder, un-crediting the city. The GameProvider
+      // dispatches this once per save, gated by a localStorage flag.
+      if (state.player.pendingBorder) return state;
+      const visitedCapitalsSet = new Set(state.player.visitedCapitals);
+      const visitedCitiesSet = new Set(state.player.visitedCities ?? []);
+
+      let pickedCountry: string | null = null;
+      let pickedCapitalKm = -Infinity;
+      for (const cap of routeData.capitals) {
+        if (visitedCapitalsSet.has(cap.id)) continue;
+        const hasCity = (state.player.visitedCities ?? []).some((cityId) => {
+          const c = cities.find((cc) => cc.id === cityId);
+          return c?.countryId === cap.id;
+        });
+        if (!hasCity) continue;
+        const capOrig = routeData.capitalDistances[cap.id];
+        if (capOrig == null) continue;
+        const capKm = getCapitalKm(cap.id, capOrig);
+        if (capKm > pickedCapitalKm) {
+          pickedCapitalKm = capKm;
+          pickedCountry = cap.id;
+        }
+      }
+      if (!pickedCountry) return state;
+
+      // Earliest visited city in that country = the silent-skipped
+      // entry stop. Un-credit it and arm pendingBorder there.
+      let earliestCityId: string | null = null;
+      let earliestCityKm = Infinity;
+      for (const c of cities) {
+        if (c.countryId !== pickedCountry) continue;
+        if (!visitedCitiesSet.has(c.id)) continue;
+        const orig = routeData.cityDistances[c.id];
+        if (orig == null) continue;
+        const km = getCityKm(c.id, orig);
+        if (km < earliestCityKm) {
+          earliestCityKm = km;
+          earliestCityId = c.id;
+        }
+      }
+      if (!earliestCityId) return state;
+
+      visitedCitiesSet.delete(earliestCityId);
+      const cost = 1 + Math.floor(Math.random() * 5);
+      const armed: NonNullable<PlayerState['pendingBorder']> = {
+        kind: 'city',
+        id: earliestCityId,
+        atKm: earliestCityKm,
+        country: pickedCountry,
+        cost,
+      };
+      return {
+        ...state,
+        player: {
+          ...state.player,
+          visitedCities: Array.from(visitedCitiesSet),
+          pendingBorder: armed,
+          distanceKm: Math.max(0, earliestCityKm - 0.001),
+          lastUpdated: Date.now(),
         },
       };
     }
@@ -1184,6 +1303,23 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // app open / SW reload.
   useEffect(() => {
     dispatch({ type: 'CLAIM_LOGIN_BONUS' });
+  }, []);
+
+  // One-shot recovery for saves where the old RECHECK_CROSSINGS silently
+  // credited a border-crossing city as visited (skipping the immigration
+  // draw). Gated by a localStorage flag so it runs at most once per
+  // install. Going forward, RECHECK now arms pendingBorder instead of
+  // silent-crediting unvisited-country stops, so this hook is just a
+  // back-compat catch-up.
+  useEffect(() => {
+    const KEY = 'sanpo-retry-missed-border-once-v1';
+    try {
+      if (localStorage.getItem(KEY) === '1') return;
+      dispatch({ type: 'RETRY_LAST_MISSED_BORDER' });
+      localStorage.setItem(KEY, '1');
+    } catch {
+      // localStorage unavailable — best-effort skip.
+    }
   }, []);
 
   // When MapView pushes new snap-cumulative km overrides, retroactively
