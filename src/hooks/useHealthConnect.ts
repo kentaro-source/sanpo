@@ -7,6 +7,11 @@ import {
 } from '../services/healthConnect';
 
 const POLL_INTERVAL_MS = 30_000;
+/** Burst poll offsets (ms) after auth. Health Connect lags the OS step
+ *  counter by a few seconds while the device flushes pending writes;
+ *  these extra early polls catch the flush quickly so the in-app
+ *  position doesn't sit stale for a full 30 s interval after open. */
+const BURST_POLL_MS = [2_000, 5_000, 10_000, 20_000];
 
 export type HealthConnectStatus =
   | 'inactive' // not on native android
@@ -53,8 +58,14 @@ export function useHealthConnect() {
         return;
       }
       setStatus('active');
-      // Initial read, then poll on a timer + on visibility/resume.
+      // Initial read + a short burst so HC's incremental flush is
+      // picked up faster than the 30 s interval would allow.
       void tick();
+      for (const delay of BURST_POLL_MS) {
+        window.setTimeout(() => {
+          if (!cancelled) void tick();
+        }, delay);
+      }
       timer = setInterval(tick, POLL_INTERVAL_MS);
     })();
 

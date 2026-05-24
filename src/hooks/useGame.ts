@@ -236,6 +236,8 @@ export function useGame() {
   ) => dispatch({ type: 'ROLL_BORDER', choice, outcome, cardLabel });
   const forceLaunchReset = () => dispatch({ type: 'FORCE_LAUNCH_RESET' });
   const resetGame = () => dispatch({ type: 'RESET_GAME' });
+  const retryMissedBorder = () =>
+    dispatch({ type: 'RETRY_LAST_MISSED_BORDER' });
 
   return {
     ...derived,
@@ -248,5 +250,6 @@ export function useGame() {
     rollBorder,
     forceLaunchReset,
     resetGame,
+    retryMissedBorder,
   };
 }

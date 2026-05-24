@@ -298,67 +298,101 @@ function startOfDayMs(now: number): number {
   return d.getTime();
 }
 
-/**
- * Set of country codes the player has already entered. Capitals.id is
- * itself the ISO alpha-2 code, so `visitedCapitals` already contains
- * country codes; we additionally fold in the country of every visited
- * city so a city-only border crossing (e.g. Busan in KR) marks Korea
- * as entered without waiting for the player to also reach Seoul.
- */
-function visitedCountrySet(
-  visitedCapitals: string[],
-  visitedCities: string[],
-): Set<string> {
-  const out = new Set(visitedCapitals);
-  for (const cid of visitedCities) {
-    const city = cities.find((c) => c.id === cid);
-    if (city) out.add(city.countryId);
-  }
-  return out;
-}
-
 type BorderInfo = NonNullable<PlayerState['pendingBorder']>;
 
+type StopRec = {
+  id: string;
+  km: number;
+  country: string;
+  kind: 'city' | 'capital';
+};
+
 /**
- * Find the first stop (city OR capital) between oldKm (exclusive) and
- * newKm (inclusive) whose country has not yet been entered. That stop
- * marks the country boundary — the player is clamped here until they
- * win the border draw. Uses km order so the FIRST foreign stop wins
- * (Busan over Seoul on a JP→KR leg).
+ * Build the route's ordered stop list with current (override-aware)
+ * km values. O(N log N) per call (~450 stops → sub-ms), called from
+ * each border-detection action.
  */
-function findNextBorder(
-  oldKm: number,
-  newKm: number,
-  visitedCountries: Set<string>,
-): BorderInfo | null {
-  let best: BorderInfo | null = null;
-  const consider = (km: number, info: BorderInfo) => {
-    if (visitedCountries.has(info.country)) return;
-    if (km <= oldKm || km > newKm) return;
-    if (!best || km < best.atKm) best = info;
-  };
+function orderedStops(): StopRec[] {
+  const stops: StopRec[] = [];
   for (const cap of routeData.capitals) {
     const orig = routeData.capitalDistances[cap.id];
     if (orig == null) continue;
-    const km = getCapitalKm(cap.id, orig);
-    consider(km, { kind: 'capital', id: cap.id, atKm: km, country: cap.id });
+    stops.push({
+      id: cap.id,
+      km: getCapitalKm(cap.id, orig),
+      country: cap.id,
+      kind: 'capital',
+    });
   }
   for (const city of cities) {
     const orig = routeData.cityDistances[city.id];
     if (orig == null) continue;
-    const km = getCityKm(city.id, orig);
-    consider(km, {
-      kind: 'city',
+    stops.push({
       id: city.id,
-      atKm: km,
+      km: getCityKm(city.id, orig),
       country: city.countryId,
+      kind: 'city',
     });
   }
-  // The immigration draw demands a random 1–5 chip "fee" — fixed once
-  // here for this border ("borders take your money" satire).
-  const picked = best as BorderInfo | null;
-  if (picked) picked.cost = 1 + Math.floor(Math.random() * 5);
-  return picked;
+  stops.sort((a, b) => a.km - b.km);
+  return stops;
+}
+
+/**
+ * Find the first uncrossed border-stop in (oldKm, newKm]. A "border
+ * stop" is any stop whose country differs from the previous stop in
+ * route-km order — so the same country can have multiple entries
+ * (KP→RU on the KP→CN leg AND later RU→FI; the player rolls at each).
+ */
+function findNextBorderStop(
+  oldKm: number,
+  newKm: number,
+  crossedSet: Set<string>,
+): BorderInfo | null {
+  const stops = orderedStops();
+  let prevCountry: string | null = null;
+  for (const s of stops) {
+    const isBorder = prevCountry !== null && prevCountry !== s.country;
+    prevCountry = s.country;
+    if (!isBorder) continue;
+    if (crossedSet.has(s.id)) continue;
+    if (s.km <= oldKm || s.km > newKm) continue;
+    return {
+      kind: s.kind,
+      id: s.id,
+      atKm: s.km,
+      country: s.country,
+      cost: 1 + Math.floor(Math.random() * 5),
+    };
+  }
+  return null;
+}
+
+/** All uncrossed border-stops with km <= localKm. Used by RETRY to
+ *  find missed borders the player walked past silently. Returns them
+ *  in route-km order (earliest first). */
+function listMissedBorders(
+  localKm: number,
+  crossedSet: Set<string>,
+): BorderInfo[] {
+  const stops = orderedStops();
+  const out: BorderInfo[] = [];
+  let prevCountry: string | null = null;
+  for (const s of stops) {
+    const isBorder = prevCountry !== null && prevCountry !== s.country;
+    prevCountry = s.country;
+    if (!isBorder) continue;
+    if (crossedSet.has(s.id)) continue;
+    if (s.km > localKm) continue;
+    out.push({
+      kind: s.kind,
+      id: s.id,
+      atKm: s.km,
+      country: s.country,
+      cost: 1 + Math.floor(Math.random() * 5),
+    });
+  }
+  return out;
 }
 
 /** Fallback border-roll cost for pre-cost saves (pendingBorder.cost
@@ -440,6 +474,7 @@ function createInitialPlayer(): PlayerState {
     lastUpdated: Date.now(),
     completedLaps: 0,
     borderRollsWon: [],
+    crossedBorders: [],
   };
 }
 
@@ -451,10 +486,49 @@ function createInitialState(): GameState {
   };
 }
 
+/**
+ * Back-compat migration for saves predating crossedBorders. For each
+ * route border-stop, if the country's capital is in visitedCapitals we
+ * assume the entry draw was legitimately completed and mark the stop as
+ * crossed. Border-stops in countries whose capital isn't visited are
+ * left uncrossed — RETRY_LAST_MISSED_BORDER will surface them on the
+ * next mount.
+ */
+function migrateCrossedBorders(loaded: GameState): GameState {
+  if (loaded.player.crossedBorders) return loaded;
+  const visited = new Set(loaded.player.visitedCapitals);
+  // Precompute border-stop ids using ROUTE-ORDER km (no overrides at
+  // module init time).
+  const stops: Array<{ id: string; km: number; country: string }> = [];
+  for (const cap of routeData.capitals) {
+    const km = routeData.capitalDistances[cap.id];
+    if (km == null) continue;
+    stops.push({ id: cap.id, km, country: cap.id });
+  }
+  for (const city of cities) {
+    const km = routeData.cityDistances[city.id];
+    if (km == null) continue;
+    stops.push({ id: city.id, km, country: city.countryId });
+  }
+  stops.sort((a, b) => a.km - b.km);
+  const crossed: string[] = [];
+  let prev: string | null = null;
+  for (const s of stops) {
+    if (prev !== null && prev !== s.country && visited.has(s.country)) {
+      crossed.push(s.id);
+    }
+    prev = s.country;
+  }
+  return {
+    ...loaded,
+    player: { ...loaded.player, crossedBorders: crossed },
+  };
+}
+
 function getInitialState(): GameState {
   const loaded = loadGameState();
   if (loaded) {
-    return loaded;
+    return migrateCrossedBorders(loaded);
   }
   // Loader returned null. Try the watchdog (progress side-channel) before
   // resetting the player to Tokyo Station. The user reported "たびたび
@@ -517,15 +591,18 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       // Either way the player banks chips from the steps but stops
       // physically advancing past the boundary.
       const existingBorder = state.player.pendingBorder ?? null;
-      const visitedCountries = visitedCountrySet(
-        state.player.visitedCapitals,
-        state.player.visitedCities ?? [],
-      );
+      const crossedSet = new Set(state.player.crossedBorders ?? []);
       const newBorder = existingBorder
         ? null
-        : findNextBorder(oldKm, fullNewKm, visitedCountries);
+        : findNextBorderStop(oldKm, fullNewKm, crossedSet);
       const pendingBorder = existingBorder ?? newBorder ?? undefined;
       const borderCap = pendingBorder?.atKm;
+      // Remember the original target so ROLL_BORDER can keep advancing
+      // through additional borders in the same step batch after a win.
+      const borderAdvanceTarget =
+        pendingBorder && borderCap != null && borderCap < fullNewKm
+          ? fullNewKm
+          : state.player.borderAdvanceTarget;
       // Use a small epsilon so detectCrossings doesn't credit the border
       // stop itself — that's deferred to ROLL_BORDER on a successful
       // roll. Cities on the way (within the same already-visited country)
@@ -584,6 +661,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           attributedDayStart: dayStart,
           todayStartKm,
           pendingBorder,
+          borderAdvanceTarget,
           visitedCapitals: cross.newCapitals,
           visitedCities: cross.newCities,
           completedLaps: state.player.completedLaps + cross.completedLaps,
@@ -643,15 +721,16 @@ function gameReducer(state: GameState, action: GameAction): GameState {
 
       // Border-gamble clamp (same as ADD_STEPS).
       const existingBorder = state.player.pendingBorder ?? null;
-      const visitedCountries = visitedCountrySet(
-        state.player.visitedCapitals,
-        state.player.visitedCities ?? [],
-      );
+      const crossedSet = new Set(state.player.crossedBorders ?? []);
       const newBorder = existingBorder
         ? null
-        : findNextBorder(oldKm, fullNewKm, visitedCountries);
+        : findNextBorderStop(oldKm, fullNewKm, crossedSet);
       const pendingBorder = existingBorder ?? newBorder ?? undefined;
       const borderCap = pendingBorder?.atKm;
+      const borderAdvanceTarget =
+        pendingBorder && borderCap != null && borderCap < fullNewKm
+          ? fullNewKm
+          : state.player.borderAdvanceTarget;
       const newKm =
         borderCap != null && borderCap < fullNewKm ? borderCap : fullNewKm;
       const detectKm =
@@ -704,6 +783,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           attributedDayStart: todayStart,
           todayStartKm,
           pendingBorder,
+          borderAdvanceTarget,
           visitedCapitals: cross.newCapitals,
           visitedCities: cross.newCities,
           completedLaps: state.player.completedLaps + cross.completedLaps,
@@ -966,6 +1046,35 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const nextWon = prevWon.includes(pb.country)
         ? prevWon
         : [...prevWon, pb.country];
+      const prevCrossed = state.player.crossedBorders ?? [];
+      const nextCrossed = prevCrossed.includes(pb.id)
+        ? prevCrossed
+        : [...prevCrossed, pb.id];
+
+      // Try to advance toward borderAdvanceTarget — if there's another
+      // uncrossed border in (current, target], arm it; otherwise jump
+      // to target and clear it. Lets the player chain through several
+      // borders without waiting for the next HC poll.
+      const target = state.player.borderAdvanceTarget;
+      const currentKm = pb.atKm;
+      const crossedSetAfterWin = new Set(nextCrossed);
+      let chainPending: BorderInfo | undefined;
+      let chainDistance = currentKm;
+      let chainTarget = state.player.borderAdvanceTarget;
+      if (typeof target === 'number' && target > currentKm) {
+        const next = findNextBorderStop(currentKm, target, crossedSetAfterWin);
+        if (next) {
+          chainPending = next;
+          chainDistance = next.atKm;
+          chainTarget = target;
+        } else {
+          chainDistance = target;
+          chainTarget = undefined;
+        }
+      } else {
+        chainTarget = undefined;
+      }
+
       return {
         ...state,
         player: {
@@ -973,8 +1082,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           availableDice: combineDice(spent, 0, bonus, state.config.maxDice),
           visitedCapitals: nextVisitedCapitals,
           visitedCities: nextVisitedCities,
-          pendingBorder: undefined,
+          pendingBorder: chainPending,
+          borderAdvanceTarget: chainTarget,
+          distanceKm: chainDistance,
           borderRollsWon: nextWon,
+          crossedBorders: nextCrossed,
           recentBonuses: [...events, ...(state.player.recentBonuses ?? [])].slice(
             0,
             MAX_RECENT_BONUSES,
@@ -988,56 +1100,44 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       // 用途: MapView が snap-cumulative km override を更新したとき、
       // 既に player.distanceKm が override 後の km を超えていれば
       // bonus 未発火の通過がある。それを catch-up。
-      // 注意: 未訪問国の停車地は silent にクレジットしない — その停車地
-      // は国境ロールの対象なので、未着手なら pendingBorder にセットして
-      // 距離をその km まで戻す（国境を素通りさせない）。
+      // 注意: 国境 stop (国が切り替わる stop) は silent にクレジットしない
+      // — その stop は immigration draw の対象なので、未完了なら
+      // pendingBorder にセットして距離をその km まで戻す。
       const now = Date.now();
       const km = state.player.distanceKm;
       const total = routeData.totalDistanceKm;
       const localKm = ((km % total) + total) % total;
       const visitedCapitalsSet = new Set(state.player.visitedCapitals);
       const visitedCitiesSet = new Set(state.player.visitedCities ?? []);
-      const visitedCountries = visitedCountrySet(
-        state.player.visitedCapitals,
-        state.player.visitedCities ?? [],
-      );
+      const crossedSet = new Set(state.player.crossedBorders ?? []);
+      // Precompute the route's border-stop set so we can skip them in
+      // the silent-credit loops below.
+      const borderStopIds = new Set<string>();
+      {
+        const ordered = orderedStops();
+        let prev: string | null = null;
+        for (const s of ordered) {
+          if (prev !== null && prev !== s.country) borderStopIds.add(s.id);
+          prev = s.country;
+        }
+      }
       let bonusTokens = 0;
       const events: BonusEvent[] = [];
 
-      // The earliest stop in an unvisited country that the player has
-      // somehow already walked past — arm pendingBorder instead of
-      // silently crediting it.
-      let missedBorderKm = Infinity;
-      let missedBorderInfo: BorderInfo | null = null;
-      const considerMissed = (info: BorderInfo) => {
-        if (info.atKm < missedBorderKm) {
-          missedBorderKm = info.atKm;
-          missedBorderInfo = info;
-        }
-      };
-
       for (const cap of routeData.capitals) {
         if (visitedCapitalsSet.has(cap.id)) continue;
+        if (borderStopIds.has(cap.id)) continue; // defer to border draw
         const orig = routeData.capitalDistances[cap.id];
         if (orig == null) continue;
         const capKm = getCapitalKm(cap.id, orig);
         if (!(capKm > 0 && capKm <= localKm)) continue;
-        if (!visitedCountries.has(cap.id)) {
-          considerMissed({
-            kind: 'capital',
-            id: cap.id,
-            atKm: capKm,
-            country: cap.id,
-          });
-          continue;
-        }
         visitedCapitalsSet.add(cap.id);
         const irl = isRealLifeVisitedCapital(cap.id);
         bonusTokens += 5;
         events.push({
           kind: 'capital',
           amount: 5,
-          label: `🏛 ${cap.nameJa}（${cap.countryJa}）通過 +5`,
+          label: `🏛 ${cap.nameJa}(${cap.countryJa}) 通過 +5`,
           timestamp: now,
         });
         if (irl) {
@@ -1052,19 +1152,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       }
       for (const city of cities) {
         if (visitedCitiesSet.has(city.id)) continue;
+        if (borderStopIds.has(city.id)) continue; // defer to border draw
         const orig = routeData.cityDistances[city.id];
         if (orig == null) continue;
         const cityKm = getCityKm(city.id, orig);
         if (!(cityKm > 0 && cityKm <= localKm)) continue;
-        if (!visitedCountries.has(city.countryId)) {
-          considerMissed({
-            kind: 'city',
-            id: city.id,
-            atKm: cityKm,
-            country: city.countryId,
-          });
-          continue;
-        }
         visitedCitiesSet.add(city.id);
         const irl =
           city.visitedInRealLife === true || isRealLifeVisitedCity(city.id);
@@ -1086,18 +1178,24 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         }
       }
 
-      // Arm the missed border (if any) and clamp player back to its km.
-      // Don't overwrite an already-pending border.
-      const mb = missedBorderInfo as BorderInfo | null;
+      // If there are missed (= uncrossed and km <= localKm) border stops
+      // behind the player, arm the earliest one and clamp distance back.
       let nextPending = state.player.pendingBorder;
       let nextDistance = state.player.distanceKm;
-      if (mb && !nextPending) {
-        mb.cost = 1 + Math.floor(Math.random() * 5);
-        nextPending = mb;
-        nextDistance = Math.max(0, mb.atKm - 0.001);
+      let nextTarget = state.player.borderAdvanceTarget;
+      if (!nextPending) {
+        const missed = listMissedBorders(localKm, crossedSet);
+        if (missed.length > 0) {
+          const first = missed[0];
+          nextPending = first;
+          nextTarget = state.player.distanceKm;
+          nextDistance = first.atKm;
+        }
       }
 
-      if (events.length === 0 && !mb) return state;
+      if (events.length === 0 && nextPending === state.player.pendingBorder) {
+        return state;
+      }
       return {
         ...state,
         player: {
@@ -1112,6 +1210,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           ),
           distanceKm: nextDistance,
           pendingBorder: nextPending,
+          borderAdvanceTarget: nextTarget,
           recentBonuses: [...events, ...(state.player.recentBonuses ?? [])].slice(
             0,
             MAX_RECENT_BONUSES,
@@ -1122,89 +1221,26 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'RETRY_LAST_MISSED_BORDER': {
-      // Idempotent recovery for the old RECHECK silent-credit bug.
-      // Skips countries whose entry border has been legitimately won
-      // (tracked in borderRollsWon). For any country where the capital
-      // isn't visited AND at least one of its cities is in visitedCities
-      // AND no win recorded → the entry was silently credited; re-arm
-      // pendingBorder at the country's earliest stop and un-credit all
-      // of its cities. Safe to dispatch on every mount.
+      // Idempotent recovery for the old RECHECK silent-credit bug, now
+      // per-stop. Finds the earliest uncrossed border stop with km <=
+      // localKm, arms it, and saves the player's current km as the
+      // advance target — so winning the chain returns them where they
+      // were. Safe to dispatch on every mount.
       if (state.player.pendingBorder) return state;
-      const visitedCapitalsSet = new Set(state.player.visitedCapitals);
-      const visitedCitiesSet = new Set(state.player.visitedCities ?? []);
-      const wonSet = new Set(state.player.borderRollsWon ?? []);
-
-      let pickedCountry: string | null = null;
-      let pickedCapitalKm = -Infinity;
-      let pickedEarliestKm = Infinity;
-      let pickedEarliestId: string | null = null;
-      let pickedEarliestKind: 'city' | 'capital' = 'city';
-
-      for (const cap of routeData.capitals) {
-        if (visitedCapitalsSet.has(cap.id)) continue;
-        if (wonSet.has(cap.id)) continue;
-        // Country must have at least one city in visitedCities to
-        // qualify as a silent-skip candidate.
-        const hasVisitedCity = (state.player.visitedCities ?? []).some(
-          (cityId) => {
-            const c = cities.find((cc) => cc.id === cityId);
-            return c?.countryId === cap.id;
-          },
-        );
-        if (!hasVisitedCity) continue;
-
-        const capOrig = routeData.capitalDistances[cap.id];
-        if (capOrig == null) continue;
-        const capKm = getCapitalKm(cap.id, capOrig);
-
-        // Find this country's EARLIEST route stop (city or capital).
-        let earliestKm = capKm;
-        let earliestId = cap.id;
-        let earliestKind: 'city' | 'capital' = 'capital';
-        for (const c of cities) {
-          if (c.countryId !== cap.id) continue;
-          const cOrig = routeData.cityDistances[c.id];
-          if (cOrig == null) continue;
-          const cKm = getCityKm(c.id, cOrig);
-          if (cKm < earliestKm) {
-            earliestKm = cKm;
-            earliestId = c.id;
-            earliestKind = 'city';
-          }
-        }
-
-        // Most recent silent-skip = largest capital km.
-        if (capKm > pickedCapitalKm) {
-          pickedCapitalKm = capKm;
-          pickedCountry = cap.id;
-          pickedEarliestKm = earliestKm;
-          pickedEarliestId = earliestId;
-          pickedEarliestKind = earliestKind;
-        }
-      }
-      if (!pickedCountry || !pickedEarliestId) return state;
-
-      // Un-credit ALL cities of the picked country — they sit behind
-      // the freshly-armed border.
-      for (const c of cities) {
-        if (c.countryId === pickedCountry) visitedCitiesSet.delete(c.id);
-      }
-
-      const cost = 1 + Math.floor(Math.random() * 5);
-      const armed: NonNullable<PlayerState['pendingBorder']> = {
-        kind: pickedEarliestKind,
-        id: pickedEarliestId,
-        atKm: pickedEarliestKm,
-        country: pickedCountry,
-        cost,
-      };
+      const km = state.player.distanceKm;
+      const total = routeData.totalDistanceKm;
+      const localKm = ((km % total) + total) % total;
+      const crossedSet = new Set(state.player.crossedBorders ?? []);
+      const missed = listMissedBorders(localKm, crossedSet);
+      if (missed.length === 0) return state;
+      const first = missed[0];
       return {
         ...state,
         player: {
           ...state.player,
-          visitedCities: Array.from(visitedCitiesSet),
-          pendingBorder: armed,
-          distanceKm: Math.max(0, pickedEarliestKm - 0.001),
+          pendingBorder: first,
+          borderAdvanceTarget: state.player.distanceKm,
+          distanceKm: first.atKm,
           lastUpdated: Date.now(),
         },
       };

@@ -20,7 +20,7 @@ function formatDay(ts: number): string {
 }
 
 export function HamburgerMenu({ onForceReload }: Props) {
-  const { player } = useGame();
+  const { player, retryMissedBorder } = useGame();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<'menu' | 'history'>('menu');
   const [shareOpen, setShareOpen] = useState(false);
@@ -109,6 +109,18 @@ export function HamburgerMenu({ onForceReload }: Props) {
                   onClick={() => setView('history')}
                 >
                   📊 日別記録
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  className="menu-item"
+                  onClick={() => {
+                    setOpen(false);
+                    retryMissedBorder();
+                  }}
+                >
+                  🛂 国境やり直し
                 </button>
               </li>
               <li>

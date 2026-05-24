@@ -259,13 +259,28 @@ export interface PlayerState {
     cost?: number;
   };
   /**
-   * Country IDs (ISO alpha-2) where the entry border-draw has been won
-   * (or completed). Used by RETRY_LAST_MISSED_BORDER to skip countries
-   * that the player has already legitimately played — without this we
-   * couldn't tell "city visited via legit border win" apart from "city
-   * silently credited by the old RECHECK bug".
+   * Country IDs (ISO alpha-2) where the entry border-draw has been won.
+   * Kept for back-compat — superseded by `crossedBorders` (per-stop)
+   * which models multi-crossing routes (e.g., KP→RU→CN: RU is entered
+   * twice across the world tour, two independent rolls).
    */
   borderRollsWon?: string[];
+  /**
+   * Route-stop IDs where the immigration draw has been completed (won
+   * or otherwise resolved). A "border stop" is any stop whose country
+   * differs from the previous stop in route-km order, so the same
+   * country can have multiple entries (e.g., RU on the KP→CN leg and
+   * later again on the way to FI) and each gets its own crossing.
+   */
+  crossedBorders?: string[];
+  /**
+   * km the player was trying to reach when pendingBorder was armed.
+   * After winning the current border, the reducer advances to the next
+   * uncrossed border in (current, target] or all the way to target if
+   * none remain. Lets a single step batch chain through multiple
+   * borders without waiting for the next HC poll.
+   */
+  borderAdvanceTarget?: number;
 }
 
 export interface DailyRecord {
