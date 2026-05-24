@@ -18,7 +18,147 @@ APK ビルドが必要な場合 (ユーザーが APK 更新依頼):
 - JDK 21 (Android Studio JBR `/c/Program Files/Android/Android Studio/jbr`)、ANDROID_HOME `$LOCALAPPDATA/Android/Sdk` を環境変数で渡して `cd android && ./gradlew.bat assembleDebug`
 - adb は `$LOCALAPPDATA/Android/Sdk/platform-tools/adb.exe`
 
-## 🚀 引継ぎサマリ (2026-05-08 第8セッション末 — X 投稿改修 + snap-km override + 国名併記 + 日別記録復元)
+## 🚀 引継ぎサマリ (2026-05-24 第9セッション末 — per-stop 国境 + バカラ絞り + 通知 + state cleanup 連戦)
+
+**最重要事項**:
+
+1. **国境ロール = per-stop に再設計** (リアリティ追求):
+   - 旧 v8: 「国ごと生涯1回」発火。シンプルだが KP→CN セグメントが RU を経由するのにロールは KP→CN の1回のみ = 非現実的
+   - 新 v9: 各 stop で「前 stop と国が違う = 国境」と判定、独立ロール
+   - 例 KP→CN: KP→RU (Khasan) + RU→CN (Harbin) で **2回**。後の RU→FI も別 stop なので RU 再入国でロール
+   - 状態: `crossedBorders: string[]` (完了済 stop id) + `borderAdvanceTarget: number` (chain 用)
+   - ROLL_BORDER 勝利 → push crossedBorders → 続いて `(currentKm, target]` 内に未完了国境あれば即 arm = **1回の歩数バッチで連続プレイ可、HC poll 待ち不要**
+
+2. **バカラ絞り (BorderModal 全面改修)** — session 7 の単純フリップを drag squeeze に:
+   - 2枚 face-down → 指で drag → 軸 (上下左右どこから) 自動判定 → 進捗 0-180° で revealed
+   - 戻すと隠れる (絞りの「焦らし」)、半分 (90°) 超えたら release で commit
+   - カード face: 標準トランプの pip 配置 (2-10 は枚数通り、絵札/A は1pip)
+   - **勝ち時 modal が一瞬で消えるバグ修正** — rollBorder dispatch を flip 完了後に遅延
+   - 「審査料」ランダム 1-5 チップ (`pendingBorder.cost`、`findNextBorderStop` 内で生成)
+
+3. **審査官キャラクター画像** — ユーザー提供のバカラ台 + 審査官「岡本」スケッチ:
+   - `@imgly/background-removal-node` で背景除去 → カジノマット (緑フェルト) を再合成 (`scripts/cutout-officer.mjs`)
+   - `public/img/officer.png` に格納、モーダル上部に drop-shadow 付きで表示
+
+4. **カード音 mp3 (mixkit 実録音)**:
+   - `card-flip.mp3` (Poker card flick) + `card-place.mp3` (Poker card placement)
+   - sound.ts に `makeSamplePlayer` ヘルパー、`playCardFlip(volume)` で音量制御
+   - Sic Bo と同じ理由で勝敗 chime は廃止 (カード音のみ)
+
+5. **目的地通過時のローカル通知** (`@capacitor/local-notifications`):
+   - `useCrossingNotifications` hook が `player.recentBonuses` を監視
+   - "🏛 ソウル(韓国) を通過しました / +5 チップ" 形式 (regex で label を整形)
+   - **`source` で発火元を区別**: `walk` (detectCrossings) のみ通知、`border` / `sicbo` / 他 in-app event はスキップ (画面開いてるので冗長)
+   - 初回マウントで POST_NOTIFICATIONS 権限要求 (Android 13+)
+   - 完全 kill (タスク swipe away) されると JS 停止 = 通知も停止。WorkManager で常駐 polling は TODO (大改修)
+
+6. **状態 cleanup の連戦 v1〜v7** — silent skip / 距離不整合の戻し合戦:
+   - v1-v4: crossedBorders を migration で populate していたが、旧 RECHECK の silent credit で誤って入る → ループ
+   - v5: borderRollsWon から逆引きで crossedBorders 復元 (legit win のみ trust)
+   - v6: **(失敗) visitedCapitals 基準で distance を bump → 結果ユーザーの距離が +750km 過大**
+   - **v7 (現行)**: `todayStartKm + todayKm` (= 実歩行分のみ、Sic Bo boost 込み) を真の現在地として distance を逆算補正、visitedCapitals/visitedCities/crossedBorders を補正後 distance で trim
+   - 各 cleanup は localStorage `sanpo-state-cleanup-vN` フラグで 1回だけ実行
+
+7. **retroactive arm 全廃** (重要):
+   - RETRY_LAST_MISSED_BORDER の useEffect dispatch は無効化 (action handler は残置)、RECHECK_CROSSINGS の missed-border arm 分岐も削除
+   - 起動のたびに distance がクランプされる UX ループを解消
+   - 旧 silent skip 分の国境は永久に失う (受容)
+   - 今後の国境は ADD_STEPS / SYNC で前進中のみ arm
+
+8. **distance ↔ visitedCapitals shrink バグ修正**:
+   - `borderAdvanceTarget` が ADD_STEPS / SYNC のたびに `fullNewKm` で上書きされて縮む → RETRY が armed した 3200 が次回 sync で 2345 に化けるバグ
+   - 修正: `Math.max(prev ?? 0, fullNewKm)` で MAX 保持
+
+9. **HC 起動時ラグ改善**:
+   - useHealthConnect の poll を起動後 0/2/5/10/20s に burst → 以降 30s 間隔
+   - HC の OS step flush 遅延を 30s 待たずに拾える
+   - `SYNC_FROM_GOOGLE_FIT` の「その日初回 sync は contribution=0」特例を撤廃 — ポケット walking の catch-up が起動時に credit される (の人が `isFirstFitSyncToday` 想定が裏目)
+
+10. **upcomingStops** (4-stop 維持) を **首都境界越え表示** に:
+    - 旧: 次の首都で break → ソウル前だとソウルまでの 2 stop しか出ない
+    - 新: 首都の break 撤廃、5→4 に戻して現在地ボタンクリアランス確保
+    - `WAYPOINT_CITY_IDS` フィルタで非 waypoint 投影都市 (光州/仁川 等) はリストから除外
+
+11. **X 投稿 — 「偽装行為」ラベル対策**:
+    - 投稿先頭に `🎮 アプリで仮想世界一周中` 挿入 (daily + sicbo 両方)
+    - hashtag に `#バーチャル世界一周` 併記
+    - 固定ポスト T6 (注意書き、203/280) を CLAUDE.md に追加 — 「実渡航ではない」を明示
+    - 「次の国」を `nextCapital` から `nextBorderCountry` (= 次の未通過国境の国) に変更。visitedCapitals に古い KP が残っていても正しく KP を表示
+
+12. **経由地追加** (前半セッションで):
+    - JP: 姫路、岡山、福山、延岡 (神戸→広島 270km / 大分→宮崎 210km 分割)
+    - KP: 清津、羅先 (Wonsan→Vladivostok 600km 分割)、KR-PAJU + KP-SARIWON (DMZ 近隣)
+    - RU: ハサン (羅先→ウラジオストク 直線 → 陸路化)
+
+13. **下関 IRL = true** に修正 (ユーザー訪問済)
+
+### 🚧 今セッション末の uncommitted / un-installed
+
+- **`43880a0` がビルドされたが APK install 失敗** (USB 切断のため). ユーザーが端末接続したら以下を実行:
+  ```
+  "$LOCALAPPDATA/Android/Sdk/platform-tools/adb.exe" install -r "C:/dev/sanpo/.claude/worktrees/recursing-ride-0e99dd/android/app/build/outputs/apk/debug/app-debug.apk"
+  ```
+
+### コミット履歴 (このセッション、main → HEAD)
+
+最新が一番上:
+- 43880a0 fix(notif): walk source 限定で Sic Bo / 入国審査 / login bonus 通知停止
+- be6a729 fix(notif): 入国審査由来 event は通知しない (BonusEvent.source 追加)
+- 8254617 feat(notif): 「○○ を通過しました」自然な日本語通知
+- 5a705c6 fix(state): cleanup v7 で todayStartKm+todayKm 自動逆算 + 距離リセットボタン削除
+- 36b6094 feat: 距離リセット + X 投稿のバーチャル明示 + 固定ポスト T6
+- 5c9fcb1 fix(share): X プレビュー「次の国」を crossedBorders 基準に
+- fd61081 feat(notif): 目的地通過時のローカル通知 (@capacitor/local-notifications)
+- 03120f0 fix(border): cleanup v6 で pendingBorder も clear
+- 7977ddb fix(border): retroactive 国境 arm 全廃 (起動時クランプループ解消)
+- 7a3e3cb fix(border): crossedBorders を borderRollsWon から逆引き再構築
+- 8c43a7d fix(border): cleanup で crossedBorders 保持 (legit win 失わない)
+- cac24dd fix(border): crossedBorders を1回だけ強制リセット
+- d26b444 fix(border): migrateCrossedBorders 撤廃 (silent credit 推定が偽陽性)
+- 92c1573 fix: 現在地ラグ burst poll + 国境スルー回収強化
+- cf82271 fix(border): borderRollsWon でべき等な国境リカバリ
+- 4003984 fix(border): RECHECK の silent クレジット修正 + 取りこぼし回収
+- 150a02d feat(route): KR-KP 国境付近 — 坡州 / 沙里院
+- d7db3a3 fix: upcomingStops 5→4 に戻す
+- 26eca10 feat(route): RU-KHASAN 追加 (Rason-Vladivostok 陸路化)
+- 69b92b1 feat(route): KP に清津・羅先追加 + 順序整理
+- cd89f98 fix(cities): 下関を visitedInRealLife: true に
+- f67e9cb feat(route): JP→KR に 姫路/岡山/福山/延岡 を waypoint 追加
+- bcdbbe9 fix(border): 「審査料」表示削除 + 標準トランプ pip 配置
+- 20a2007 feat(border): per-stop の国境ロール (大改修)
+- ac5b069 feat(border): 入国審査モーダル全面改修 (バカラ絞り + 審査官 + サウンド)
+
+### 残タスク (次セッション以降、優先順)
+
+1. **APK install** — 43880a0 を端末に流し込む (USB 接続後 `adb install -r`)
+2. **通知の動作検証** — 実機でポケット walking → 都市通過時に通知が来るか確認
+3. **WorkManager で完全 kill 時の background polling** (大改修) — 現状は WebView alive 中のみ通知発火。アプリを task から swipe away すると停止
+4. **X 偽装ラベル状況の追跡** — `🎮 アプリで仮想世界一周中` プレフィックス + `#バーチャル世界一周` 併記 + T6 注意書きが label に効くか観察。改善なければ更に明示的な game disclaimer 検討
+5. **state cleanup の最終形整理** — v1-v7 と継ぎ足してきたので、コードを整理し将来の cleanup を最初から正しく書ける形に refactor (今はテスト不可避な迷路)
+6. **NJ→KP 国境 永久ロス分の救済オプション** (任意) — ユーザーは KP-KAESONG の border modal を 1度も体験せずに通過済。要望あれば cleanup で 1回だけ restore する仕組み (現状は永久に失う)
+7. **per-stop border の `chainTarget` チューニング** — 多重国境を一気に歩いた場合の連続プレイ UX 検証
+8. **(継続)** 陸路国境隣接都市の追加 (CN→MN エレンホト、RU→FI ヴィボルグ 等) — 第7セッションから繰越
+
+### 設計上の重要な決定 (このセッションで確定)
+
+- **per-stop 国境 vs 国ごと**: per-stop を選択 (KP→CN セグメントで KP/RU/CN 3回ロール)。realism > simplicity
+- **retroactive arm は永久に廃止**: 起動時クランプによる UX ループの再発を防ぐ。silent skip は受容
+- **distance は実歩行で決める** (`todayStartKm + todayKm`): visitedCapitals 等の派生値で distance を bump しない (v6 失敗の教訓)
+- **`borderRollsWon` は per-country、`crossedBorders` は per-stop**: 多重 RU 等で別々に意味を持つ
+- **BonusEvent.source で通知ゲート**: in-app interaction (`border`/`sicbo`) の event はトーストだけ、通知出さない
+- **X 投稿のバーチャル明示**: 偽装ラベル対策で先頭プレフィックス + ハッシュタグ併記 + 固定ポスト T6
+
+### スマホ実機の現状 (推測)
+
+- ユーザーの distanceKm は cleanup v7 適用後、今日終端の正しい値に補正されている見込み (例: 2470km 付近)
+- visitedCapitals は trim で `['JP']` または `['JP', 'KR']` 程度
+- crossedBorders は `['KR-BUSAN']` (borderRollsWon=['KR'] から復元)
+- pendingBorder = なし、borderAdvanceTarget = なし
+- 次の国境は Seoul 北の KP-KAESONG (実距離で到達したら arm)
+
+---
+
+## 🗂 旧引継ぎサマリ (2026-05-08 第8セッション末 — X 投稿改修 + snap-km override + 国名併記 + 日別記録復元)
 
 **最重要事項**:
 
