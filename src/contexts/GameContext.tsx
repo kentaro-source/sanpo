@@ -164,6 +164,7 @@ function detectCrossings(
             amount: 5,
             label: `🏛 ${cap.nameJa}（${cap.countryJa}）通過 +5`,
             timestamp: now,
+            source: 'walk',
           });
           if (irl) {
             bonusTokens += 5;
@@ -172,6 +173,7 @@ function detectCrossings(
               amount: 5,
               label: `★ 懐かしの${cap.nameJa} 思い出ボーナス +5`,
               timestamp: now,
+              source: 'walk',
             });
           }
         }
@@ -210,6 +212,7 @@ function detectCrossings(
       amount: 3,
       label: `📍 ${city.nameJa} 立ち寄り +3`,
       timestamp: now,
+      source: 'walk',
     });
     if (irl) {
       bonusTokens += 3;
@@ -217,6 +220,7 @@ function detectCrossings(
         kind: 'city-irl',
         amount: 3,
         label: `★ 懐かしの${city.nameJa} 思い出ボーナス +3`,
+        source: 'walk',
         timestamp: now,
       });
     }
@@ -947,12 +951,14 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             amount: 0,
             label: `×${result.multiplier} 加速 ${durLabel}！`,
             timestamp: now,
+            source: 'sicbo',
           }
         : {
             kind: 'city',
             amount: 0,
             label: `ハズレ… ×${LOSS_MULTIPLIER} ${durLabel}`,
             timestamp: now,
+            source: 'sicbo',
           };
 
       // Sample the post-roll effective multiplier for today's max/min

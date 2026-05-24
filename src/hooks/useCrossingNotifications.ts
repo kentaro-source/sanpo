@@ -10,10 +10,10 @@ const PERMISSION_KEY = 'sanpo-notif-permission-requested';
  *  IRL-bonus duplicates and milestones (only the main crossing event
  *  notifies). */
 function notifyTextFor(b: BonusEvent): { title: string; body: string } | null {
-  // Border-modal interaction events: the player was looking at the
-  // screen while playing the immigration draw — notifying is pure
-  // noise. Suppress.
-  if (b.source === 'border') return null;
+  // Only natural step-crediting events fire OS notifications. Any
+  // in-app interaction (border draw, Sic Bo, login bonus, ...) is
+  // already on the user's screen and notifying would just be noise.
+  if (b.source !== 'walk') return null;
   // Capital pass: "🏛 X(Y) 通過 +5" or "🏛 X 通過 +5"
   let m = b.label.match(/^🏛\s+(.+?)(?:[（(](.+?)[）)])?\s+通過\s+\+(\d+)$/);
   if (m) {
