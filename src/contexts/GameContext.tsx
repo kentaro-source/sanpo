@@ -1056,6 +1056,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           amount: 0,
           label: `🎴 ${stopName} 入国審査 ハズレ (-${cost}🪙)`,
           timestamp: now,
+          source: 'border',
         };
         return {
           ...state,
@@ -1079,6 +1080,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           amount: 0,
           label: `🛂 ${countryNameJa} 入国成功`,
           timestamp: now,
+          source: 'border',
         },
       ];
       let bonus = 0;
@@ -1092,6 +1094,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           amount: 5,
           label: `🏛 ${stopName} 通過 +5`,
           timestamp: now,
+          source: 'border',
         });
         if (irl) {
           bonus += 5;
@@ -1100,6 +1103,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             amount: 5,
             label: `★ 懐かしの${stopName} 思い出 +5`,
             timestamp: now,
+            source: 'border',
           });
         }
         if (!nextVisitedCapitals.includes(pb.id)) {
@@ -1115,6 +1119,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           amount: 3,
           label: `📍 ${stopName} 立ち寄り +3`,
           timestamp: now,
+          source: 'border',
         });
         if (irl) {
           bonus += 3;
@@ -1123,6 +1128,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             amount: 3,
             label: `★ 懐かしの${stopName} 思い出 +3`,
             timestamp: now,
+            source: 'border',
           });
         }
         if (!nextVisitedCities.includes(pb.id)) {

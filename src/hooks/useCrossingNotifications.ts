@@ -10,6 +10,10 @@ const PERMISSION_KEY = 'sanpo-notif-permission-requested';
  *  IRL-bonus duplicates and milestones (only the main crossing event
  *  notifies). */
 function notifyTextFor(b: BonusEvent): { title: string; body: string } | null {
+  // Border-modal interaction events: the player was looking at the
+  // screen while playing the immigration draw — notifying is pure
+  // noise. Suppress.
+  if (b.source === 'border') return null;
   // Capital pass: "🏛 X(Y) 通過 +5" or "🏛 X 通過 +5"
   let m = b.label.match(/^🏛\s+(.+?)(?:[（(](.+?)[）)])?\s+通過\s+\+(\d+)$/);
   if (m) {
@@ -25,14 +29,6 @@ function notifyTextFor(b: BonusEvent): { title: string; body: string } | null {
     return {
       title: `📍 ${m[1]} に立ち寄りました`,
       body: `+${m[2]} チップ`,
-    };
-  }
-  // Border-win sub-event: "🛂 X 入国成功"
-  m = b.label.match(/^🛂\s+(.+?)\s+入国成功$/);
-  if (m) {
-    return {
-      title: `🛂 ${m[1]} に入国`,
-      body: '入国審査クリア',
     };
   }
   // Skip IRL bonus dupes and milestones — they fire alongside the main

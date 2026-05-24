@@ -306,6 +306,11 @@ export interface BonusEvent {
   amount: number;       // tokens awarded
   label: string;        // human readable, e.g. "10万歩達成"
   timestamp: number;
+  /** Origin of this event. 'border' = produced by ROLL_BORDER (player
+   *  was interacting with the modal, no point notifying); 'walk' /
+   *  undefined = produced by natural step crediting (player may be
+   *  away from phone — notify them). */
+  source?: 'walk' | 'border';
 }
 
 export interface GameConfig {
