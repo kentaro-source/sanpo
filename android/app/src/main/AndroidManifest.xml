@@ -46,4 +46,6 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Android 13+ runtime notification permission for crossing alerts. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 </manifest>

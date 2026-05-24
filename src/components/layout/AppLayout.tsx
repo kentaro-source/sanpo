@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Header } from './Header';
 import { BorderModal } from './BorderModal';
 import { useGame } from '../../hooks/useGame';
+import { useCrossingNotifications } from '../../hooks/useCrossingNotifications';
 
 interface Props {
   map: ReactNode;
@@ -10,6 +11,7 @@ interface Props {
 
 export function AppLayout({ map, panel }: Props) {
   const { player } = useGame();
+  useCrossingNotifications();
   const hasBorder = !!player.pendingBorder;
   const [borderOpen, setBorderOpen] = useState(false);
 
