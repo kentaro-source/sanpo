@@ -2,8 +2,51 @@ import { useEffect, useRef } from 'react';
 import { LocalNotifications } from '@capacitor/local-notifications';
 import { useGame } from './useGame';
 import { isAndroidNative } from '../services/platform';
+import type { BonusEvent } from '../types';
 
 const PERMISSION_KEY = 'sanpo-notif-permission-requested';
+
+/** Format a BonusEvent into a natural Japanese notification. Skips
+ *  IRL-bonus duplicates and milestones (only the main crossing event
+ *  notifies). */
+function notifyTextFor(b: BonusEvent): { title: string; body: string } | null {
+  // Capital pass: "🏛 X(Y) 通過 +5" or "🏛 X 通過 +5"
+  let m = b.label.match(/^🏛\s+(.+?)(?:[（(](.+?)[）)])?\s+通過\s+\+(\d+)$/);
+  if (m) {
+    const where = m[2] ? `${m[1]}(${m[2]})` : m[1];
+    return {
+      title: `🏛 ${where} を通過しました`,
+      body: `+${m[3]} チップ`,
+    };
+  }
+  // City pass: "📍 X 立ち寄り +3"
+  m = b.label.match(/^📍\s+(.+?)\s+立ち寄り\s+\+(\d+)$/);
+  if (m) {
+    return {
+      title: `📍 ${m[1]} に立ち寄りました`,
+      body: `+${m[2]} チップ`,
+    };
+  }
+  // Border-win sub-event: "🛂 X 入国成功"
+  m = b.label.match(/^🛂\s+(.+?)\s+入国成功$/);
+  if (m) {
+    return {
+      title: `🛂 ${m[1]} に入国`,
+      body: '入国審査クリア',
+    };
+  }
+  // Skip IRL bonus dupes and milestones — they fire alongside the main
+  // event and would spam the user.
+  if (
+    b.kind === 'capital-landing' ||
+    b.kind === 'city-irl' ||
+    b.kind === 'milestone'
+  ) {
+    return null;
+  }
+  // Fallback for unrecognised labels.
+  return { title: b.label, body: '' };
+}
 
 /**
  * Fires a system notification whenever the reducer emits a new bonus
@@ -70,16 +113,18 @@ export function useCrossingNotifications(): void {
         fresh.push(b);
       }
     }
-    if (fresh.length === 0) return;
+    const items = fresh
+      .map((b) => ({ b, text: notifyTextFor(b) }))
+      .filter((x): x is { b: BonusEvent; text: { title: string; body: string } } => x.text !== null);
+    if (items.length === 0) return;
     void (async () => {
       try {
-        // Schedule all fresh events as a single batch.
         const now = Date.now();
         await LocalNotifications.schedule({
-          notifications: fresh.map((b, i) => ({
+          notifications: items.map(({ text }, i) => ({
             id: ((now + i) >>> 0) % 0x7fffffff,
-            title: b.label,
-            body: '世界一周の進捗が更新されました',
+            title: text.title,
+            body: text.body,
             schedule: { at: new Date(now + 100) },
             smallIcon: 'ic_stat_icon',
           })),
