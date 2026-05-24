@@ -486,22 +486,20 @@ function createInitialState(): GameState {
   };
 }
 
-const STATE_CLEANUP_KEY = 'sanpo-state-cleanup-v6';
+const STATE_CLEANUP_KEY = 'sanpo-state-cleanup-v7';
 
 /**
- * One-shot state cleanup for saves where the old RECHECK bug and the
- * `borderAdvanceTarget` shrink bug left distance inconsistent with the
- * visited-capitals set (e.g., 3/193 — KP visited — but distanceKm
- * stuck at Seoul前). Trust `visitedCapitals` as the source of truth
- * (capitals only get added when the player actually reached their km
- * at some past moment) and bring distance forward to the furthest
- * visited capital's km. This recovers walking progress that an earlier
- * border-arm clamp had reduced.
+ * One-shot state cleanup. The v6 pass bumped `distance = max(distance,
+ * maxVisitedCapitalKm)` and inflated the player's km by hundreds when
+ * old silent-credit had marked capitals as visited far ahead of the
+ * actual walked total. v7 reverses that by trusting `todayStartKm +
+ * todayKm` (= legitimately-walked km accumulated by ADD_STEPS / SYNC
+ * including Sic Bo boosts) as the source of truth and trimming
+ * visited sets back to match.
  *
- * Also: reset `crossedBorders` to [] (an earlier migration populated
- * it unreliably) and clear `borderAdvanceTarget` (the shrink bug
- * polluted it). After cleanup, RETRY on mount re-arms anything behind
- * the player; ROLL_BORDER wins populate crossedBorders going forward.
+ * Also clears pendingBorder/borderAdvanceTarget (stale arm artefacts)
+ * and recovers crossedBorders from borderRollsWon (= legit ROLL_BORDER
+ * wins).
  */
 function migrateCrossedBorders(loaded: GameState): GameState {
   let alreadyReset = false;
@@ -522,21 +520,42 @@ function migrateCrossedBorders(loaded: GameState): GameState {
   } catch {
     // ignore
   }
+
+  // Auto-correct distance via the per-day legit gain. todayStartKm and
+  // todayKm are maintained by ADD_STEPS / SYNC_FROM_GOOGLE_FIT and only
+  // reflect real walked contributions (including Sic Bo boosts). If
+  // the stored distance is far above that, it was inflated by a
+  // previous cleanup bump — pull it back.
   const distance = loaded.player.distanceKm;
-  const maxVisitedCapitalKm = loaded.player.visitedCapitals.reduce(
-    (max, id) => {
-      const km = routeData.capitalDistances[id];
-      return km != null && km > max ? km : max;
-    },
-    0,
-  );
-  const restoredDistance = Math.max(distance, maxVisitedCapitalKm);
-  // Reconstruct crossedBorders from borderRollsWon (legit win evidence).
-  // Earlier cleanup passes wiped crossedBorders and any subsequent win
-  // recorded the country to borderRollsWon AND the stop id to
-  // crossedBorders, but if the user updated again before winning, the
-  // crossedBorders set was reset to []. Recover by walking the route
-  // and marking each border-stop whose country is in borderRollsWon.
+  const todayStartKm = loaded.player.todayStartKm;
+  const todayKm = loaded.player.todayKm;
+  let correctedDistance = distance;
+  if (
+    typeof todayStartKm === 'number' &&
+    Number.isFinite(todayStartKm) &&
+    typeof todayKm === 'number' &&
+    Number.isFinite(todayKm)
+  ) {
+    const expected = todayStartKm + todayKm;
+    if (distance > expected + 1) {
+      correctedDistance = expected;
+    }
+  }
+
+  // Trim visited sets to match the corrected distance.
+  const startCap = routeData.capitals[0].id;
+  const trimmedCapitals = loaded.player.visitedCapitals.filter((id) => {
+    if (id === startCap) return true;
+    const km = routeData.capitalDistances[id];
+    return km == null || km <= correctedDistance;
+  });
+  const trimmedCities = (loaded.player.visitedCities ?? []).filter((id) => {
+    const km = routeData.cityDistances[id];
+    return km == null || km <= correctedDistance;
+  });
+
+  // Recover crossedBorders from borderRollsWon (legit win evidence)
+  // plus trim to within corrected distance.
   const wonCountries = new Set(loaded.player.borderRollsWon ?? []);
   const recoveredCrossed = new Set(loaded.player.crossedBorders ?? []);
   if (wonCountries.size > 0) {
@@ -563,16 +582,22 @@ function migrateCrossedBorders(loaded: GameState): GameState {
       prev = s.country;
     }
   }
+  const trimmedCrossed = Array.from(recoveredCrossed).filter((id) => {
+    const capKm = routeData.capitalDistances[id];
+    const cityKm = routeData.cityDistances[id];
+    const km = capKm ?? cityKm;
+    return km == null || km <= correctedDistance;
+  });
+
   return {
     ...loaded,
     player: {
       ...loaded.player,
-      distanceKm: restoredDistance,
-      crossedBorders: Array.from(recoveredCrossed),
+      distanceKm: correctedDistance,
+      visitedCapitals: trimmedCapitals,
+      visitedCities: trimmedCities,
+      crossedBorders: trimmedCrossed,
       borderAdvanceTarget: undefined,
-      // Clear any stale pendingBorder from previous retroactive-arm
-      // passes — the player is now at restoredDistance and the missed
-      // border is intentionally NOT re-armed (see disabled RETRY).
       pendingBorder: undefined,
     },
   };
