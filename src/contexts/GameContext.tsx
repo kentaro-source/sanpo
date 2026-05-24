@@ -1166,7 +1166,6 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const localKm = ((km % total) + total) % total;
       const visitedCapitalsSet = new Set(state.player.visitedCapitals);
       const visitedCitiesSet = new Set(state.player.visitedCities ?? []);
-      const crossedSet = new Set(state.player.crossedBorders ?? []);
       // Precompute the route's border-stop set so we can skip them in
       // the silent-credit loops below.
       const borderStopIds = new Set<string>();
@@ -1235,24 +1234,11 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         }
       }
 
-      // If there are missed (= uncrossed and km <= localKm) border stops
-      // behind the player, arm the earliest one and clamp distance back.
-      let nextPending = state.player.pendingBorder;
-      let nextDistance = state.player.distanceKm;
-      let nextTarget = state.player.borderAdvanceTarget;
-      if (!nextPending) {
-        const missed = listMissedBorders(localKm, crossedSet);
-        if (missed.length > 0) {
-          const first = missed[0];
-          nextPending = first;
-          nextTarget = state.player.distanceKm;
-          nextDistance = first.atKm;
-        }
-      }
-
-      if (events.length === 0 && nextPending === state.player.pendingBorder) {
-        return state;
-      }
+      // Retroactive arming removed — RECHECK only credits visited
+      // non-border stops behind the player. Missed border-stops are
+      // accepted as gone (clamping back on every override update
+      // produced the same UX loop as the disabled RETRY).
+      if (events.length === 0) return state;
       return {
         ...state,
         player: {
@@ -1265,9 +1251,6 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             bonusTokens,
             state.config.maxDice,
           ),
-          distanceKm: nextDistance,
-          pendingBorder: nextPending,
-          borderAdvanceTarget: nextTarget,
           recentBonuses: [...events, ...(state.player.recentBonuses ?? [])].slice(
             0,
             MAX_RECENT_BONUSES,
@@ -1420,15 +1403,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
     dispatch({ type: 'CLAIM_LOGIN_BONUS' });
   }, []);
 
-  // Recovery for saves where the old RECHECK_CROSSINGS silently credited
-  // a border-crossing city as visited (skipping the immigration draw).
-  // Idempotent — the reducer skips countries already in borderRollsWon
-  // (= a legit win recorded), so this is safe to dispatch on every
-  // mount. Once the user plays the re-armed border and wins, future
-  // mounts no-op for that country.
-  useEffect(() => {
-    dispatch({ type: 'RETRY_LAST_MISSED_BORDER' });
-  }, []);
+  // Retroactive border-recovery (RETRY_LAST_MISSED_BORDER) is
+  // intentionally NOT dispatched on mount any more. It clamped distance
+  // back to the missed border's km on every launch, creating a UX loop
+  // where the player kept getting rewound to the same border. Borders
+  // are now only armed during forward walking via ADD_STEPS / SYNC;
+  // anything silently skipped under the old bug is accepted as lost.
 
   // When MapView pushes new snap-cumulative km overrides, retroactively
   // award any bonuses for stops that the player already passed under
