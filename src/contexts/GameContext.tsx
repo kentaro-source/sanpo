@@ -486,23 +486,29 @@ function createInitialState(): GameState {
   };
 }
 
-const CROSSED_BORDERS_RESET_KEY = 'sanpo-crossed-borders-reset-v1';
+const STATE_CLEANUP_KEY = 'sanpo-state-cleanup-v3';
 
 /**
- * Initialise / one-shot-reset `crossedBorders`. An earlier build's
- * migration populated this field from `visitedCapitals`, but the old
- * RECHECK bug could silently credit capitals too — so those entries
- * were unreliable. Wipe them once per install (gated by a localStorage
- * flag) and let RETRY_LAST_MISSED_BORDER re-arm anything behind the
- * player. After this one-time reset, ROLL_BORDER wins populate the
- * array properly going forward, so subsequent loads pass through.
+ * One-shot state cleanup for saves where the old RECHECK bug and the
+ * `borderAdvanceTarget` shrink bug left distance inconsistent with the
+ * visited-capitals set (e.g., 3/193 — KP visited — but distanceKm
+ * stuck at Seoul前). Trust `visitedCapitals` as the source of truth
+ * (capitals only get added when the player actually reached their km
+ * at some past moment) and bring distance forward to the furthest
+ * visited capital's km. This recovers walking progress that an earlier
+ * border-arm clamp had reduced.
+ *
+ * Also: reset `crossedBorders` to [] (an earlier migration populated
+ * it unreliably) and clear `borderAdvanceTarget` (the shrink bug
+ * polluted it). After cleanup, RETRY on mount re-arms anything behind
+ * the player; ROLL_BORDER wins populate crossedBorders going forward.
  */
 function migrateCrossedBorders(loaded: GameState): GameState {
   let alreadyReset = false;
   try {
-    alreadyReset = localStorage.getItem(CROSSED_BORDERS_RESET_KEY) === '1';
+    alreadyReset = localStorage.getItem(STATE_CLEANUP_KEY) === '1';
   } catch {
-    // localStorage unavailable — fall through; we'll just init.
+    // ignore
   }
   if (alreadyReset) {
     if (loaded.player.crossedBorders) return loaded;
@@ -512,13 +518,27 @@ function migrateCrossedBorders(loaded: GameState): GameState {
     };
   }
   try {
-    localStorage.setItem(CROSSED_BORDERS_RESET_KEY, '1');
+    localStorage.setItem(STATE_CLEANUP_KEY, '1');
   } catch {
     // ignore
   }
+  const distance = loaded.player.distanceKm;
+  const maxVisitedCapitalKm = loaded.player.visitedCapitals.reduce(
+    (max, id) => {
+      const km = routeData.capitalDistances[id];
+      return km != null && km > max ? km : max;
+    },
+    0,
+  );
+  const restoredDistance = Math.max(distance, maxVisitedCapitalKm);
   return {
     ...loaded,
-    player: { ...loaded.player, crossedBorders: [] },
+    player: {
+      ...loaded.player,
+      distanceKm: restoredDistance,
+      crossedBorders: [],
+      borderAdvanceTarget: undefined,
+    },
   };
 }
 
@@ -596,9 +616,13 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const borderCap = pendingBorder?.atKm;
       // Remember the original target so ROLL_BORDER can keep advancing
       // through additional borders in the same step batch after a win.
+      // Keep the MAX of any existing target and fullNewKm — otherwise
+      // every HC poll while clamped at a border would shrink target to
+      // the latest poll's fullNewKm, throwing away the original
+      // "intended reach" the RETRY/first-arm recorded.
       const borderAdvanceTarget =
         pendingBorder && borderCap != null && borderCap < fullNewKm
-          ? fullNewKm
+          ? Math.max(state.player.borderAdvanceTarget ?? 0, fullNewKm)
           : state.player.borderAdvanceTarget;
       // Use a small epsilon so detectCrossings doesn't credit the border
       // stop itself — that's deferred to ROLL_BORDER on a successful
@@ -724,9 +748,13 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         : findNextBorderStop(oldKm, fullNewKm, crossedSet);
       const pendingBorder = existingBorder ?? newBorder ?? undefined;
       const borderCap = pendingBorder?.atKm;
+      // Keep the MAX of any existing target and fullNewKm — otherwise
+      // every HC poll while clamped at a border would shrink target to
+      // the latest poll's fullNewKm, throwing away the original
+      // "intended reach" the RETRY/first-arm recorded.
       const borderAdvanceTarget =
         pendingBorder && borderCap != null && borderCap < fullNewKm
-          ? fullNewKm
+          ? Math.max(state.player.borderAdvanceTarget ?? 0, fullNewKm)
           : state.player.borderAdvanceTarget;
       const newKm =
         borderCap != null && borderCap < fullNewKm ? borderCap : fullNewKm;
