@@ -486,7 +486,7 @@ function createInitialState(): GameState {
   };
 }
 
-const STATE_CLEANUP_KEY = 'sanpo-state-cleanup-v4';
+const STATE_CLEANUP_KEY = 'sanpo-state-cleanup-v5';
 
 /**
  * One-shot state cleanup for saves where the old RECHECK bug and the
@@ -531,16 +531,44 @@ function migrateCrossedBorders(loaded: GameState): GameState {
     0,
   );
   const restoredDistance = Math.max(distance, maxVisitedCapitalKm);
-  // Preserve crossedBorders — they only get populated via legitimate
-  // ROLL_BORDER wins now, and resetting them would force the player to
-  // re-play borders they've already cleared. Clear borderAdvanceTarget
-  // (the shrink bug polluted it) and bring distance forward.
+  // Reconstruct crossedBorders from borderRollsWon (legit win evidence).
+  // Earlier cleanup passes wiped crossedBorders and any subsequent win
+  // recorded the country to borderRollsWon AND the stop id to
+  // crossedBorders, but if the user updated again before winning, the
+  // crossedBorders set was reset to []. Recover by walking the route
+  // and marking each border-stop whose country is in borderRollsWon.
+  const wonCountries = new Set(loaded.player.borderRollsWon ?? []);
+  const recoveredCrossed = new Set(loaded.player.crossedBorders ?? []);
+  if (wonCountries.size > 0) {
+    type Stop = { id: string; km: number; country: string };
+    const stops: Stop[] = [];
+    for (const cap of routeData.capitals) {
+      const km = routeData.capitalDistances[cap.id];
+      if (km != null) stops.push({ id: cap.id, km, country: cap.id });
+    }
+    for (const city of cities) {
+      const km = routeData.cityDistances[city.id];
+      if (km != null) stops.push({ id: city.id, km, country: city.countryId });
+    }
+    stops.sort((a, b) => a.km - b.km);
+    let prev: string | null = null;
+    for (const s of stops) {
+      if (
+        prev !== null &&
+        prev !== s.country &&
+        wonCountries.has(s.country)
+      ) {
+        recoveredCrossed.add(s.id);
+      }
+      prev = s.country;
+    }
+  }
   return {
     ...loaded,
     player: {
       ...loaded.player,
       distanceKm: restoredDistance,
-      crossedBorders: loaded.player.crossedBorders ?? [],
+      crossedBorders: Array.from(recoveredCrossed),
       borderAdvanceTarget: undefined,
     },
   };
