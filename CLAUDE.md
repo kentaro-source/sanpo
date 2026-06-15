@@ -130,14 +130,25 @@ APK ビルドが必要な場合 (ユーザーが APK 更新依頼):
 
 ### 残タスク (次セッション以降、優先順)
 
-1. **APK install** — 43880a0 を端末に流し込む (USB 接続後 `adb install -r`)
-2. **通知の動作検証** — 実機でポケット walking → 都市通過時に通知が来るか確認
-3. **WorkManager で完全 kill 時の background polling** (大改修) — 現状は WebView alive 中のみ通知発火。アプリを task から swipe away すると停止
-4. **X 偽装ラベル状況の追跡** — `🎮 アプリで仮想世界一周中` プレフィックス + `#バーチャル世界一周` 併記 + T6 注意書きが label に効くか観察。改善なければ更に明示的な game disclaimer 検討
-5. **state cleanup の最終形整理** — v1-v7 と継ぎ足してきたので、コードを整理し将来の cleanup を最初から正しく書ける形に refactor (今はテスト不可避な迷路)
-6. **NJ→KP 国境 永久ロス分の救済オプション** (任意) — ユーザーは KP-KAESONG の border modal を 1度も体験せずに通過済。要望あれば cleanup で 1回だけ restore する仕組み (現状は永久に失う)
-7. **per-stop border の `chainTarget` チューニング** — 多重国境を一気に歩いた場合の連続プレイ UX 検証
-8. **(継続)** 陸路国境隣接都市の追加 (CN→MN エレンホト、RU→FI ヴィボルグ 等) — 第7セッションから繰越
+1. **距離ワープ調査** (新規・最優先) — ユーザー報告:
+   - 今日 143km しか歩いていないのに南京まで 358km の位置 (推測: km 2940 付近)
+   - 昨日終わり 2370km、運城 (Yuncheng、km ~2370 推定) スタートのはずが武漢 (Wuhan、km ~2700 推定) スタートに
+   - = 一日で 400〜500km 過剰加算されている
+   - Sic Bo は「絶対にない」と明言、日跨ぎ todayKm リセット漏れも違うとのこと
+   - 残候補: HC 重複加算 / pedometer + HC ダブルカウント / boost 配列の expiresAt 値計算バグ / SYNC_FROM_GOOGLE_FIT の attributedDayStart 取り扱い
+   - **デバッグ手段**: 一時的に diag overlay (state dump 表示) を入れて再現時の state を捕る、あるいは chrome://inspect で APK WebView 接続して localStorage を直接確認
+2. **重慶を waypoint 追加** (新規) — Xi'an↔Wuhan 間にユーザーが重慶を入れたかったが、距離ワープで通過位置を過ぎてしまった。route 修正は次セッションで:
+   - 現状 segmentMeta.ts MN→PH segment: ..., Xi'an, Zhengzhou, Wuhan, Nanjing, ...
+   - 候補挿入: Xi'an → **重慶** → Wuhan (Xi'an→Chongqing ~700km、Chongqing→Wuhan ~900km、直接 Xi'an→Zhengzhou→Wuhan より遠回り)
+   - 距離ワープ修正後、ユーザーが重慶に到達できるよう (= crossedBorders と現在距離の整合) 留意
+3. **APK install** — 43880a0 を端末に流し込む (USB 接続後 `adb install -r`)
+4. **通知の動作検証** — 実機でポケット walking → 都市通過時に通知が来るか確認
+5. **WorkManager で完全 kill 時の background polling** (大改修) — 現状は WebView alive 中のみ通知発火。アプリを task から swipe away すると停止
+6. **X 偽装ラベル状況の追跡** — `🎮 アプリで仮想世界一周中` プレフィックス + `#バーチャル世界一周` 併記 + T6 注意書きが label に効くか観察。改善なければ更に明示的な game disclaimer 検討
+7. **state cleanup の最終形整理** — v1-v7 と継ぎ足してきたので、コードを整理し将来の cleanup を最初から正しく書ける形に refactor (今はテスト不可避な迷路)
+8. **KP-KAESONG 国境 永久ロス分の救済オプション** (任意) — ユーザーは KP-KAESONG の border modal を 1度も体験せずに通過済。要望あれば cleanup で 1回だけ restore する仕組み (現状は永久に失う)
+9. **per-stop border の `chainTarget` チューニング** — 多重国境を一気に歩いた場合の連続プレイ UX 検証
+10. **(継続)** 陸路国境隣接都市の追加 (CN→MN エレンホト、RU→FI ヴィボルグ 等) — 第7セッションから繰越
 
 ### 設計上の重要な決定 (このセッションで確定)
 
