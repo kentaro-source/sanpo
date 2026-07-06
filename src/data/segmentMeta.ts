@@ -89,24 +89,36 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'CN',
     routeType: 'mixed',
     waypointCityIds: [
-      'KP-WONSAN',      // ~150 km — east coast port (Pyongyang→Wonsan)
-      'KP-HAMHUNG',     // ~100 km north up the east coast
-      'KP-CHONGJIN',    // ~270 km — 北東部の港
-      'KP-RASON',       // ~70 km — RU 国境の経済特区
-      'RU-KHASAN',      // ~50 km — DPRK-RU 国境村、豆満江友誼橋 (国境閉鎖 fallback straight)
-      'RU-VLADIVOSTOK', // ~270 km (driving in Russia)
-      'RU-KHABAROVSK',  // ~600 km (driving in Russia)
-      'CN-HARBIN',      // ~900 km (closed China-Russia border, fallback straight)
-      'CN-CHANGCHUN',   // ~250 km (driving in China)
-      'CN-SHENYANG',    // ~280 km (driving)
-      'CN-DALIAN',      // ~360 km (driving)
-      'CN-TIANJIN',     // ~720 km (Bohai SEA ferry)
+      'KP-YANGDOK',      // ~120 km — 平壌-元山鉄道の中継、山間
+      'KP-WONSAN',       // ~70 km — east coast port
+      'KP-HAMHUNG',      // ~100 km north up the east coast
+      'KP-KIMCHAEK',     // ~130 km — 旧城津、海岸沿いの中継港
+      'KP-CHONGJIN',     // ~140 km — 北東部の港
+      'KP-RASON',        // ~70 km — RU 国境の経済特区
+      'RU-KHASAN',       // ~50 km — DPRK-RU 国境村、豆満江友誼橋 (国境閉鎖 fallback straight)
+      'RU-VLADIVOSTOK',  // ~270 km (driving in Russia)
+      'RU-USSURIYSK',    // ~100 km — 鉄道ジャンクション、シベリア鉄道接続
+      'RU-LESOZAVODSK',  // ~210 km — ウスリー川沿いの製材業の町
+      'RU-BIKIN',        // ~160 km — 沿海地方北端の鉄道の町
+      'RU-KHABAROVSK',   // ~230 km (driving in Russia)
+      'RU-BIROBIDZHAN',  // ~190 km — ユダヤ自治州の首府
+      'CN-SUIFENHE',     // ~480 km — 中露国境の通商都市 (fallback straight)
+      'CN-MUDANJIANG',   // ~130 km (driving in China)
+      'CN-HARBIN',       // ~280 km (driving in China)
+      'CN-CHANGCHUN',    // ~250 km (driving in China)
+      'CN-SHENYANG',     // ~280 km (driving)
+      'CN-ANSHAN',       // ~90 km — 鉄鋼業の中心
+      'CN-DALIAN',       // ~270 km (driving)
+      'CN-TIANJIN',      // ~720 km (Bohai SEA ferry)
     ],
-    // [origin=Pyongyang, 1=Wonsan, 2=Hamhung, 3=Chongjin, 4=Rason,
-    //  5=Khasan, 6=Vladivostok, 7=Khabarovsk, 8=Harbin, 9=Changchun,
-    //  10=Shenyang, 11=Dalian, 12=Tianjin, 13=Beijing]
-    // 4→5 DPRK-RU border closed; 7→8 China-Russia border closed; 11→12 Bohai ferry.
-    seaSegments: [[4, 5], [7, 8], [11, 12]],
+    // [origin=Pyongyang, 1=Yangdok, 2=Wonsan, 3=Hamhung, 4=Kimchaek,
+    //  5=Chongjin, 6=Rason, 7=Khasan, 8=Vladivostok, 9=Ussuriysk,
+    //  10=Lesozavodsk, 11=Bikin, 12=Khabarovsk, 13=Birobidzhan,
+    //  14=Suifenhe, 15=Mudanjiang, 16=Harbin, 17=Changchun,
+    //  18=Shenyang, 19=Anshan, 20=Dalian, 21=Tianjin, 22=Beijing]
+    // 6→7 DPRK-RU border closed; 13→14 China-Russia border (fallback
+    // straight); 20→21 Bohai ferry.
+    seaSegments: [[6, 7], [13, 14], [20, 21]],
     notes:
       '平壌→咸興→元山→[国境]→ウラジオストク→ハバロフスク→[国境]→ハルビン→瀋陽→大連→[渤海フェリー]→天津→北京',
   },
@@ -122,10 +134,14 @@ export const segmentClassifications: SegmentClassification[] = [
       'MN-SAINSHAND',   // ~210 km — crosses CN-MN border (closed for cars)
       // Sainshand → Ulaanbaatar ~440 km Mongolian highway
     ],
-    // [origin=Beijing, 1=Datong, 2=Hohhot, 3=Erenhot, 4=Sainshand, 5=UB]
-    // 3→4 is the China-Mongolia rail border; Directions for cars usually
-    // refuses, fall back to straight. Everything else road-followable.
-    seaSegments: [[3, 4]],
+    // [origin=Beijing, 1=Zhangjiakou, 2=Datong, 3=Hohhot, 4=Erenhot,
+    //  5=Sainshand, 6=UB]
+    // 4→5 (Erenhot→Sainshand) is the China-Mongolia rail border;
+    // Directions refuses it, render straight. Index was previously
+    // [3,4] — stale after Zhangjiakou was inserted, which wrongly
+    // straight-lined the perfectly drivable Hohhot→Erenhot leg and
+    // sent the closed border pair to the Directions API every launch.
+    seaSegments: [[4, 5]],
     notes: '北京→大同→フフホト→二連浩特→[国境]→サインシャンド→ウランバートル(全長 ~1,600km、トランスモンゴル鉄道沿い)',
   },
   // === User's preferred Pacific island chain (CN→Taiwan→PH) ===
@@ -134,68 +150,141 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'PH',
     routeType: 'mixed',
     waypointCityIds: [
-      'MN-SAINSHAND',  // ~370 km from UB (Mongolian highway)
-      'CN-ERENHOT',    // ~140 km — MN-CN border (closed road)
-      'CN-HOHHOT',     // ~310 km
-      'CN-DATONG',     // ~165 km
-      'CN-TAIYUAN',    // ~250 km
-      'CN-XIAN',       // ~510 km
-      'CN-ZHENGZHOU',  // ~470 km
-      'CN-WUHAN',      // ~520 km
-      'CN-NANJING',    // ~550 km
-      'CN-SHANGHAI',   // ~290 km
-      'CN-HANGZHOU',   // ~170 km
-      'CN-FUZHOU',     // ~470 km
-      'CN-XIAMEN',     // ~270 km
-      'CN-SHENZHEN',   // ~530 km
-      'CN-HONGKONG',   // ~30 km
-      'MO-MACAU',      // ~60 km (HK-Macau bridge or ferry)
-      'CN-ZHUHAI',     // ~10 km — closed Macau-mainland border
-      'TW-TAIPEI',     // ~750 km — Taiwan Strait SEA
-      'TW-TAICHUNG',   // ~140 km
-      'TW-TAINAN',     // ~140 km
-      'TW-KAOHSIUNG',  // ~40 km
-      // Kaohsiung → Manila ~1,200 km Luzon Strait SEA
+      'MN-CHOIR',
+      'MN-SAINSHAND',
+      'CN-ERENHOT',
+      'CN-SONIDRIGHT',
+      'CN-ULANQAB',
+      'CN-HOHHOT',
+      'CN-DATONG',
+      'CN-XINZHOU',
+      'CN-TAIYUAN',
+      'CN-LINFEN',
+      'CN-YUNCHENG',
+      'CN-XIAN',
+      'CN-FOPING',
+      'CN-HANZHONG',
+      'CN-GUANGYUAN',
+      'CN-NANCHONG',
+      'CN-CHONGQING',
+      'CN-FULING',
+      'CN-WANZHOU',
+      'CN-BADONG',
+      'CN-YICHANG',
+      'CN-JINGZHOU',
+      'CN-WUHAN',
+      'CN-MACHENG',
+      'CN-LUAN',
+      'CN-HEFEI',
+      'CN-NANJING',
+      'CN-SUZHOU',
+      'CN-SHANGHAI',
+      'CN-HANGZHOU',
+      'CN-QUZHOU',
+      'CN-SHANGRAO',
+      'CN-NANCHANG',
+      'CN-YICHUN-JX',
+      'CN-CHANGSHA',
+      'CN-HENGYANG',
+      'CN-CHENZHOU',
+      'CN-SHAOGUAN',
+      'CN-GUANGZHOU',
+      'CN-SHENZHEN',
+      'CN-HONGKONG',
+      'MO-MACAU',
+      'CN-ZHUHAI',
+      'CN-HUIZHOU',
+      'CN-SHANWEI',
+      'CN-SHANTOU',
+      'CN-XIAMEN',
+      'CN-FUZHOU',
+      'TW-TAIPEI',
+      'TW-TAICHUNG',
+      'TW-TAINAN',
+      'TW-KAOHSIUNG',
+      // 高雄→[ルソン海峡]→バタネス諸島→ルソン島に上陸→西海岸を陸路南下→マニラ
+      'PH-BASCO',
+      'PH-APARRI',
+      'PH-LAOAG',
+      'PH-VIGAN',
+      'PH-SANFERNANDO',
+      'PH-DAGUPAN',
     ],
     // [origin=UB, 1=Sainshand, 2=Erenhot, 3=Hohhot, 4=Datong, 5=Taiyuan,
     //  6=Xi'an, 7=Zhengzhou, 8=Wuhan, 9=Nanjing, 10=Shanghai, 11=Hangzhou,
-    //  12=Fuzhou, 13=Xiamen, 14=Shenzhen, 15=HK, 16=Macau, 17=Zhuhai,
-    //  18=Taipei, 19=Taichung, 20=Tainan, 21=Kaohsiung, 22=Manila]
-    seaSegments: [
-      [1, 2],    // Sainshand→Erenhot — closed MN-CN border
-      [16, 17],  // Macau→Zhuhai — closed SAR-mainland border
-      [17, 18],  // Zhuhai→Taipei — Taiwan Strait
-      [21, 22],  // Kaohsiung→Manila — Luzon Strait
-    ],
+    //  12=Nanchang, 13=Changsha, 14=Guangzhou, 15=Shenzhen, 16=HK,
+    //  17=Macau, 18=Zhuhai, 19=Shantou, 20=Xiamen, 21=Fuzhou, 22=Taipei,
+    //  23=Taichung, 24=Tainan, 25=Kaohsiung, 26=Manila]
+    // [40,41] 深圳→香港 and [41,42] 香港→マカオ are cross-border / over-water
+    // (Google returns ZERO_RESULTS), so mark them sea: drawn straight AND the
+    // chunker breaks there instead of failing the whole 南京→マカオ batch and
+    // falling back to a slow per-leg rebuild (which renders straight while it
+    // loads). [42,43] マカオ→珠海, [48,49] 福州→台北(台湾海峡), [52,53] 高雄→マニラ.
+    // 52=高雄, 53=バスコ, 54=アパリ, 55=ラオアグ … 58=ダグパン, 59=マニラ(dest)。
+    // ルソン海峡は島伝い: [52,53] 高雄→バスコ + [53,54] バスコ→アパリ の2hopだけ
+    // 海(直線)。アパリ以降(54→…→59)はルソン島西海岸の陸路で Google が道路追従。
+    // 旧 [52,53] 高雄→マニラ 直行(~890km)を島伝いに分割。
+    seaSegments: [[2, 3], [40, 41], [41, 42], [42, 43], [48, 49], [52, 53], [53, 54]],
     notes:
-      'UB→[国境]→中国東岸縦断→[海峡]→台湾→[ルソン]→マニラ。22経由地、全長 ~6,500km。',
+      'UB→[国境]→中国東岸縦断→内陸経由で珠江デルタ(深圳/香港/マカオ/珠海)→沿岸を北上→福州から台湾海峡(255km)→台湾→高雄→[ルソン海峡を島伝い]バスコ→アパリ上陸→ルソン島西海岸(ラオアグ/ビガン/サンフェルナンド/ダグパン)→マニラ。',
   },
   {
     fromCapitalId: 'PH',
     toCapitalId: 'BN',
-    routeType: 'sea',
-    // フィリピン群島南下 → ボルネオ北部。基本 SEA(直線)。
-    waypointCityIds: ['PH-CEBU', 'PH-DAVAO'],
-    notes: 'マニラ→セブ→ダバオ→スールー海→ボルネオ北部',
+    routeType: 'mixed',
+    // ルソン島南下(陸路)→[フェリー]ビサヤ→[フェリー]ミンダナオ(陸路)→[セレベス
+    // 海]→サバ州(マレーシア領ボルネオ)に上陸→陸路でブルネイ。ブルネイは MY領ボル
+    // ネオに囲まれた飛び地なので海から直接は上陸できず、必ずサバに上陸して陸路で入る。
+    // 0=Manila,1=Lucena,2=Naga,3=Legazpi,4=Tacloban,5=Cebu,6=CagayanDeOro,
+    // 7=Davao,8=Tawau,9=KotaKinabalu,10=Brunei(dest)。
+    // 海(直線)= [3,4]レガスピ→タクロバン, [4,5]タクロバン→セブ, [5,6]セブ→カガヤ
+    // ン, [7,8]ダバオ→タワウ(セレベス海)。タワウ→KK→ブルネイ(MY→BN国境)は Google
+    // がルート可(実機確認済)で道路追従。
+    waypointCityIds: [
+      'PH-LUCENA',
+      'PH-NAGA',
+      'PH-LEGAZPI',
+      'PH-TACLOBAN',
+      'PH-CEBU',
+      'PH-CAGAYANDEORO',
+      'PH-DAVAO',
+      'MY-TAWAU',
+      'MY-KOTAKINABALU',
+    ],
+    seaSegments: [[3, 4], [4, 5], [5, 6], [7, 8]],
+    notes:
+      'マニラ→ルソン島南下(ルセナ/ナガ/レガスピ)→[フェリー]レイテ(タクロバン)→[フェリー]セブ→[フェリー]ミンダナオ(カガヤン・デ・オロ)→ダバオ→[セレベス海]→タワウ(サバ州上陸)→コタキナバル→ブルネイ',
   },
   {
     fromCapitalId: 'BN',
     toCapitalId: 'ID',
-    routeType: 'sea',
-    notes: 'ボルネオ→ジャワ海→ジャカルタ(直線)',
+    routeType: 'mixed',
+    // ブルネイ→サラワク州(陸路)→西カリマンタン(インドネシア領ボルネオ、陸路)
+    // →[ジャワ海]→ジャカルタ。0=Brunei,1=Miri,2=Kuching,3=Pontianak,
+    // 4=Jakarta(dest)。[3,4] ポンティアナック→ジャカルタ(ジャワ海 ~750km)のみ海。
+    // BN→MY→ID のボルネオ陸路国境は Google がルート可(実機確認済)で道路追従。
+    waypointCityIds: ['MY-MIRI', 'MY-KUCHING', 'ID-PONTIANAK'],
+    seaSegments: [[3, 4]],
+    notes:
+      'ブルネイ→ミリ→クチン(サラワク陸路)→ポンティアナック(西カリマンタン)→[ジャワ海]→ジャカルタ',
   },
   {
     fromCapitalId: 'ID',
     toCapitalId: 'TL',
     routeType: 'mixed',
     waypointCityIds: [
-      'ID-YOGYAKARTA', // ~430 km Java road
-      'ID-SURABAYA',   // ~330 km
-      'ID-BALI',       // ~330 km (ferry/bridge to Bali)
+      'ID-CIREBON',
+      'ID-PURWOKERTO',
+      'ID-YOGYAKARTA',
+      'ID-MADIUN',
+      'ID-SURABAYA',
+      'ID-PROBOLINGGO',
+      'ID-BANYUWANGI',
+      'ID-BALI',
     ],
     // [origin=Jakarta, 1=Yogyakarta, 2=Surabaya, 3=Bali, 4=Dili]
     // 3→4 spans the Lesser Sunda Islands ~1,100 km of ferries/island hops.
-    seaSegments: [[3, 4]],
+    seaSegments: [[8, 9]],
     notes: 'ジャワ→バリ→[ヌサトゥンガラ列島]→東ティモール',
   },
   {
@@ -208,6 +297,10 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'SG',
     toCapitalId: 'MY',
     routeType: 'land',
+    waypointCityIds: [
+      'MY-JOHORBAHRU',
+      'MY-MALACCA',
+    ],
     notes: 'ジョホール海峡→クアラルンプール',
   },
   // === Mainland SE Asia ===
@@ -216,12 +309,17 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'TH',
     routeType: 'land',
     waypointCityIds: [
-      'MY-MALACCA',     // ~150 km from KL
-      'MY-PENANG',      // ~520 km
-      'TH-HATYAI',      // ~190 km — crosses MY-TH border
-      'TH-SURATTHANI',  // ~290 km
-      'TH-HUAHIN',      // ~390 km
-      // Hua Hin → Bangkok ~190 km
+      'MY-MALACCA',
+      'MY-SEREMBAN',
+      'MY-TAPAH',
+      'MY-IPOH',
+      'MY-PENANG',
+      'TH-HATYAI',
+      'TH-NAKHONSITHAMMARAT',
+      'TH-SURATTHANI',
+      'TH-CHUMPHON',
+      'TH-PRACHUAP',
+      'TH-HUAHIN',
     ],
     notes: 'KL→マラッカ→ペナン→ハジャイ→スラート→ホアヒン→バンコク',
   },
@@ -229,7 +327,13 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'TH',
     toCapitalId: 'KH',
     routeType: 'land',
-    waypointCityIds: ['KH-SIEMREAP'],
+    waypointCityIds: [
+      'TH-PRACHINBURI',
+      'TH-ARANYAPRATHET',
+      'KH-SISOPHON',
+      'KH-SIEMREAP',
+      'KH-KAMPONGTHOM',
+    ],
     notes: 'バンコク→アンコールワット経由→プノンペン',
   },
   {
@@ -237,12 +341,18 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'VN',
     routeType: 'land',
     waypointCityIds: [
-      'VN-HOCHIMINH', // ~210 km — crosses KH-VN border
-      'VN-DANANG',    // ~830 km coastal Vietnam
-      'VN-HOIAN',     // ~30 km (思い出)
-      'VN-HUE',       // ~100 km
-      'VN-VINH',      // ~370 km
-      // Vinh → Hanoi ~290 km
+      'VN-HOCHIMINH',
+      'VN-PHANTHIET',
+      'VN-NHATRANG',
+      'VN-QUYNHON',
+      'VN-QUANGNGAI',
+      'VN-DANANG',
+      'VN-HOIAN',
+      'VN-HUE',
+      'VN-DONGHOI',
+      'VN-VINH',
+      'VN-THANHHOA',
+      'VN-NINHBINH',
     ],
     notes: 'プノンペン→ホーチミン→ベトナム海岸縦断→ハノイ',
   },
@@ -250,6 +360,13 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'VN',
     toCapitalId: 'LA',
     routeType: 'land',
+    waypointCityIds: [
+      'VN-NINHBINH',
+      'VN-THANHHOA',
+      'VN-VINH',
+      'LA-LAKSAO',
+      'LA-PAKSAN',
+    ],
     // ハノイ→ヴィエンチャン直接 ~470 km、driving可能。HOIAN は南方なので外して KH→VN に移動済み。
     notes: 'ハノイ→[山岳]→ヴィエンチャン',
   },
@@ -257,6 +374,19 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'LA',
     toCapitalId: 'MM',
     routeType: 'land',
+    waypointCityIds: [
+      'TH-NONGKHAI',
+      'TH-UDONTHANI',
+      'TH-KHONKAEN',
+      'TH-PHETCHABUN',
+      'TH-PHITSANULOK',
+      'TH-TAK',
+      'TH-MAESOT',
+      'MM-HPAAN',
+      'MM-MAWLAMYINE',
+      'MM-BAGO',
+      'MM-TAUNGOO',
+    ],
     // ヴィエンチャン→ネピドー直接 ~700km、タイ・ミャンマー国境を含む。
     // 国境道路が機能しない場合 driving fallback で straight。
     notes: 'ヴィエンチャン→[タイ北部経由]→ネピドー',
@@ -266,9 +396,14 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'BD',
     routeType: 'mixed',
     waypointCityIds: [
-      'MM-YANGON',  // ~340 km from Naypyidaw
-      'MM-SITTWE',  // ~430 km Rakhine 海岸
-      // Sittwe → Dhaka ~330 km Bay of Bengal SEA
+      'MM-TAUNGOO',
+      'MM-BAGO',
+      'MM-YANGON',
+      'MM-HINTHADA',
+      'MM-PYAY',
+      'MM-MAGWAY',
+      'MM-ANN',
+      'MM-SITTWE',
     ],
     // [origin=Naypyidaw, 1=Yangon, 2=Sittwe, 3=Dhaka]
     seaSegments: [[2, 3]],
@@ -280,7 +415,11 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'BT',
     routeType: 'land',
     waypointCityIds: [
-      'IN-SILIGURI', // ~370 km — ヒマラヤ山麓の通過地、ブータン国境近郊
+      'BD-BOGRA',
+      'BD-RANGPUR',
+      'IN-JALPAIGURI',
+      'IN-SILIGURI',
+      'BT-PHUENTSHOLING',
     ],
     notes: 'ダッカ→シリグリ(印)→ティンプー(ブータン)',
   },
@@ -288,6 +427,15 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'BT',
     toCapitalId: 'NP',
     routeType: 'land',
+    waypointCityIds: [
+      'BT-PHUENTSHOLING',
+      'IN-SILIGURI',
+      'IN-PURNIA',
+      'IN-DARBHANGA',
+      'IN-MUZAFFARPUR',
+      'NP-BIRGUNJ',
+      'NP-HETAUDA',
+    ],
     // Thimphu→Kathmandu 直接 ~430km、印北部経由。国境含むので driving fallback あり。
     notes: 'ティンプー→[インド北部回廊]→カトマンズ',
   },
@@ -296,10 +444,14 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'IN',
     routeType: 'land',
     waypointCityIds: [
-      'IN-VARANASI', // ~350 km — ガンジス聖地
-      'IN-LUCKNOW',  // ~290 km
-      'IN-AGRA',     // ~330 km
-      // Agra → Delhi ~210 km
+      'IN-GORAKHPUR',
+      'IN-VARANASI',
+      'IN-PRAYAGRAJ',
+      'IN-LUCKNOW',
+      'IN-KANPUR',
+      'IN-ETAWAH',
+      'IN-AGRA',
+      'IN-ALIGARH',
     ],
     notes: 'カトマンズ→バラナシ→ラクナウ→アーグラ→デリー',
   },
@@ -308,12 +460,27 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'LK',
     routeType: 'mixed',
     waypointCityIds: [
-      'IN-AGRA',      // (already passed in NP→IN but route loops here for sake of reaching south)
-      'IN-MUMBAI',    // ~1,200 km (driving across India)
-      'IN-HYDERABAD', // ~620 km
-      'IN-BANGALORE', // ~570 km
-      'IN-CHENNAI',   // ~350 km
-      // Chennai → Colombo ~480 km Palk Strait SEA
+      'IN-AGRA',
+      'IN-DAUSA',
+      'IN-JAIPUR',
+      'IN-AJMER',
+      'IN-BHILWARA',
+      'IN-UDAIPUR',
+      'IN-AHMEDABAD',
+      'IN-VADODARA',
+      'IN-SURAT',
+      'IN-VAPI',
+      'IN-MUMBAI',
+      'IN-PUNE',
+      'IN-INDAPUR',
+      'IN-SOLAPUR',
+      'IN-GULBARGA',
+      'IN-HYDERABAD',
+      'IN-KURNOOL',
+      'IN-ANANTAPUR',
+      'IN-BANGALORE',
+      'IN-VELLORE',
+      'IN-CHENNAI',
     ],
     // [origin=Delhi, 1=Agra, 2=Mumbai, 3=Hyderabad, 4=Bangalore, 5=Chennai, 6=Colombo]
     seaSegments: [[5, 6]],
@@ -330,10 +497,18 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'PK',
     routeType: 'mixed',
     waypointCityIds: [
-      'PK-KARACHI',  // ~2,400 km Arabian Sea SEA
-      'PK-MULTAN',   // ~600 km
-      'PK-LAHORE',   // ~360 km
-      // Lahore → Islamabad ~280 km
+      'PK-KARACHI',
+      'PK-HYDERABAD',
+      'PK-NAWABSHAH',
+      'PK-LARKANA',
+      'PK-SUKKUR',
+      'PK-RAHIMYARKHAN',
+      'PK-BAHAWALPUR',
+      'PK-MULTAN',
+      'PK-SAHIWAL',
+      'PK-LAHORE',
+      'PK-GUJRANWALA',
+      'PK-JHELUM',
     ],
     // [origin=Male, 1=Karachi, 2=Multan, 3=Lahore, 4=Islamabad]
     seaSegments: [[0, 1]],
@@ -346,19 +521,25 @@ export const segmentClassifications: SegmentClassification[] = [
     routeType: 'land',
     waypointCityIds: [
       'PK-PESHAWAR',     // ~190 km from Islamabad
-      'AF-KANDAHAR',     // ~640 km via Khyber + Kabul detour skipped (Driving fallback)
-      'AF-HERAT',        // ~565 km west across Afghanistan (Driving fallback)
-      // Herat → Kabul ~625 km loops back east (Driving fallback)
+      'AF-JALALABAD',    // ~105 km — Khyber Pass highway, AF 側の入口
+      // Jalalabad → Kabul ~120 km up the Kabul River gorge
     ],
+    // Kandahar(南)/Herat(西) はカブールから外れた逆走になるため本道
+    // (カイバル峠 → ジャラーラーバード → カブール) から除外。都市データ
+    // は残置、近接時の立ち寄り対象にはなる。
     notes:
-      'イスラマバード→ペシャワール→[カイバル峠]→カンダハール→ヘラート→カブール',
+      'イスラマバード→ペシャワール→[カイバル峠]→ジャラーラーバード→カブール',
   },
   {
     fromCapitalId: 'AF',
     toCapitalId: 'TJ',
     routeType: 'land',
     // Kabul→Mazar-i-Sharif→Dushanbe via Salang Pass and the Pyanj River.
-    waypointCityIds: ['AF-MAZARESHARIF'],
+    waypointCityIds: [
+      'AF-PULIKHUMRI',
+      'AF-MAZARESHARIF',
+      'AF-KUNDUZ',
+    ],
     notes: 'カブール→[サラン峠]→マザーリシャリーフ→[国境・パンジ川]→ドゥシャンベ',
   },
   {
@@ -366,9 +547,11 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'KG',
     routeType: 'land',
     waypointCityIds: [
-      'TJ-KHUJAND', // ~280 km north
-      'KG-OSH',     // ~330 km — crosses TJ-KG border
-      // Osh → Bishkek ~450 km via Tien Shan
+      'TJ-KHUJAND',
+      'TJ-KONIBODOM',
+      'KG-OSH',
+      'KG-JALALABAD',
+      'KG-TOKTOGUL',
     ],
     notes: 'ドゥシャンベ→ホジャンド→オシュ→[天山]→ビシュケク',
   },
@@ -377,9 +560,14 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'KZ',
     routeType: 'land',
     waypointCityIds: [
-      'KZ-ALMATY',     // ~240 km
-      'KZ-KARAGANDA',  // ~700 km
-      // Karaganda → Astana ~210 km
+      'KZ-ALMATY',
+      'KZ-KAPSHAGAY',
+      'KZ-SARYOZEK',
+      'KZ-SARYSHAGAN',
+      'KZ-BALKHASH',
+      'KZ-MOIYNTY',
+      'KZ-AKSUAYULY',
+      'KZ-KARAGANDA',
     ],
     notes: 'ビシュケク→アルマトイ(思い出)→カラガンダ→アスタナ',
   },
@@ -388,8 +576,13 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'UZ',
     routeType: 'land',
     waypointCityIds: [
-      'KZ-SHYMKENT', // ~1,100 km south through Kazakhstan
-      // Shymkent → Tashkent ~120 km, crosses KZ-UZ border
+      'KZ-KARAGANDA',
+      'KZ-KARAZHAL',
+      'KZ-ZHEZKAZGAN',
+      'KZ-KYZYLORDA',
+      'KZ-ZHANAKORGAN',
+      'KZ-TURKISTAN',
+      'KZ-SHYMKENT',
     ],
     notes: 'アスタナ→シムケント→[国境]→タシュケント',
   },
@@ -398,9 +591,12 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'TM',
     routeType: 'land',
     waypointCityIds: [
-      'UZ-SAMARKAND', // ~280 km from Tashkent
-      'UZ-BUKHARA',   // ~270 km
-      // Bukhara → Ashgabat ~750 km, crosses UZ-TM border
+      'UZ-JIZZAKH',
+      'UZ-SAMARKAND',
+      'UZ-BUKHARA',
+      'TM-TURKMENABAT',
+      'TM-MARY',
+      'TM-TEJEN',
     ],
     notes: 'タシュケント→サマルカンド→ブハラ→[国境]→アシガバート',
   },
@@ -410,9 +606,15 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'IR',
     routeType: 'land',
     waypointCityIds: [
-      'IR-MASHHAD', // ~250 km — crosses TM-IR border
-      'IR-RASHT',   // ~880 km west via Caspian coast (heavy Driving fallback)
-      // Rasht → Tehran ~330 km (Driving fallback)
+      'IR-QUCHAN',
+      'IR-BOJNORD',
+      'IR-AZADSHAHR',
+      'IR-GORGAN',
+      'IR-SARI',
+      'IR-AMOL',
+      'IR-CHALUS',
+      'IR-RASHT',
+      'IR-QAZVIN',
     ],
     notes: 'アシガバート→[国境]→マシュハド→テヘラン',
   },
@@ -421,10 +623,16 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'IQ',
     routeType: 'land',
     waypointCityIds: [
-      'IR-ISFAHAN', // ~440 km from Tehran (Driving fallback)
-      'IR-SHIRAZ',  // ~480 km south (Driving fallback)
-      'IR-AHVAZ',   // ~570 km, Khuzestan plain (Driving fallback)
-      // Ahvaz → Baghdad ~440 km, IR-IQ border (Driving fallback)
+      'IR-QOM',
+      'IR-KASHAN',
+      'IR-ISFAHAN',
+      'IR-ABADEH',
+      'IR-SHIRAZ',
+      'IR-NOORABAD',
+      'IR-BEHBAHAN',
+      'IR-AHVAZ',
+      'IQ-AMARAH',
+      'IQ-KUT',
     ],
     notes:
       'テヘラン→イスファハーン→シーラーズ→アフヴァーズ→[国境]→バグダード',
@@ -433,6 +641,11 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'IQ',
     toCapitalId: 'KW',
     routeType: 'land',
+    waypointCityIds: [
+      'IQ-KUT',
+      'IQ-NASIRIYAH',
+      'IQ-BASRA',
+    ],
     notes: 'バスラ経由',
   },
   // ===== Batch 3: Middle East second half (32-46) =====
@@ -452,13 +665,21 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'QA',
     toCapitalId: 'AE',
     routeType: 'land',
-    waypointCityIds: ['AE-DUBAI'],
+    waypointCityIds: [
+      'AE-RUWAIS',
+      'AE-MIRFA',
+      'AE-DUBAI',
+    ],
     notes: 'ドーハ→ドバイ→アブダビ',
   },
   {
     fromCapitalId: 'AE',
     toCapitalId: 'OM',
     routeType: 'land',
+    waypointCityIds: [
+      'AE-ALAIN',
+      'OM-SOHAR',
+    ],
     notes: 'アラブ首長国→オマーン',
   },
   {
@@ -466,9 +687,19 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'YE',
     routeType: 'land',
     waypointCityIds: [
-      'YE-ADEN', // ~1370 km from Muscat through Hadhramaut (heavy Driving fallback)
-      'YE-TAIZ', // ~190 km
-      // Taiz → Sana'a ~265 km (Driving fallback)
+      'OM-NIZWA',
+      'OM-ADAM',
+      'OM-HAIMA',
+      'OM-THUMRAIT',
+      'OM-SALALAH',
+      'YE-ALGHAYDAH',
+      'YE-SAYHUT',
+      'YE-QUSAYAR',
+      'YE-MUKALLA',
+      'YE-BALHAF',
+      'YE-AHWAR',
+      'YE-ADEN',
+      'YE-TAIZ',
     ],
     notes: 'マスカット→[アラビア半島南海岸]→アデン→タイズ→サナア',
   },
@@ -476,13 +707,37 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'YE',
     toCapitalId: 'SA',
     routeType: 'land',
-    waypointCityIds: ['SA-MECCA', 'SA-JEDDAH'],
+    waypointCityIds: [
+      'SA-SAADAH',
+      'SA-NAJRAN',
+      'SA-ABHA',
+      'SA-BISHA',
+      'SA-ALBAHA',
+      'SA-TAIF',
+      'SA-MECCA',
+      'SA-JEDDAH',
+      'SA-TAIF',
+      'SA-KHURMAH',
+      'SA-RANYAH',
+      'SA-AFIF',
+      'SA-DAWADMI',
+      'SA-QUWAIYAH',
+    ],
     notes: 'サナア→メッカ→ジェッダ→リヤド',
   },
   {
     fromCapitalId: 'SA',
     toCapitalId: 'JO',
     routeType: 'land',
+    waypointCityIds: [
+      'SA-MAJMAAH',
+      'SA-ZILFI',
+      'SA-BURAYDAH',
+      'SA-HAIL',
+      'SA-SAKAKA',
+      'SA-QURAYYAT',
+      'JO-MAAN',
+    ],
   },
   {
     fromCapitalId: 'JO',
@@ -507,11 +762,11 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'TR',
     routeType: 'land',
     waypointCityIds: [
-      'SY-HOMS',          // ~160 km from Damascus
-      'SY-ALEPPO',        // ~190 km
-      // Aleppo → Cappadocia ~600 km, SY-TR border (Driving fallback)
-      'TR-CAPPADOCIA',    // long Anatolian stretch
-      // Cappadocia → Ankara ~280 km (slight Driving fallback)
+      'SY-HOMS',
+      'SY-ALEPPO',
+      'TR-GAZIANTEP',
+      'TR-KAHRAMANMARAS',
+      'TR-CAPPADOCIA',
     ],
     notes: 'ダマスカス→ホムス→アレッポ→[国境]→カッパドキア→アンカラ',
   },
@@ -519,14 +774,32 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'TR',
     toCapitalId: 'CY',
     routeType: 'sea',
-    waypointCityIds: ['TR-IZMIR'],
-    notes: 'アンカラ→イズミル→[地中海]→キプロス',
+    // Mersin (south coast) is the real Cyprus ferry port. The old
+    // routing went to Izmir on the WEST Aegean coast — the wrong
+    // direction for a southeastward hop to Cyprus.
+    waypointCityIds: [
+      'TR-AKSARAY',
+      'TR-NIGDE',
+      'TR-MERSIN',
+    ],
+    notes: 'アンカラ→メルシン→[地中海フェリー]→キプロス',
   },
   {
     fromCapitalId: 'CY',
     toCapitalId: 'GE',
     routeType: 'mixed',
-    waypointCityIds: ['TR-ISTANBUL'],
+    waypointCityIds: [
+      'TR-ISTANBUL',
+      'TR-BOLU',
+      'TR-CANKIRI',
+      'TR-CORUM',
+      'TR-AMASYA',
+      'TR-SAMSUN',
+      'TR-ORDU',
+      'TR-TRABZON',
+      'GE-BATUMI',
+      'GE-KUTAISI',
+    ],
     notes: 'キプロス→[地中海]→イスタンブール→[黒海沿い]→トビリシ',
   },
   {
@@ -546,7 +819,11 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'AZ',
     toCapitalId: 'EG',
     routeType: 'mixed',
-    waypointCityIds: ['IR-TABRIZ'],
+    waypointCityIds: [
+      'AZ-LANKARAN',
+      'IR-ARDABIL',
+      'IR-TABRIZ',
+    ],
     seaSegments: [[1, 2]], // TABRIZ → Cairo: 3,000 km, fantasy
     notes: 'バクー→タブリーズ→[~3,000km 中東上空]→カイロ',
   },
@@ -857,12 +1134,13 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'DE',
     routeType: 'land',
     waypointCityIds: [
-      'PL-LODZ',    // ~135 km from Warsaw
-      'PL-KONIN',   // ~120 km
-      'PL-POZNAN',  // ~95 km
-      // Poznań → Berlin ~270 km, PL-DE border (Driving fallback)
+      'PL-LODZ',        // ~135 km from Warsaw
+      'PL-KONIN',       // ~120 km
+      'PL-POZNAN',      // ~95 km
+      'PL-SWIEBODZIN',  // ~96 km — A2 沿い
+      // Świebodzin → Berlin ~148 km, PL-DE border
     ],
-    notes: 'ワルシャワ→ウッチ→コニン→ポズナン→[国境]→ベルリン',
+    notes: 'ワルシャワ→ウッチ→コニン→ポズナン→シフィエボジン→[国境]→ベルリン',
   },
 
   // ===== Batch 6: Northern Europe (DE → IS), 4 segments =====
@@ -913,14 +1191,25 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'IS',
     routeType: 'mixed',
     waypointCityIds: [
-      'NO-BERGEN',    // ~860 km from Stockholm (Driving fallback through NO)
-      'FO-TORSHAVN',  // ~900 km North Atlantic
-      'IS-AKUREYRI',  // ~770 km North Atlantic
-      // Akureyri → Reykjavik ~390 km (drive across Iceland)
+      'SE-VASTERAS',  // ~92 km from Stockholm (E18)
+      'SE-OREBRO',    // ~84 km
+      'SE-KARLSTAD',  // ~97 km
+      'NO-DRAMMEN',   // ~190 km, SE-NO border (drive past Oslo)
+      'NO-HONEFOSS',  // ~47 km
+      'NO-GOL',       // ~93 km — Hallingdal valley
+      'NO-VOSS',      // ~137 km — mountain pass toward the fjords
+      'NO-BERGEN',    // ~67 km
+      'FO-TORSHAVN',  // ~672 km North Atlantic
+      'IS-AKUREYRI',  // ~688 km North Atlantic
+      'IS-BORGARNES', // ~219 km drive across north/west Iceland
+      // Borgarnes → Reykjavik ~44 km
     ],
-    seaSegments: [[1, 2], [2, 3]], // Bergen → Tórshavn → Akureyri are sea
+    // [0=Stockholm, 1=Västerås, 2=Örebro, 3=Karlstad, 4=Drammen,
+    //  5=Hønefoss, 6=Gol, 7=Voss, 8=Bergen, 9=Tórshavn, 10=Akureyri,
+    //  11=Borgarnes, 12=Reykjavik]
+    seaSegments: [[8, 9], [9, 10]], // Bergen → Tórshavn → Akureyri are sea
     notes:
-      'ストックホルム→ベルゲン→[北大西洋]→トースハウン(フェロー)→[北大西洋]→アークレイリ→レイキャビク',
+      'ストックホルム→ヴェステロース→エレブルー→カールスタード→[国境]→ドラメン→ホーネフォス→ゴール→ヴォス→ベルゲン→[北大西洋]→トースハウン(フェロー)→[北大西洋]→アークレイリ→ボルガルネス→レイキャビク',
   },
 
   // ===== Batch 7: Western Europe (IS → PT), 10 segments =====
@@ -1001,14 +1290,16 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'MC',
     routeType: 'land',
     waypointCityIds: [
-      'FR-DIJON',      // ~310 km from Paris (Driving fallback)
-      'FR-LYON',       // ~200 km
-      'FR-AVIGNON',    // ~230 km (slight Driving fallback)
-      'FR-MARSEILLE',  // ~85 km
-      'FR-NICE',       // ~205 km (Driving fallback)
-      // Nice → Monaco ~20 km
+      'FR-SENS',       // ~100 km from Paris (Yonne valley)
+      'FR-AUXERRE',    // ~49 km
+      'FR-DIJON',      // ~122 km
+      'FR-LYON',       // ~174 km
+      'FR-AVIGNON',    // ~202 km
+      'FR-MARSEILLE',  // ~86 km
+      'FR-NICE',       // ~159 km
+      // Nice → Monaco ~13 km
     ],
-    notes: 'パリ→ディジョン→リヨン→アヴィニョン→マルセイユ→ニース→モナコ',
+    notes: 'パリ→サンス→オセール→ディジョン→リヨン→アヴィニョン→マルセイユ→ニース→モナコ',
   },
 
   // Monaco → Andorra via Marseille → Montpellier → Toulouse.
@@ -1032,11 +1323,13 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'ES',
     routeType: 'land',
     waypointCityIds: [
-      'ES-LLEIDA',    // ~190 km from Andorra (AD-ES border)
-      'ES-ZARAGOZA',  // ~150 km
-      // Zaragoza → Madrid ~315 km (Driving fallback)
+      'ES-LLEIDA',       // ~190 km from Andorra (AD-ES border)
+      'ES-ZARAGOZA',     // ~150 km
+      'ES-CALATAYUD',    // ~71 km
+      'ES-GUADALAJARA',  // ~151 km
+      // Guadalajara → Madrid ~52 km
     ],
-    notes: 'アンドラ→[国境]→リェイダ→サラゴサ→マドリード',
+    notes: 'アンドラ→[国境]→リェイダ→サラゴサ→カラタユド→グアダラハラ→マドリード',
   },
 
   // Madrid → Lisbon via Toledo → Mérida → Évora.
@@ -1045,12 +1338,13 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'PT',
     routeType: 'land',
     waypointCityIds: [
-      'ES-TOLEDO',  // ~75 km from Madrid
-      'ES-MERIDA',  // ~280 km (Driving fallback)
-      'PT-EVORA',   // ~205 km (Driving fallback, PT border)
-      // Évora → Lisbon ~135 km
+      'ES-TOLEDO',      // ~67 km from Madrid
+      'ES-CIUDADREAL',  // ~98 km — La Mancha
+      'ES-MERIDA',      // ~209 km
+      'PT-EVORA',       // ~141 km (PT border)
+      // Évora → Lisbon ~108 km
     ],
-    notes: 'マドリード→トレド→メリダ→[国境]→エヴォラ→リスボン',
+    notes: 'マドリード→トレド→シウダー・レアル→メリダ→[国境]→エヴォラ→リスボン',
   },
 
   // ===== Batch 8: Mediterranean Europe (PT → MT), 6 segments =====
@@ -1062,22 +1356,27 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'CH',
     routeType: 'land',
     waypointCityIds: [
-      'PT-COIMBRA',      // ~200 km from Lisbon
-      'PT-PORTO',        // ~120 km
-      // Porto → Spanish Galicia → Cantabria → Catalonia coast → France
-      'ES-ZARAGOZA',     // ~705 km — long inland diagonal (Driving fallback)
-      'ES-LLEIDA',       // ~150 km
-      'ES-BARCELONA',    // ~150 km
-      'ES-GIRONA',       // ~100 km
-      'FR-PERPIGNAN',    // ~120 km, ES-FR border
-      'FR-MONTPELLIER',  // ~155 km
-      'FR-AVIGNON',      // ~95 km
-      'FR-LYON',         // ~230 km
-      'CH-GENEVA',       // ~150 km, FR-CH border
-      // Geneva → Bern ~160 km
+      'PT-COIMBRA',      // ~176 km from Lisbon
+      'PT-PORTO',        // ~107 km
+      // Porto → northern Spain (Galicia → Castile → Rioja → Aragon)
+      'ES-OURENSE',      // ~146 km, PT-ES border (Galicia)
+      'ES-PONFERRADA',   // ~107 km
+      'ES-LEON',         // ~84 km
+      'ES-BURGOS',       // ~156 km
+      'ES-LOGRONO',      // ~104 km — Rioja
+      'ES-ZARAGOZA',     // ~157 km
+      'ES-LLEIDA',       // ~125 km
+      'ES-BARCELONA',    // ~132 km
+      'ES-GIRONA',       // ~85 km
+      'FR-PERPIGNAN',    // ~80 km, ES-FR border
+      'FR-MONTPELLIER',  // ~129 km
+      'FR-AVIGNON',      // ~83 km
+      'FR-LYON',         // ~202 km
+      'CH-GENEVA',       // ~112 km, FR-CH border
+      // Geneva → Bern ~130 km
     ],
     notes:
-      'リスボン→コインブラ→ポルト→[国境]→サラゴサ→リェイダ→バルセロナ→ジローナ→[国境]→ペルピニャン→モンペリエ→アヴィニョン→リヨン→[国境]→ジュネーブ→ベルン',
+      'リスボン→コインブラ→ポルト→[国境]→オウレンセ→ポンフェラーダ→レオン→ブルゴス→ログローニョ→サラゴサ→リェイダ→バルセロナ→ジローナ→[国境]→ペルピニャン→モンペリエ→アヴィニョン→リヨン→[国境]→ジュネーブ→ベルン',
   },
 
   // Bern → Vaduz via Zurich.
@@ -1112,15 +1411,17 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'IT',
     routeType: 'land',
     waypointCityIds: [
-      'AT-GRAZ',      // ~200 km from Vienna
-      'IT-TRIESTE',   // ~225 km, AT-IT border (Driving fallback)
-      'IT-VENICE',    // ~165 km
-      'IT-BOLOGNA',   // ~155 km
-      'IT-FLORENCE',  // ~105 km
-      // Florence → Rome ~280 km (Driving fallback)
+      'AT-GRAZ',      // ~145 km from Vienna
+      'IT-TRIESTE',   // ~203 km, AT-IT border
+      'IT-VENICE',    // ~116 km
+      'IT-BOLOGNA',   // ~130 km
+      'IT-FLORENCE',  // ~81 km
+      'IT-AREZZO',    // ~61 km
+      'IT-ORVIETO',   // ~85 km
+      // Orvieto → Rome ~96 km
     ],
     notes:
-      'ウィーン→グラーツ→[国境]→トリエステ→ヴェネツィア→ボローニャ→フィレンツェ→ローマ',
+      'ウィーン→グラーツ→[国境]→トリエステ→ヴェネツィア→ボローニャ→フィレンツェ→アレッツォ→オルヴィエート→ローマ',
   },
 
   // Rome → San Marino via Perugia + Ancona on the Adriatic coast.
@@ -1143,17 +1444,24 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'MT',
     routeType: 'mixed',
     waypointCityIds: [
-      'IT-BOLOGNA',  // ~110 km from San Marino
-      'IT-FLORENCE', // ~105 km
-      'IT-SIENA',    // ~75 km
-      'IT-PISA',     // ~140 km (slight Driving fallback)
-      'IT-NAPLES',   // ~480 km along the Tyrrhenian coast (heavy Driving fallback)
-      'IT-PALERMO',  // ~310 km incl. Strait of Messina ferry
-      // Palermo → Valletta ~510 km Mediterranean
+      'IT-BOLOGNA',       // ~108 km from San Marino
+      'IT-FLORENCE',      // ~81 km
+      'IT-SIENA',         // ~50 km
+      'IT-PISA',          // ~87 km
+      'IT-GROSSETO',      // ~122 km — Tyrrhenian coast
+      'IT-CIVITAVECCHIA', // ~93 km
+      'IT-LATINA',        // ~115 km (past Rome)
+      'IT-CASERTA',       // ~127 km
+      'IT-NAPLES',        // ~25 km
+      'IT-PALERMO',       // ~314 km incl. Strait of Messina ferry
+      // Palermo → Valletta ~267 km Mediterranean
     ],
-    seaSegments: [[5, 6], [6, 7]], // Naples→Palermo + Palermo→Valletta sea
+    // [0=SanMarino, 1=Bologna, 2=Florence, 3=Siena, 4=Pisa, 5=Grosseto,
+    //  6=Civitavecchia, 7=Latina, 8=Caserta, 9=Naples, 10=Palermo,
+    //  11=Valletta]
+    seaSegments: [[9, 10], [10, 11]], // Naples→Palermo + Palermo→Valletta sea
     notes:
-      'サンマリノ→ボローニャ→フィレンツェ→シエナ→ピサ→ナポリ→[メッシーナ海峡]→パレルモ→[地中海]→バレッタ',
+      'サンマリノ→ボローニャ→フィレンツェ→シエナ→ピサ→グロッセート→チヴィタヴェッキア→ラティーナ→カゼルタ→ナポリ→[メッシーナ海峡]→パレルモ→[地中海]→バレッタ',
   },
 
   // ===== Batch 9: Atlantic + North America (MT → MX), 3 segments =====
@@ -1183,12 +1491,14 @@ export const segmentClassifications: SegmentClassification[] = [
     routeType: 'land',
     waypointCityIds: [
       'CA-MONTREAL',     // ~200 km from Ottawa
-      'US-ALBANY',       // ~290 km, CA-US border (Driving fallback)
+      'US-PLATTSBURGH',  // ~90 km, CA-US border (Champlain valley)
+      'US-GLENSFALLS',   // ~155 km
+      'US-ALBANY',       // ~74 km
       'US-NYC',          // ~250 km
       'US-PHILADELPHIA', // ~150 km
       // Philadelphia → DC ~225 km (Driving fallback)
     ],
-    notes: 'オタワ→モントリオール→[国境]→オールバニ→ニューヨーク→フィラデルフィア→ワシントンD.C.',
+    notes: 'オタワ→モントリオール→[国境]→プラッツバーグ→グレンズフォールズ→オールバニ→ニューヨーク→フィラデルフィア→ワシントンD.C.',
   },
 
   // DC → Mexico City via the I-95/I-10/I-35 corridor, fully diced into
@@ -1199,28 +1509,35 @@ export const segmentClassifications: SegmentClassification[] = [
     routeType: 'land',
     waypointCityIds: [
       'US-RICHMOND',      // ~170 km from DC
-      'US-RALEIGH',       // ~270 km (slight Driving fallback)
+      'US-ROANOKERAPIDS', // ~122 km
+      'US-RALEIGH',       // ~116 km
       'US-CHARLOTTE',     // ~265 km (slight Driving fallback)
       'US-GREENVILLE',    // ~165 km
       'US-ATLANTA',       // ~225 km (slight Driving fallback)
-      'US-BIRMINGHAM',    // ~240 km
+      'US-ANNISTON',      // ~134 km
+      'US-BIRMINGHAM',    // ~92 km
       'US-MONTGOMERY',    // ~145 km
-      'US-MOBILE',        // ~270 km (slight Driving fallback)
+      'US-EVERGREEN',     // ~121 km
+      'US-MOBILE',        // ~132 km
       'US-NEWORLEANS',    // ~225 km
       'US-BATONROUGE',    // ~130 km
       'US-LAFAYETTE',     // ~85 km
       'US-BEAUMONT',      // ~190 km
       'US-HOUSTON',       // ~135 km
-      'US-SANANTONIO',    // ~310 km (Driving fallback — SH-71 corridor)
-      'US-LAREDO',        // ~250 km (slight Driving fallback)
+      'US-COLUMBUS',      // ~113 km — Colorado River, TX
+      'US-SANANTONIO',    // ~192 km
+      'US-COTULLA',       // ~131 km
+      'US-LAREDO',        // ~104 km
       'MX-NUEVOLAREDO',   // ~5 km (Río Grande border crossing)
       'MX-MONTERREY',     // ~225 km (slight Driving fallback)
       'MX-SALTILLO',      // ~85 km
-      'MX-SLP',           // ~360 km (Driving fallback through arid plain)
-      // SLP → Mexico City ~430 km (Driving fallback)
+      'MX-MATEHUALA',     // ~201 km
+      'MX-SLP',           // ~170 km
+      'MX-QUERETARO',     // ~185 km
+      // Querétaro → Mexico City ~184 km
     ],
     notes:
-      'ワシントン→リッチモンド→ローリー→シャーロット→グリーンビル→アトランタ→バーミングハム→モンゴメリー→モビール→ニューオーリンズ→バトンルージュ→ラファイエット→ボーモント→ヒューストン→サンアントニオ→ラレド→[国境]→ヌエボ・ラレド→モンテレイ→サルティーヨ→サン・ルイス・ポトシ→メキシコシティ',
+      'ワシントン→リッチモンド→ロアノークラピッズ→ローリー→シャーロット→グリーンビル→アトランタ→アニストン→バーミングハム→モンゴメリー→エバーグリーン→モビール→ニューオーリンズ→バトンルージュ→ラファイエット→ボーモント→ヒューストン→コロンバス→サンアントニオ→コツーラ→ラレド→[国境]→ヌエボ・ラレド→モンテレイ→サルティーヨ→マテワラ→サン・ルイス・ポトシ→ケレタロ→メキシコシティ',
   },
 
   // ===== Batch 10: Central America (MX → PA), 7 segments =====
@@ -1237,12 +1554,13 @@ export const segmentClassifications: SegmentClassification[] = [
       'MX-OAXACA',          // ~210 km (slight Driving fallback)
       'MX-JUCHITAN',        // ~245 km (slight Driving fallback)
       'MX-TUXTLA',          // ~225 km (slight Driving fallback)
-      'GT-HUEHUETENANGO',   // ~210 km, MX-GT border (slight Driving fallback)
+      'MX-COMITAN',         // ~120 km — Chiapas highlands
+      'GT-HUEHUETENANGO',   // ~126 km, MX-GT border
       'GT-QUETZALTENANGO',  // ~85 km
       // Quetzaltenango → Guatemala City ~210 km (slight Driving fallback)
     ],
     notes:
-      'メキシコシティ→プエブラ→テワカン→オアハカ→フチタン→トゥクストラ→[国境]→ウエウエテナンゴ→ケツァルテナンゴ→グアテマラシティ',
+      'メキシコシティ→プエブラ→テワカン→オアハカ→フチタン→トゥクストラ→コミタン→[国境]→ウエウエテナンゴ→ケツァルテナンゴ→グアテマラシティ',
   },
 
   // Guatemala City → Belmopan via Puerto Barrios.
@@ -1251,10 +1569,11 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'BZ',
     routeType: 'land',
     waypointCityIds: [
-      'GT-PUERTOBARRIOS', // ~290 km from Guatemala City (Driving fallback)
+      'GT-ZACAPA',        // ~111 km from Guatemala City (Motagua valley)
+      'GT-PUERTOBARRIOS', // ~131 km
       // Puerto Barrios → Belmopan ~165 km, GT-BZ border
     ],
-    notes: 'グアテマラシティ→プエルトバリオス→[国境]→ベルモパン',
+    notes: 'グアテマラシティ→サカパ→プエルトバリオス→[国境]→ベルモパン',
   },
 
   // Belmopan → Tegucigalpa via San Pedro Sula.
@@ -1313,11 +1632,12 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'PA',
     routeType: 'land',
     waypointCityIds: [
-      'PA-DAVID',    // ~360 km from San José, CR-PA border (Driving fallback)
-      'PA-SANTIAGO', // ~210 km (Driving fallback)
+      'CR-SANISIDRO', // ~75 km from San José (Pan-American Highway)
+      'PA-DAVID',     // ~175 km, CR-PA border
+      'PA-SANTIAGO',  // ~210 km (Driving fallback)
       // Santiago → Panama City ~250 km (Driving fallback)
     ],
-    notes: 'サンホセ→[国境]→ダビ→サンティアゴ・デ・ベラグアス→パナマシティ',
+    notes: 'サンホセ→サンイシドロ→[国境]→ダビ→サンティアゴ・デ・ベラグアス→パナマシティ',
   },
 
   // ===== Batch 11: Caribbean (PA → KN), 13 segments =====
@@ -1484,26 +1804,41 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'VE',
     routeType: 'land',
     waypointCityIds: [
-      'CO-BUCARAMANGA', // ~390 km from Bogotá (slight Driving fallback)
+      'CO-TUNJA',       // ~120 km from Bogotá (Boyacá highlands)
+      'CO-BUCARAMANGA', // ~178 km
       'CO-CUCUTA',      // ~200 km
       'VE-MERIDA',      // ~330 km, CO-VE border (Driving fallback through Andes)
-      'VE-VALENCIA',    // ~545 km (Driving fallback through Andean valleys)
+      'VE-BARINAS',     // ~104 km — Andean foothills / Llanos
+      'VE-ACARIGUA',    // ~152 km
+      'VE-VALENCIA',    // ~147 km
       // Valencia → Caracas ~150 km
     ],
-    notes: 'ボゴタ→ブカラマンガ→ククータ→[国境]→メリダ→バレンシア→カラカス',
+    notes: 'ボゴタ→トゥンハ→ブカラマンガ→ククータ→[国境]→メリダ→バリナス→アカリグア→バレンシア→カラカス',
   },
 
-  // Caracas → Georgetown via Maturín → Ciudad Guayana then Guyana coastal.
+  // Caracas → Georgetown via Maturín → Ciudad Guayana then the Essequibo
+  // frontier. The VE coast and interior are densified along real roads
+  // (Caracas→Higuerote→Barcelona→Maturín; Ciudad Guayana→Upata→Guasipati
+  // →Tumeremo on Troncal 10). The final Tumeremo→Georgetown leg (~364 km)
+  // is the roadless Essequibo jungle border — there is NO through road
+  // between Venezuela and Guyana here (the real overland link to
+  // Georgetown runs via Brazil/Lethem), so it is left as one long leg
+  // like the Darién.
   {
     fromCapitalId: 'VE',
     toCapitalId: 'GY',
     routeType: 'land',
     waypointCityIds: [
-      'VE-MATURIN',       // ~510 km from Caracas (Driving fallback)
+      'VE-HIGUEROTE',     // ~88 km from Caracas (Caribbean coast)
+      'VE-BARCELONA',     // ~159 km
+      'VE-MATURIN',       // ~170 km
       'VE-CIUDADGUAYANA', // ~190 km
-      // Ciudad Guayana → Georgetown ~580 km, VE-GY border (jungle, Driving)
+      'VE-UPATA',         // ~46 km
+      'VE-GUASIPATI',     // ~81 km
+      'VE-TUMEREMO',      // ~57 km — last VE town before the jungle
+      // Tumeremo → Georgetown ~364 km roadless Essequibo frontier (no road)
     ],
-    notes: 'カラカス→マトゥリン→シウダー・グアヤナ→[国境・密林]→ジョージタウン',
+    notes: 'カラカス→イゲロテ→バルセロナ→マトゥリン→シウダー・グアヤナ→ウパタ→グアシパティ→トゥメレモ→[国境・エセキボ密林（道路なし）]→ジョージタウン',
   },
 
   // Georgetown → Paramaribo via Linden.
@@ -1512,13 +1847,19 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'SR',
     routeType: 'land',
     waypointCityIds: [
-      'GY-LINDEN', // ~110 km from Georgetown
-      // Linden → Paramaribo ~330 km, GY-SR border (Driving fallback)
+      'GY-LINDEN',        // ~110 km from Georgetown
+      'GY-NEWAMSTERDAM',  // ~93 km — Berbice River
+      'SR-NICKERIE',      // ~69 km, GY-SR border (Corentyne ferry)
+      // Nieuw Nickerie → Paramaribo ~197 km
     ],
-    notes: 'ジョージタウン→リンデン→[国境]→パラマリボ',
+    notes: 'ジョージタウン→リンデン→ニューアムステルダム→[国境]→ニーウ・ニッケリー→パラマリボ',
   },
 
-  // Paramaribo → Brasília via Macapá → Manaus → Rio Branco → Porto Velho → Palmas.
+  // Paramaribo → Brasília down the Amazon then SE across the Cerrado.
+  // Rio Branco (Acre, Brazil's far-SW corner) was dropped — it sat
+  // ~2000 km off the SE-bound line and forced a Manaus→RioBranco(SW)
+  // →Porto Velho(back E) backtrack. The corridor now runs monotonic:
+  // Amazon estuary → Manaus → south to Porto Velho → E to Palmas.
   {
     fromCapitalId: 'SR',
     toCapitalId: 'BR',
@@ -1526,14 +1867,13 @@ export const segmentClassifications: SegmentClassification[] = [
     waypointCityIds: [
       'BR-MACAPA',     // ~880 km, SR-FR-BR borders (estuary)
       'BR-MANAUS',     // ~1330 km along the Amazon (river/Driving fallback)
-      'BR-RIOBRANCO',  // ~1170 km southwest into Acre (Driving fallback)
-      'BR-PORTOVELHO', // ~510 km
-      'BR-PALMAS',     // ~1320 km (Driving fallback through Cerrado)
+      'BR-PORTOVELHO', // ~900 km S up the Madeira (Driving fallback)
+      'BR-PALMAS',     // ~1700 km E across the southern Amazon/Cerrado
       // Palmas → Brasília ~700 km (Driving fallback)
     ],
     seaSegments: [[0, 1]], // Paramaribo → Macapá traverses estuary
     notes:
-      'パラマリボ→[国境・アマゾン河口]→マカパ→マナウス→リオ・ブランコ→ポルト・ヴェーリョ→パルマス→ブラジリア',
+      'パラマリボ→[国境・アマゾン河口]→マカパ→マナウス→ポルト・ヴェーリョ→パルマス→ブラジリア',
   },
 
   // Brasília → Asunción via Goiânia + Campo Grande + Ciudad del Este.
@@ -1543,11 +1883,20 @@ export const segmentClassifications: SegmentClassification[] = [
     routeType: 'land',
     waypointCityIds: [
       'BR-GOIANIA',        // ~210 km from Brasília
-      'BR-CAMPOGRANDE',    // ~840 km (Driving fallback)
-      'PY-CIUDADDELESTE',  // ~720 km, BR-PY border (Driving fallback)
-      // Ciudad del Este → Asunción ~330 km (Driving fallback)
+      'BR-RIOVERDE',       // ~214 km — Cerrado soy belt
+      'BR-JATAI',          // ~85 km
+      'BR-MINEIROS',       // ~95 km
+      'BR-COSTARICA',      // ~124 km
+      'BR-COXIM',          // ~172 km — Pantanal north edge
+      'BR-CAMPOGRANDE',    // ~219 km
+      'BR-DOURADOS',       // ~196 km
+      'BR-NAVIRAI',        // ~113 km
+      'BR-MUNDONOVO',      // ~97 km — tri-border (Paraná river)
+      'PY-CIUDADDELESTE',  // ~178 km, BR-PY border
+      'PY-CORONELOVIEDO',  // ~184 km
+      // Coronel Oviedo → Asunción ~116 km
     ],
-    notes: 'ブラジリア→ゴイアニア→カンポ・グランデ→[国境]→シウダー・デル・エステ→アスンシオン',
+    notes: 'ブラジリア→ゴイアニア→リオ・ヴェルデ→ジャタイ→ミネイロス→コスタ・リカ→コシン→カンポ・グランデ→ドウラドス→ナヴィライ→ムンド・ノーヴォ→[国境]→シウダー・デル・エステ→コロネル・オビエド→アスンシオン',
   },
 
   // Asunción → Montevideo via Corrientes + Rosario + Salto.
@@ -1556,12 +1905,23 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'UY',
     routeType: 'land',
     waypointCityIds: [
-      'AR-CORRIENTES', // ~325 km from Asunción (Driving fallback)
-      'AR-ROSARIO',    // ~720 km (Driving fallback)
-      'UY-SALTO',      // ~660 km, AR-UY border (Driving fallback)
-      // Salto → Montevideo ~500 km (Driving fallback)
+      'AR-FORMOSA',    // ~119 km from Asunción, PY-AR border (Pilcomayo)
+      'AR-CORRIENTES', // ~157 km
+      'AR-GOYA',       // ~191 km — Paraná river
+      'AR-ESQUINA',    // ~100 km
+      'AR-LAPAZ',      // ~83 km (Entre Ríos)
+      'AR-PARANA',     // ~138 km
+      'AR-ROSARIO',    // ~135 km
+      'AR-VICTORIA',   // ~59 km
+      'AR-VILLAGUAY',  // ~136 km
+      'AR-CONCORDIA',  // ~108 km, on the Uruguay river
+      'UY-SALTO',      // ~5 km, AR-UY border (Salto Grande dam)
+      'UY-PAYSANDU',   // ~105 km
+      'UY-MERCEDES',   // ~104 km
+      'UY-TRINIDAD',   // ~109 km
+      // Trinidad → Montevideo ~167 km
     ],
-    notes: 'アスンシオン→[国境]→コリエンテス→ロサリオ→[国境]→サルト→モンテビデオ',
+    notes: 'アスンシオン→[国境]→フォルモサ→コリエンテス→ゴヤ→エスキーナ→ラ・パス→パラナ→ロサリオ→ビクトリア→ビジャグアイ→コンコルディア→[国境]→サルト→パイサンドゥ→メルセデス→トリニダー→モンテビデオ',
   },
 
   // Montevideo → Buenos Aires — Río de la Plata ferry.
@@ -1579,15 +1939,19 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'CL',
     routeType: 'land',
     waypointCityIds: [
-      'AR-ROSARIO',     // ~300 km from Buenos Aires (slight Driving fallback)
-      'AR-CORDOBA',     // ~400 km (Driving fallback through Pampas)
+      'AR-SANNICOLAS',  // ~220 km from Buenos Aires (Paraná river)
+      'AR-ROSARIO',     // ~59 km
+      'AR-BELLVILLE',   // ~194 km
+      'AR-VILLAMARIA',  // ~57 km
+      'AR-CORDOBA',     // ~142 km
       'AR-RIOCUARTO',   // ~210 km
       'AR-SANLUIS',     // ~210 km
-      'AR-MENDOZA',     // ~265 km (slight Driving fallback)
+      'AR-LAPAZMZA',    // ~114 km (La Paz, Mendoza)
+      'AR-MENDOZA',     // ~137 km
       // Mendoza → Santiago ~360 km via Cristo Redentor pass (Driving fallback)
     ],
     notes:
-      'ブエノスアイレス→ロサリオ→コルドバ→リオ・クアルト→サン・ルイス→メンドーサ→[アンデス峠]→サンティアゴ',
+      'ブエノスアイレス→サン・ニコラス→ロサリオ→ベル・ビル→ビジャ・マリア→コルドバ→リオ・クアルト→サン・ルイス→ラ・パス→メンドーサ→[アンデス峠]→サンティアゴ',
   },
 
   // Santiago → La Paz via Viña del Mar → La Serena → Copiapó → Antofagasta → Calama → Uyuni → Oruro.
@@ -1597,17 +1961,25 @@ export const segmentClassifications: SegmentClassification[] = [
     routeType: 'land',
     waypointCityIds: [
       'CL-VINADELMAR', // ~120 km from Santiago
-      'CL-OVALLE',     // ~245 km (slight Driving fallback up the coast)
+      'CL-LOSVILOS',   // ~123 km — Ruta 5 coast
+      'CL-OVALLE',     // ~148 km
       'CL-LASERENA',   // ~125 km
-      'CL-COPIAPO',    // ~330 km (Driving fallback through Atacama)
-      'CL-ANTOFAGASTA',// ~560 km (heavy Driving fallback through driest desert)
+      'CL-VALLENAR',   // ~156 km — Huasco valley
+      'CL-COPIAPO',    // ~140 km
+      'CL-CHANARAL',   // ~117 km — Atacama coast
+      'CL-TALTAL',     // ~105 km
+      'CL-ANTOFAGASTA',// ~196 km
       'CL-CALAMA',     // ~210 km (slight Driving fallback)
-      'BO-UYUNI',      // ~370 km, CL-BO border (salt flat plateau crossing)
-      'BO-ORURO',      // ~325 km (Driving fallback at altitude)
-      // Oruro → La Paz ~230 km (Driving fallback)
+      'CL-OLLAGUE',    // ~155 km — CL-BO border, 3,700m
+      'BO-UYUNI',      // ~172 km, salt flat plateau
+      'BO-CHALLAPATA', // ~173 km — Lake Poopó
+      'BO-ORURO',      // ~110 km
+      'BO-HUARI',      // ~50 km
+      'BO-POTOSI',     // ~181 km — silver-mine UNESCO city
+      // Potosí → Sucre ~81 km
     ],
     notes:
-      'サンティアゴ→ビーニャ・デル・マル→ラ・セレーナ→コピアポ→アントファガスタ→カラマ→[国境]→ウユニ塩湖→オルロ→ラパス',
+      'サンティアゴ→ビーニャ・デル・マル→ロス・ビロス→ラ・セレーナ→バジェナル→コピアポ→チャニャラル→タルタル→アントファガスタ→カラマ→[国境]→オジャグエ→ウユニ塩湖→チャジャパタ→オルロ→ウアリ→ポトシ→スクレ',
   },
 
   // La Paz → Lima via Cochabamba + Puno + Arequipa + Nazca.
@@ -1617,12 +1989,19 @@ export const segmentClassifications: SegmentClassification[] = [
     routeType: 'land',
     waypointCityIds: [
       'BO-COCHABAMBA', // ~390 km from La Paz (Driving fallback)
-      'PE-PUNO',       // ~410 km, BO-PE border via Lake Titicaca (Driving fallback)
+      'BO-CARACOLLO',  // ~114 km
+      'BO-PATACAMAYA', // ~88 km
+      'BO-DESAGUADERO',// ~141 km — BO-PE border, Lake Titicaca
+      'PE-PUNO',       // ~132 km
       'PE-AREQUIPA',   // ~300 km (Driving fallback)
-      'PE-NAZCA',      // ~570 km (heavy Driving fallback through Andean coast)
-      // Nazca → Lima ~445 km (Driving fallback)
+      'PE-CAMANA',     // ~127 km — Pacific coast
+      'PE-CHALA',      // ~185 km
+      'PE-NAZCA',      // ~136 km
+      'PE-ICA',        // ~121 km — desert oasis
+      'PE-CANETE',     // ~131 km
+      // Cañete → Lima ~135 km
     ],
-    notes: 'ラパス→コチャバンバ→[国境・チチカカ湖]→プーノ→アレキパ→ナスカ→リマ',
+    notes: 'ラパス→コチャバンバ→カラコジョ→パタカマヤ→[国境・チチカカ湖]→デサグアデロ→プーノ→アレキパ→カマナ→チャラ→ナスカ→イカ→カニェテ→リマ',
   },
 
   // Lima → Quito via Chimbote + Trujillo + Chiclayo + Piura + Guayaquil + Cuenca.
@@ -1631,16 +2010,23 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'EC',
     routeType: 'land',
     waypointCityIds: [
-      'PE-CHIMBOTE',    // ~430 km from Lima (Driving fallback up coast)
+      'PE-HUACHO',      // ~121 km from Lima (Pacific coast)
+      'PE-CASMA',       // ~197 km
+      'PE-CHIMBOTE',    // ~53 km
       'PE-TRUJILLO',    // ~135 km
       'PE-CHICLAYO',    // ~205 km (slight Driving fallback)
       'PE-PIURA',       // ~210 km (slight Driving fallback)
-      'EC-GUAYAQUIL',   // ~520 km, PE-EC border (Driving fallback)
+      'PE-SULLANA',     // ~33 km
+      'PE-TUMBES',      // ~151 km
+      'EC-MACHALA',     // ~65 km, PE-EC border (banana coast)
+      'EC-GUAYAQUIL',   // ~119 km
       'EC-CUENCA',      // ~190 km
-      // Cuenca → Quito ~440 km (Driving fallback through Andes)
+      'EC-RIOBAMBA',    // ~143 km — Andean spine
+      'EC-AMBATO',      // ~47 km
+      // Ambato → Quito ~119 km
     ],
     notes:
-      'リマ→チンボテ→トルヒーリョ→チクラヨ→ピウラ→[国境]→グアヤキル→クエンカ→キト',
+      'リマ→ワチョ→カスマ→チンボテ→トルヒーリョ→チクラヨ→ピウラ→スジャナ→トゥンベス→[国境]→マチャラ→グアヤキル→クエンカ→リオバンバ→アンバート→キト',
   },
 
   // ===== Batch 13: Pacific + Oceania (EC → TV), 14 segments =====
@@ -1652,13 +2038,21 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'AU',
     routeType: 'mixed',
     waypointCityIds: [
-      'EC-GALAPAGOS', // ~1000 km Pacific
-      'PF-PAPEETE',   // ~6300 km open Pacific
-      // Papeete → Canberra ~6500 km Pacific
+      'EC-GALAPAGOS',   // ~1000 km Pacific
+      'US-HONOLULU',    // ~7700 km NW — the empty E-Pacific has no islands
+      'KI-CHRISTMASIS', // ~2200 km S — Kiritimati (Line Islands)
+      'PF-PAPEETE',     // ~2700 km SE — Tahiti
+      'CK-RAROTONGA',   // ~1150 km W — Cook Islands
+      'NC-NOUMEA',      // ~3900 km W across the dateline — New Caledonia
+      // Nouméa → Canberra ~2000 km Coral/Tasman Sea
     ],
-    seaSegments: [[0, 1], [1, 2], [2, 3]], // every leg is sea/air
+    // Every leg is open ocean. Galápagos→Hawaii is the single
+    // unavoidable empty stretch (the E Pacific has no islands); from
+    // Hawaii on, the line island-hops Kiritimati→Tahiti→Rarotonga→
+    // Nouméa→Canberra instead of one 6500 km void.
+    seaSegments: [[0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [6, 7]],
     notes:
-      'キト→[太平洋]→ガラパゴス→[太平洋 ~6300km]→パペーテ(タヒチ)→[太平洋 ~6500km]→キャンベラ',
+      'キト→ガラパゴス→[太平洋 ~7700km]→ホノルル→キリスィマスィ→パペーテ→ラロトンガ→ヌーメア→キャンベラ（島伝い）',
   },
 
   // Canberra → Wellington — Tasman Sea crossing.
@@ -1791,30 +2185,42 @@ export const segmentClassifications: SegmentClassification[] = [
     routeType: 'land',
     waypointCityIds: [
       'EG-ALEXANDRIA',    // ~220 km from Cairo (slight Driving fallback)
-      'EG-MARSAMATRUH',   // ~290 km (Driving fallback along coast)
-      'LY-TOBRUK',        // ~290 km, EG-LY border (Driving fallback)
-      'LY-AJDABIYA',      // ~330 km (Driving fallback)
-      'LY-BENGHAZI',      // ~150 km
-      // Benghazi → Tripoli ~1000 km along the Sirte coast (Driving fallback)
+      'EG-ELALAMEIN',     // ~110 km — 北アフリカ戦線の地中海岸
+      'EG-MARSAMATRUH',   // ~150 km
+      'EG-SIDIBARRANI',   // ~130 km — エジプト西端の海岸
+      'LY-TOBRUK',        // ~195 km, EG-LY border (Sallum 国境)
+      'LY-DERNA',         // ~160 km — 緑の山地の海岸都市
+      'LY-ALMARJ',        // ~170 km — ジャバル・アフダルの古都
+      'LY-BENGHAZI',      // ~85 km
+      'LY-AJDABIYA',      // ~150 km — キレナイカ十字路 (south of Benghazi)
+      'LY-RASLANUF',      // ~150 km — シルト湾の石油港
+      'LY-SIRTE',         // ~200 km — シルト湾岸
+      'LY-MISRATA',       // ~225 km
+      'LY-KHOMS',         // ~120 km — レプティス・マグナ
+      // Khoms → Tripoli ~120 km coastal
     ],
     notes:
-      'カイロ→アレクサンドリア→マルサ・マトルーフ→[国境]→トブルク→ベンガジ→トリポリ',
+      'カイロ→アレクサンドリア→エル・アラメイン→マルサ・マトルーフ→シディ・バラニ→[国境]→トブルク→デルナ→ベンガジ→アジュダービヤー→ラス・ラヌフ→シルテ→ミスラタ→ホムス→トリポリ（地中海岸）',
   },
 
-  // Tripoli → Tunis via Sabratha + Ghadames (Sahara oasis detour) → coast.
+  // Tripoli → Tunis along the Mediterranean coast (the real coastal
+  // highway). The old routing dived ~430 km south to the Ghadames
+  // Sahara oasis then doubled back ~360 km north to Sfax — a pure
+  // backtrack. Now hugs the coast via Gabès.
   {
     fromCapitalId: 'LY',
     toCapitalId: 'TN',
     routeType: 'land',
     waypointCityIds: [
-      'LY-SABRATHA',  // ~80 km from Tripoli
-      'LY-GHADAMES',  // ~430 km south to Sahara oasis (Driving fallback)
-      'TN-SFAX',      // ~360 km north to Tunisian coast (Driving fallback)
-      'TN-SOUSSE',    // ~140 km
+      'LY-SABRATHA',     // ~80 km from Tripoli
+      'TN-BENGARDANE',   // ~125 km, crosses LY-TN border at Ras Ajdir
+      'TN-GABES',        // ~140 km up the coast
+      'TN-SFAX',         // ~135 km up the coast
+      'TN-SOUSSE',       // ~140 km
       // Sousse → Tunis ~140 km
     ],
     notes:
-      'トリポリ→サブラタ→ガダーミス→[国境]→スファックス→スース→チュニス',
+      'トリポリ→サブラタ→[国境]→ベン・ガルダン→ガベス→スファックス→スース→チュニス（地中海岸）',
   },
 
   // Tunis → Algiers via Sousse (passed) → Annaba → Constantine.
@@ -1825,17 +2231,32 @@ export const segmentClassifications: SegmentClassification[] = [
     waypointCityIds: [
       'DZ-ANNABA',       // ~280 km from Tunis, TN-DZ border (Driving fallback)
       'DZ-CONSTANTINE',  // ~155 km
-      // Constantine → Algiers ~430 km (Driving fallback)
+      'DZ-SETIF',        // ~110 km — 高原のローマ都市
+      'DZ-BOUIRA',       // ~140 km — カビリー山地の麓
+      // Bouira → Algiers ~110 km
     ],
-    notes: 'チュニス→[国境]→アンナバ→コンスタンティーヌ→アルジェ',
+    notes: 'チュニス→[国境]→アンナバ→コンスタンティーヌ→セティフ→ブイラ→アルジェ',
   },
 
+  // Algiers → Rabat along the Mediterranean / High Plateau corridor.
+  // Old routing jumped Algiers→Fès (~790 km) in one straight leg; now
+  // hugs the coast west to Oran, crosses the border at Oujda, then
+  // through Taza to Fès.
   {
     fromCapitalId: 'DZ',
     toCapitalId: 'MA',
     routeType: 'land',
-    waypointCityIds: ['MA-FES'],
-    notes: 'アルジェ→[国境]→フェズ→ラバト',
+    waypointCityIds: [
+      'DZ-CHLEF',       // ~170 km from Algiers
+      'DZ-MOSTAGANEM',  // ~115 km — 地中海岸
+      'DZ-ORAN',        // ~70 km — 西アルジェリア最大の港
+      'DZ-TLEMCEN',     // ~110 km — ザイヤーン朝の都
+      'MA-OUJDA',       // ~60 km, DZ-MA border (closed border, fallback straight)
+      'MA-TAZA',        // ~200 km — タザ回廊
+      'MA-FES',         // ~95 km
+      // Fès → Rabat ~170 km
+    ],
+    notes: 'アルジェ→シェリフ→モスタガネム→オラン→トレムセン→[国境]→ウジダ→タザ→フェズ→ラバト',
   },
 
   // Rabat → Nouakchott via the Atlantic coastal road across Western
@@ -1846,27 +2267,47 @@ export const segmentClassifications: SegmentClassification[] = [
     routeType: 'land',
     waypointCityIds: [
       'MA-CASABLANCA', // ~95 km from Rabat
-      'MA-AGADIR',     // ~460 km (Driving fallback through Atlantic coast)
-      'MA-LAAYOUNE',   // ~625 km, Western Sahara coast (Driving fallback)
-      'MR-NOUADHIBOU', // ~875 km, MA-MR border (Driving fallback)
-      // Nouadhibou → Nouakchott ~470 km (Driving fallback)
+      'MA-SAFI',       // ~205 km — 陶器の港町
+      'MA-ESSAOUIRA',  // ~95 km — 風の街
+      'MA-AGADIR',     // ~120 km
+      'MA-GUELMIM',    // ~170 km — サハラの門
+      'MA-TANTAN',     // ~120 km — 大西洋岸の港
+      'MA-TARFAYA',    // ~195 km
+      'MA-LAAYOUNE',   // ~95 km, Western Sahara
+      'EH-BOUJDOUR',   // ~185 km — 灯台の漁港
+      'EH-DAKHLA',     // ~300 km — 空白の西サハラ海岸 (砂漠 leg)
+      'MR-BIRGANDOUS', // ~250 km — 国境手前の砂漠 (砂漠 leg)
+      'MR-NOUADHIBOU', // ~75 km, MA-MR border
+      'MR-CHAMI',      // ~130 km — 中間の新興の町
+      // Chami → Nouakchott ~220 km (Banc d'Arguin coast)
     ],
     notes:
-      'ラバト→カサブランカ→アガディール→[西サハラ]→ラユーン→[国境]→ヌアディブー→ヌアクショット',
+      'ラバト→カサブランカ→サフィ→エッサウィラ→アガディール→グルミム→タンタン→タルファヤ→ラユーン→ブジュドゥール→[西サハラ砂漠]→ダフラ→[国境]→ヌアディブー→シャミ→ヌアクショット',
   },
 
-  // Nouakchott → Bamako via Atar + Néma + Ayoun el Atrous.
+  // Nouakchott → Bamako along the "Road of Hope" (Route de l'Espoir),
+  // a single ENE Sahel corridor. The old routing detoured ~440 km
+  // NORTH to Atar (Adrar desert), then ran SE to Néma and BACK west
+  // to Ayoun — a zigzag. Now monotonic W→E→S: Ayoun then Néma (both
+  // on the corridor) then south into Mali. Atar (northern outlier)
+  // dropped from the path.
   {
     fromCapitalId: 'MR',
     toCapitalId: 'ML',
     routeType: 'land',
     waypointCityIds: [
-      'MR-ATAR',           // ~440 km from Nouakchott (Driving fallback into desert)
-      'MR-NEMA',           // ~860 km southeast diagonal (heavy Driving fallback)
-      'MR-AYOUNELATROUS',  // ~250 km southwest, last MR town before ML
-      // Ayoun el Atrous → Bamako ~600 km, MR-ML border (Driving fallback)
+      'MR-BOUTILIMIT',     // ~150 km — イスラム学問の町
+      'MR-ALEG',           // ~140 km — ブラクナ地方の中心
+      'MR-GUEROU',         // ~210 km
+      'MR-KIFFA',          // ~60 km — アサバ地方の主都
+      'MR-AYOUNELATROUS',  // ~195 km along the Road of Hope
+      'MR-TIMBEDRA',       // ~160 km
+      'MR-NEMA',           // ~100 km, last MR town
+      'ML-NARA',           // ~160 km, MR-ML border
+      'ML-KOLOKANI',       // ~185 km
+      // Kolokani → Bamako ~105 km
     ],
-    notes: 'ヌアクショット→[サハラ・サヘル]→アタール→ネマ→アユン・エル・アトロウス→[国境]→バマコ',
+    notes: 'ヌアクショット→ブティリミット→アレグ→ゲル→キファ→アユン・エル・アトロウス→ティンベドラ→ネマ→[国境]→ナラ→コロカニ→バマコ',
   },
 
   // Bamako → Niamey via Mopti + Timbuktu + Gao on the Niger River.
@@ -1875,13 +2316,17 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'NE',
     routeType: 'land',
     waypointCityIds: [
-      'ML-MOPTI',     // ~460 km from Bamako (Driving fallback)
-      'ML-TIMBUKTU',  // ~310 km (Driving fallback along Niger River)
-      'ML-GAO',       // ~390 km (Driving fallback)
-      // Gao → Niamey ~430 km, ML-NE border (Driving fallback)
+      'ML-FANA',      // ~120 km from Bamako
+      'ML-SEGOU',     // ~115 km — バンバラ王国旧都
+      'ML-SAN',       // ~155 km — 内陸デルタの町
+      'ML-MOPTI',     // ~155 km — ニジェール川の港
+      'ML-TIMBUKTU',  // ~310 km (北部マリ紛争地、Driving fallback)
+      'ML-GAO',       // ~390 km (北部マリ紛争地、Driving fallback)
+      'NE-TILLABERI', // ~290 km, ML-NE 三国国境地帯 (Driving fallback)
+      // Tillabéri → Niamey ~100 km
     ],
     notes:
-      'バマコ→モプティ→トンブクトゥ→ガオ→[国境]→ニアメ',
+      'バマコ→ファナ→セグー→サン→モプティ→[北部マリ]→トンブクトゥ→ガオ→[国境]→ティラベリ→ニアメ',
   },
 
   // Niamey → N'Djamena via Tahoua + Zinder + Agadez (Trans-Sahara Highway 1).
@@ -1890,14 +2335,18 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'TD',
     routeType: 'land',
     waypointCityIds: [
-      'NE-ZINDERTAHOUA', // ~535 km from Niamey (Driving fallback through Sahel)
-      'NE-AGADEZ',       // ~480 km north into the Aïr massif (Driving fallback)
-      'NE-ZINDER',       // ~430 km southeast (Driving fallback)
-      'TD-MAO',          // ~770 km, NE-TD border (Driving fallback)
+      'NE-FILINGUE',     // ~140 km from Niamey
+      'NE-ZINDERTAHOUA', // ~215 km — タウア
+      'NE-AGADEZ',       // ~370 km north into the Aïr massif (サハラ砂漠 leg)
+      'NE-ZINDER',       // ~370 km southeast (サハラ砂漠 leg)
+      'NE-GOURE',        // ~140 km — チャド湖方面の町
+      'NE-DIFFA',        // ~255 km — チャド湖西方の州都
+      'TD-BOL',          // ~310 km, NE-TD border (チャド湖周辺、Driving fallback)
+      'TD-MAO',          // ~75 km — カネム地方の中心
       // Mao → N'Djamena ~250 km (Driving fallback)
     ],
     notes:
-      'ニアメ→タウア→アガデス→ザンデール→[国境]→マオ→ンジャメナ',
+      'ニアメ→フィランゲ→タウア→[アイル砂漠]→アガデス→ザンデール→グレ→ディファ→[国境・チャド湖]→ボル→マオ→ンジャメナ',
   },
 
   // N'Djamena → Khartoum via Faya-Largeau + El Fasher + El Obeid.
@@ -1915,18 +2364,25 @@ export const segmentClassifications: SegmentClassification[] = [
       'ンジャメナ→ファヤ・ラルジョ→[国境]→エルファーシル→エルオベイド→ハルツーム',
   },
 
-  // Khartoum → Juba via El Obeid (passed) → Wau + Malakal.
+  // Khartoum → Juba down the White Nile corridor (~31°E), monotonic
+  // south. The old routing went El Obeid → Wau (far SW, Bahr el
+  // Ghazal) → Malakal (NE on the Nile) — a W→E zigzag off the
+  // corridor. Wau (western outlier) dropped; the natural line is
+  // El Obeid → Malakal → Juba along the river.
   {
     fromCapitalId: 'SD',
     toCapitalId: 'SS',
     routeType: 'land',
     waypointCityIds: [
-      'SD-ELOBEID',  // ~430 km from Khartoum
-      'SS-WAU',      // ~770 km, SD-SS border (Driving fallback)
-      'SS-MALAKAL',  // ~620 km east through SS (Driving fallback)
-      // Malakal → Juba ~620 km (Driving fallback through Sudd swamp)
+      'SD-KOSTI',    // ~260 km — 白ナイルの河港
+      'SD-ELOBEID',  // ~265 km W (off-river detour)
+      'SS-RENK',     // ~360 km, SD-SS border (白ナイル沿い)
+      'SS-MELUT',    // ~150 km — 油田地帯
+      'SS-MALAKAL',  // ~130 km S on the White Nile
+      'SS-BOR',      // ~370 km S through the Sudd (湿地、Driving fallback)
+      // Bor → Juba ~150 km
     ],
-    notes: 'ハルツーム→エルオベイド→[国境]→ワーウ→マラカル→ジュバ',
+    notes: 'ハルツーム→コスティ→エルオベイド→[国境]→レンク→メルト→マラカル→[スッド湿地]→ボル→ジュバ（白ナイル回廊）',
   },
 
   // Juba → Asmara via Aksum + Mekele + Massawa.
@@ -1935,27 +2391,50 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'ER',
     routeType: 'land',
     waypointCityIds: [
-      'ET-MEKELE',  // ~1500 km from Juba via Ethiopia (heavy Driving fallback)
-      'ET-AKSUM',   // ~250 km (Driving fallback)
-      'ER-MASSAWA', // ~280 km, ET-ER border (Driving fallback)
-      // Massawa → Asmara ~115 km (steep escarpment road)
+      'ET-GAMBELA',   // ~503 km from Juba (remote roadless SS border, fallback straight)
+      'ET-GORE',      // ~105 km — 西部高原への登り
+      'ET-BEDELE',    // ~95 km — ビール醸造の町
+      'ET-NEKEMTE',   // ~75 km — 西ウェレガの中心
+      'ET-INJIBARA',  // ~210 km — アウィ高地
+      'ET-BAHIRDAR',  // ~85 km — タナ湖畔
+      'ET-GONDAR',    // ~110 km — 世界遺産の古都
+      'ET-SEKOTA',    // ~170 km — ワグ・ヒムラの山岳
+      'ET-MEKELE',    // ~110 km — ティグライ高原
+      'ET-AKSUM',     // ~110 km (Driving fallback)
+      'ER-MASSAWA',   // ~180 km, ET-ER border (Driving fallback)
+      // Massawa → Asmara ~65 km (steep escarpment road)
     ],
-    notes: 'ジュバ→[エチオピア経由]→メケレ→アクスム→[国境]→マッサワ→アスマラ',
+    notes: 'ジュバ→[エチオピア低地]→ガンベラ→ゴレ→ベデレ→ネケムテ→インジバラ→バハルダル→ゴンダール→セコタ→メケレ→アクスム→[国境]→マッサワ→アスマラ',
   },
 
+  // Asmara → Djibouti down the Eritrean Red Sea coast via Massawa and
+  // Assab. The Tio→Assab stretch is empty Danakil desert coast with no
+  // real town — left as one long desert leg.
   {
     fromCapitalId: 'ER',
     toCapitalId: 'DJ',
     routeType: 'land',
-    notes: 'アスマラ→[国境]→ジブチ（紅海岸 ~370km）',
+    waypointCityIds: [
+      'ER-MASSAWA',  // ~65 km — 紅海の港
+      'ER-TIO',      // ~190 km — ダナキル海岸
+      'ER-ASSAB',    // ~270 km — ダナキル砂漠海岸 (砂漠 leg)
+      // Assab → Djibouti ~165 km, ER-DJ border
+    ],
+    notes: 'アスマラ→マッサワ→ティオ→[ダナキル砂漠]→アッサブ→[国境]→ジブチ',
   },
 
   {
     fromCapitalId: 'DJ',
     toCapitalId: 'ET',
     routeType: 'land',
-    waypointCityIds: ['ET-DIREDAWA'],
-    notes: 'ジブチ→[国境]→ディレダワ→アディスアベバ',
+    waypointCityIds: [
+      'ET-AYSHA',     // ~110 km, DJ-ET border — 鉄道沿いの町
+      'ET-DIREDAWA',  // ~150 km — 東部の商都
+      'ET-AWASH',     // ~200 km — アワッシュ渓谷
+      'ET-ADAMA',     // ~110 km — ナズレト
+      // Adama → Addis Ababa ~80 km
+    ],
+    notes: 'ジブチ→[国境]→アイシャ→ディレダワ→アワッシュ→アダマ→アディスアベバ',
   },
 
   // Addis Ababa → Mogadishu via Dire Dawa (passed) → Kismayo coast.
@@ -1964,11 +2443,18 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'SO',
     routeType: 'land',
     waypointCityIds: [
-      'ET-DIREDAWA', // ~440 km from Addis Ababa (Driving fallback)
-      'SO-KISMAYO',  // ~1500 km, ET-SO via Ogaden (heavy Driving fallback)
-      // Kismayo → Mogadishu ~485 km up Indian Ocean coast (Driving fallback)
+      'ET-ADAMA',      // ~80 km from Addis Ababa
+      'ET-MIESO',      // ~185 km — アワッシュ渓谷東縁
+      'ET-DIREDAWA',   // ~125 km — 東部の商都
+      'ET-HARAR',      // ~45 km — 世界遺産の城壁都市
+      'ET-JIJIGA',     // ~75 km — ソマリ州都
+      'ET-DEGEHABUR',  // ~150 km — オガデン
+      'ET-KEBRIDEHAR', // ~180 km — オガデン砂漠
+      'ET-GODE',       // ~125 km — シェベリ川
+      'SO-KISMAYO',    // ~710 km, ET-SO ソマリア内陸 (紛争・無道、fallback straight)
+      // Kismayo → Mogadishu ~410 km, ソマリア内陸海岸 (紛争、fallback straight)
     ],
-    notes: 'アディスアベバ→ディレダワ→[国境・オガデン]→キスマヨ→モガディシュ',
+    notes: 'アディスアベバ→アダマ→ミエソ→ディレダワ→ハラール→ジジガ→デゲハブール→ケブリダハル→ゴデ→[国境・ソマリア内陸]→キスマヨ→モガディシュ',
   },
 
   // Mogadishu → Nairobi via Garissa + Marsabit (Driving fallback through arid NE Kenya).
@@ -1977,24 +2463,42 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'KE',
     routeType: 'land',
     waypointCityIds: [
-      'KE-GARISSA',  // ~810 km from Mogadishu, SO-KE border (Driving fallback)
-      // Garissa → Nairobi ~365 km (Driving fallback)
+      'KE-GARISSA',  // ~690 km from Mogadishu, SO-KE ソマリア内陸 (紛争・無道、fallback straight)
+      'KE-MWINGI',   // ~185 km — 東部キツイ郡
+      'KE-THIKA',    // ~110 km — ナイロビ近郊
+      // Thika → Nairobi ~40 km
     ],
-    notes: 'モガディシュ→[国境]→ガリッサ→ナイロビ',
+    notes: 'モガディシュ→[国境・ソマリア内陸]→ガリッサ→ムウィンギ→ティカ→ナイロビ',
   },
 
+  // Nairobi → Kampala via the Rift Valley (Nakuru → Eldoret) and the
+  // Malaba/Busia border, then Jinja on the Nile.
   {
     fromCapitalId: 'KE',
     toCapitalId: 'UG',
     routeType: 'land',
-    notes: 'ナイロビ→[国境 ~660km]→カンパラ',
+    waypointCityIds: [
+      'KE-NAKURU',   // ~140 km — リフトバレー
+      'KE-ELDORET',  // ~130 km — 高地の町
+      'KE-WEBUYE',   // ~55 km — 西ケニア
+      'UG-JINJA',    // ~175 km, KE-UG border — ナイル源流
+      // Jinja → Kampala ~70 km
+    ],
+    notes: 'ナイロビ→ナクル→エルドレット→ウェブイエ→[国境]→ジンジャ→カンパラ',
   },
 
+  // Kampala → Kigali via Masaka → Mbarara → Kabale and the Gatuna/Katuna border.
   {
     fromCapitalId: 'UG',
     toCapitalId: 'RW',
     routeType: 'land',
-    notes: 'カンパラ→[国境 ~580km]→キガリ',
+    waypointCityIds: [
+      'UG-MASAKA',   // ~120 km — ヴィクトリア湖西岸
+      'UG-MBARARA',  // ~125 km — 西部の商都
+      'UG-KABALE',   // ~105 km — 千の丘の高地
+      // Kabale → Kigali ~80 km, UG-RW border
+    ],
+    notes: 'カンパラ→マサカ→ムバララ→カバレ→[国境]→キガリ',
   },
 
   {
@@ -2004,11 +2508,24 @@ export const segmentClassifications: SegmentClassification[] = [
     notes: 'キガリ→[国境 ~250km]→ブジュンブラ',
   },
 
+  // Gitega → Dodoma across western Tanzania: Kigoma on Lake Tanganyika,
+  // then the Central Line corridor (Uvinza → Tabora → Singida).
   {
     fromCapitalId: 'BI',
     toCapitalId: 'TZ',
     routeType: 'land',
-    notes: 'ブジュンブラ→[タンザニア西部 ~1100km Driving]→ドドマ',
+    waypointCityIds: [
+      'TZ-KIGOMA',   // ~165 km, BI-TZ border — タンガニーカ湖港
+      'TZ-UVINZA',   // ~90 km — 製塩の町
+      'TZ-NGURUKA',  // ~75 km — 中央線鉄道
+      'TZ-KALIUA',   // ~80 km — タバコ栽培地
+      'TZ-TABORA',   // ~110 km — ウニャンウェジの中心
+      'TZ-NZEGA',    // ~100 km — 金鉱の町
+      'TZ-SINGIDA',  // ~185 km — 中央高原
+      'TZ-MANYONI',  // ~105 km — 鉄道の町
+      // Manyoni → Dodoma ~110 km
+    ],
+    notes: 'ギテガ→[国境]→キゴマ→ウヴィンザ→ングルカ→カリウア→タボラ→ンゼガ→シンギダ→マニョニ→ドドマ',
   },
 
   // Tanzania → Comoros → Madagascar → Mauritius → Seychelles — Indian Ocean.
@@ -2052,78 +2569,202 @@ export const segmentClassifications: SegmentClassification[] = [
     notes: 'ヴィクトリア→[インド洋 ~3300km]→マプト',
   },
 
+  // Maputo → Lilongwe up the EN1 coast (Xai-Xai → Maxixe → Vilankulo),
+  // then inland on the Beira corridor (Chimoio) and the Tete corridor
+  // (Catandica → Tete) before crossing into Malawi at Dedza.
   {
     fromCapitalId: 'MZ',
     toCapitalId: 'MW',
     routeType: 'land',
-    notes: 'マプト→[国境 ~1500km Driving]→リロングウェ',
+    waypointCityIds: [
+      'MZ-XAIXAI',     // ~150 km — リンポポ河口
+      'MZ-MAXIXE',     // ~215 km — イニャンバネ湾
+      'MZ-VILANKULO',  // ~205 km — バザルト諸島の玄関
+      'MZ-MAMBONE',    // ~120 km — サベ川河口
+      'MZ-MUXUNGUE',   // ~125 km — EN1分岐
+      'MZ-INCHOPE',    // ~145 km — ベイラ回廊分岐
+      'MZ-CHIMOIO',    // ~45 km — マニカ州都
+      'MZ-CATANDICA',  // ~125 km — マニカ高地
+      'MZ-GURO',       // ~70 km — テテ回廊
+      'MZ-TETE',       // ~145 km — ザンベジ川の要衝
+      'MW-DEDZA',      // ~215 km, MZ-MW border — 陶器の高原町
+      // Dedza → Lilongwe ~75 km
+    ],
+    notes: 'マプト→シャイシャイ→マシシェ→ヴィランクロ→ノヴァ・マンボネ→ムシュンゲ→インショペ→シモイオ→カタンディカ→グロ→テテ→[国境]→デザ→リロングウェ',
   },
 
+  // Lilongwe → Lusaka via Mchinji border → Chipata → the Great East Road
+  // (Petauke → Nyimba → Luangwa bridge) → Chongwe.
   {
     fromCapitalId: 'MW',
     toCapitalId: 'ZM',
     routeType: 'land',
-    notes: 'リロングウェ→[国境 ~720km]→ルサカ',
+    waypointCityIds: [
+      'MW-MCHINJI',  // ~100 km, MW-ZM border
+      'ZM-CHIPATA',  // ~30 km — 東部州都
+      'ZM-PETAUKE',  // ~160 km — グレートイースト道
+      'ZM-NYIMBA',   // ~65 km
+      'ZM-LUANGWA',  // ~125 km — ルアングワ橋
+      'ZM-CHONGWE',  // ~190 km — ルサカ近郊
+      // Chongwe → Lusaka ~40 km
+    ],
+    notes: 'リロングウェ→[国境]→ムチンジ→チパタ→ペタウケ→ニンバ→ルアングワ→チョングウェ→ルサカ',
   },
 
+  // Lusaka → Harare via Kafue → the Chirundu bridge over the Zambezi →
+  // Karoi → Chinhoyi.
   {
     fromCapitalId: 'ZM',
     toCapitalId: 'ZW',
     routeType: 'land',
-    notes: 'ルサカ→[国境 ~620km]→ハラレ',
+    waypointCityIds: [
+      'ZM-KAFUE',     // ~45 km — カフエ川
+      'ZW-CHIRUNDU',  // ~80 km, ZM-ZW border — ザンベジ橋
+      'ZW-KAROI',     // ~125 km
+      'ZW-CHINHOYI',  // ~80 km — マショナランド西
+      // Chinhoyi → Harare ~100 km
+    ],
+    notes: 'ルサカ→カフエ→[国境・ザンベジ橋]→チルンドゥ→カロイ→チノイ→ハラレ',
   },
 
+  // Harare → Gaborone via Kadoma → Gweru → Bulawayo, then the
+  // Plumtree/Ramokgwebana border and the A1 (Francistown → Palapye).
   {
     fromCapitalId: 'ZW',
     toCapitalId: 'BW',
     routeType: 'land',
-    notes: 'ハラレ→[国境 ~870km Driving]→ハボロネ',
+    waypointCityIds: [
+      'ZW-KADOMA',       // ~130 km
+      'ZW-GWERU',        // ~125 km — ミッドランズ州都
+      'ZW-BULAWAYO',     // ~150 km — 第二の都市
+      'BW-FRANCISTOWN',  // ~160 km, ZW-BW border
+      'BW-PALAPYE',      // ~160 km — 中部の炭鉱町
+      'BW-MAHALAPYE',    // ~70 km
+      // Mahalapye → Gaborone ~190 km
+    ],
+    notes: 'ハラレ→カドマ→グウェル→ブラワヨ→[国境]→フランシスタウン→パラピエ→マハラピエ→ハボロネ',
   },
 
+  // Gaborone → Windhoek across the Kalahari on the Trans-Kalahari Highway
+  // (Jwaneng → Kang → Ghanzi → Mamuno border → Gobabis), then out to the
+  // Atlantic at Walvis Bay. Kang→Ghanzi (~263 km) is empty central
+  // Kalahari with no town; Walvis Bay→Windhoek (~266 km) crosses the
+  // Namib Desert — both left as desert legs.
   {
     fromCapitalId: 'BW',
     toCapitalId: 'NA',
     routeType: 'land',
-    waypointCityIds: ['NA-WALVISBAY'],
-    notes: 'ハボロネ→[国境]→ウォルビスベイ→ウィントフック',
+    waypointCityIds: [
+      'BW-JWANENG',      // ~120 km — ダイヤモンド鉱山
+      'BW-KANG',         // ~220 km — カラハリの給油地
+      'BW-GHANZI',       // ~263 km — カラハリ中央 (砂漠 leg)
+      'BW-CHARLESHILL',  // ~155 km
+      'BW-MAMUNO',       // ~35 km, BW-NA border
+      'NA-WITVLEI',      // ~155 km
+      'NA-GOBABIS',      // ~50 km — 牧畜の中心
+      'NA-OKAHANDJA',    // ~215 km (Windhoek を経由)
+      'NA-KARIBIB',      // ~110 km
+      'NA-USAKOS',       // ~25 km
+      'NA-SWAKOPMUND',   // ~135 km — 大西洋岸の保養地
+      'NA-WALVISBAY',    // ~30 km — 大西洋の港
+      // Walvis Bay → Windhoek ~266 km (ナミブ砂漠 B2、砂漠 leg)
+    ],
+    notes: 'ハボロネ→ジュワネング→カング→[カラハリ砂漠]→ガンジ→チャールズヒル→[国境]→マムノ→ウィットフライ→ゴバビス→オカハンジャ→カリビブ→ウサコス→スワコプムント→ウォルビスベイ→[ナミブ砂漠]→ウィントフック',
   },
 
+  // Windhoek → Pretoria down the B1 (Rehoboth → Mariental → Keetmanshoop),
+  // across the Orange at the Nakop/Vioolsdrif... actually the Ariamsvlei
+  // border to Upington, then Kuruman → Vryburg → Klerksdorp → Johannesburg.
   {
     fromCapitalId: 'NA',
     toCapitalId: 'ZA',
     routeType: 'land',
-    waypointCityIds: ['ZA-JOHANNESBURG'],
-    notes: 'ウィントフック→[国境 ~1300km Driving]→ヨハネスブルク→プレトリア',
+    waypointCityIds: [
+      'NA-REHOBOTH',     // ~85 km
+      'NA-MARIENTAL',    // ~170 km
+      'NA-KEETMANSHOOP', // ~215 km — 南部の中心
+      'NA-GRUNAU',       // ~130 km
+      'NA-KARASBURG',    // ~50 km
+      'ZA-KEIMOES',      // ~230 km, NA-ZA border (オレンジ川沿い砂漠)
+      'ZA-UPINGTON',     // ~40 km — 北ケープの灌漑都市
+      'ZA-OLIFANTSHOEK', // ~155 km
+      'ZA-KURUMAN',      // ~90 km — 「カラハリの目」
+      'ZA-VRYBURG',      // ~140 km — 畜産の中心
+      'ZA-KLERKSDORP',   // ~195 km
+      'ZA-JOHANNESBURG', // ~155 km
+      // Johannesburg → Pretoria ~55 km
+    ],
+    notes: 'ウィントフック→レホボト→マリエンタル→キートマンスフープ→グリューナウ→カラスブルク→[国境]→ケイモス→アピントン→オリファンツフック→クルマン→フライブルフ→クラークスドルプ→ヨハネスブルク→プレトリア',
   },
 
   {
     fromCapitalId: 'ZA',
     toCapitalId: 'SZ',
     routeType: 'land',
-    notes: 'プレトリア→[国境 ~330km]→ムババーネ',
+    waypointCityIds: [
+      'ZA-WITBANK',  // ~100 km — エムパランガ
+      'ZA-ERMELO',   // ~105 km — ハイベルトの分岐
+      // Ermelo → Mbabane ~120 km, ZA-SZ border
+    ],
+    notes: 'プレトリア→ウィットバンク→エルメロ→[国境]→ムババーネ',
   },
 
+  // Mbabane → Maseru through KwaZulu-Natal / Free State: Newcastle →
+  // Ladysmith → Harrismith → Bethlehem → Ficksburg border.
   {
     fromCapitalId: 'SZ',
     toCapitalId: 'LS',
     routeType: 'land',
-    notes: 'ムババーネ→[南アフリカ経由 ~700km]→マセル',
+    waypointCityIds: [
+      'ZA-NEWCASTLE',   // ~200 km
+      'ZA-LADYSMITH',   // ~90 km — ボーア戦争の町
+      'ZA-HARRISMITH',  // ~70 km
+      'ZA-BETHLEHEM',   // ~80 km — 東フリーステート
+      'ZA-FICKSBURG',   // ~70 km, ZA-LS border (チェリーの町)
+      // Ficksburg → Maseru ~70 km
+    ],
+    notes: 'ムババーネ→ニューカッスル→レディスミス→ハリスミス→ベツレヘム→フィックスバーグ→[国境]→マセル',
   },
 
-  // Lesotho → Angola — long traverse north through SA/NA into Angola.
+  // Lesotho → Angola — south to Cape Town via Bloemfontein and the N1
+  // Karoo (Colesberg → Beaufort West → Worcester), then the long
+  // ~2,800 km Atlantic/Namib-coast hop up to Luanda (no road, sea/desert).
   {
     fromCapitalId: 'LS',
     toCapitalId: 'AO',
-    routeType: 'land',
-    waypointCityIds: ['ZA-CAPETOWN'],
-    notes: 'マセル→[南アフリカ経由]→ケープタウン→[~3000km Driving]→ルアンダ',
+    routeType: 'mixed',
+    waypointCityIds: [
+      'ZA-BLOEMFONTEIN',  // ~130 km — 司法首都
+      'ZA-COLESBERG',     // ~210 km — N1の宿場
+      'ZA-RICHMOND',      // ~135 km — 大カルー
+      'ZA-BEAUFORTWEST',  // ~165 km — カルーの中心
+      'ZA-LAINGSBURG',    // ~185 km
+      'ZA-WORCESTER',     // ~140 km — ワインの谷
+      'ZA-PAARL',         // ~45 km — ワイン産地
+      'ZA-CAPETOWN',      // ~55 km — 喜望峰の都市
+      // Cape Town → Luanda ~2,800 km (大西洋・ナミブ海岸、道なし=直線)
+    ],
+    // [0=Maseru, 1=Bloemfontein, 2=Colesberg, 3=Richmond, 4=Beaufort West,
+    //  5=Laingsburg, 6=Worcester, 7=Paarl, 8=Cape Town, 9=Luanda]
+    // 8→9 is the long Atlantic/Namib-coast hop with no road.
+    seaSegments: [[8, 9]],
+    notes: 'マセル→ブルームフォンテーン→コールズバーグ→リッチモンド→ボーフォートウェスト→レインズバーグ→ウースター→パール→ケープタウン→[~2,800km 大西洋岸]→ルアンダ',
   },
 
+  // Luanda → Kinshasa up the Angolan coast (N'zeto → Soyo at the Congo
+  // mouth), across into DRC at Matadi, then up to Kinshasa.
   {
     fromCapitalId: 'AO',
     toCapitalId: 'CD',
     routeType: 'land',
-    notes: 'ルアンダ→[国境 ~770km Driving]→キンシャサ',
+    waypointCityIds: [
+      'AO-NZETO',    // ~185 km — 海岸の町
+      'AO-SOYO',     // ~135 km — コンゴ川河口の石油の町
+      'CD-MATADI',   // ~125 km, AO-CD border — コンゴ川の港
+      'CD-KISANTU',  // ~200 km — 植物園の町
+      // Kisantu → Kinshasa ~80 km
+    ],
+    notes: 'ルアンダ→ンゼト→ソヨ→[国境]→マタディ→キサントゥ→キンシャサ',
   },
 
   // DRC → Republic of Congo — just a ferry across the Congo River.
@@ -2135,11 +2776,27 @@ export const segmentClassifications: SegmentClassification[] = [
     notes: 'キンシャサ→[コンゴ川フェリー ~10km]→ブラザビル',
   },
 
+  // Brazzaville → Libreville via the RN1 (Mindouli → Loutété → Dolisie),
+  // then NW into Gabon (Tchibanga → Mouila → Lambaréné). The
+  // Dolisie→Tchibanga border stretch (~240 km) is dense forest with no
+  // town.
   {
     fromCapitalId: 'CG',
     toCapitalId: 'GA',
     routeType: 'land',
-    notes: 'ブラザビル→[国境 ~600km]→リーブルヴィル',
+    waypointCityIds: [
+      'CG-MINDOULI',   // ~90 km — プール県
+      'CG-LOUTETE',    // ~90 km — セメント工業
+      'CG-DOLISIE',    // ~105 km — 第三の都市
+      'GA-TCHIBANGA',  // ~240 km, CG-GA border (森林 leg)
+      'GA-NDENDE',     // ~65 km — ニャンガ州
+      'GA-MOUILA',     // ~70 km — ングニエ州都
+      'GA-LAMBARENE',  // ~160 km — シュバイツァーの町
+      'GA-BIFOUN',     // ~45 km
+      'GA-KANGO',      // ~60 km
+      // Kango → Libreville ~80 km
+    ],
+    notes: 'ブラザビル→ミンドゥリ→ルテテ→ドリジー→[国境・森林]→チバンガ→ンデンデ→ムイラ→ランバレネ→ビフン→カンゴ→リーブルヴィル',
   },
 
   // Gabon → Equatorial Guinea — Bioko Island sea hop.
@@ -2161,18 +2818,51 @@ export const segmentClassifications: SegmentClassification[] = [
     notes: 'マラボ→[ギニア湾]→ドゥアラ→ヤウンデ',
   },
 
+  // Yaoundé → Bangui via the eastern Cameroon forest road (Ayos →
+  // Abong-Mbang → Bertoua → Batouri), crossing into CAR at Berbérati.
   {
     fromCapitalId: 'CM',
     toCapitalId: 'CF',
     routeType: 'land',
-    notes: 'ヤウンデ→[国境 ~970km Driving]→バンギ',
+    waypointCityIds: [
+      'CM-AYOS',        // ~115 km — ニョン川
+      'CM-ABONGMBANG',  // ~75 km — 上ニョン
+      'CM-BERTOUA',     // ~85 km — 東部州都
+      'CM-BATOURI',     // ~80 km — 金鉱とカカオ
+      'CF-BERBERATI',   // ~160 km, CM-CF border — CAR西部
+      'CF-CARNOT',      // ~75 km
+      'CF-BODA',        // ~190 km
+      'CF-MBAIKI',      // ~75 km — ロバイエの林業
+      // Mbaïki → Bangui ~90 km
+    ],
+    notes: 'ヤウンデ→アヨス→アボン・ンバン→ベルトゥア→バトゥリ→[国境]→ベルベラティ→カルノ→ボダ→ンバイキ→バンギ',
   },
 
+  // Bangui → Abuja the long way around through Cameroon: west to Bouar,
+  // cross to Garoua-Boulaï, up the Adamawa plateau (Ngaoundéré → Garoua),
+  // into Nigeria at Yola, then across the NE (Gombe → Bauchi → Jos) to
+  // Abuja.
   {
     fromCapitalId: 'CF',
     toCapitalId: 'NG',
     routeType: 'land',
-    notes: 'バンギ→[カメルーン経由 ~1900km Driving]→アブジャ',
+    waypointCityIds: [
+      'CF-BOSSEMBELE',    // ~140 km from Bangui
+      'CF-YALOKE',        // ~60 km
+      'CF-BOUAR',         // ~180 km — 巨石遺跡の町
+      'CM-GAROUABOULAI',  // ~115 km, CF-CM border
+      'CM-MEIGANGA',      // ~75 km — アダマワ高原
+      'CM-NGAOUNDERE',    // ~125 km — 高原鉄道の終点
+      'CM-GAROUA',        // ~220 km — ベヌエ川 (高原降下)
+      'NG-YOLA',          // ~100 km, CM-NG border — アダマワ州都
+      'NG-NUMAN',         // ~60 km — ベヌエ・ゴンゴラ合流
+      'NG-GOMBE',         // ~130 km — 北東部州都
+      'NG-BAUCHI',        // ~145 km — ヤンカリの玄関
+      'NG-JOS',           // ~110 km — 高原都市
+      'NG-AKWANGA',       // ~125 km — ナサラワ
+      // Akwanga → Abuja ~100 km
+    ],
+    notes: 'バンギ→ボッセンベレ→ヤロケ→ブアール→[国境]→ガルア・ブライ→メイガンガ→ンガウンデレ→ガルア→[国境]→ヨラ→ヌマン→ゴンベ→バウチ→ジョス→アクワンガ→アブジャ',
   },
 
   {
@@ -2180,11 +2870,15 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'BJ',
     routeType: 'land',
     waypointCityIds: [
-      'NG-IBADAN', // ~530 km from Abuja (Driving fallback)
-      'NG-LAGOS',  // ~145 km
-      // Lagos → Porto-Novo ~115 km, NG-BJ border
+      'NG-LOKOJA',     // ~165 km from Abuja — 二大河の合流
+      'NG-EGBE',       // ~140 km — コギ州南西
+      'NG-ILORIN',     // ~115 km — クワラ州都
+      'NG-OGBOMOSHO',  // ~50 km — ヨルバの商都
+      'NG-IBADAN',     // ~90 km
+      'NG-LAGOS',      // ~115 km
+      // Lagos → Porto-Novo ~85 km, NG-BJ border
     ],
-    notes: 'アブジャ→イバダン→ラゴス→[国境]→ポルトノボ',
+    notes: 'アブジャ→ロコジャ→エグベ→イロリン→オグボモショ→イバダン→ラゴス→[国境]→ポルトノボ',
   },
 
   {
@@ -2201,33 +2895,88 @@ export const segmentClassifications: SegmentClassification[] = [
     notes: 'ロメ→[国境 ~190km]→アクラ',
   },
 
+  // Accra → Yamoussoukro via Kumasi, then down to the coast and west
+  // along it (Cape Coast → Takoradi → Elubo border → Aboisso → Abidjan).
   {
     fromCapitalId: 'GH',
     toCapitalId: 'CI',
     routeType: 'land',
-    waypointCityIds: ['GH-KUMASI', 'CI-ABIDJAN'],
-    notes: 'アクラ→クマシ→[国境]→アビジャン→ヤムスクロ',
+    waypointCityIds: [
+      'GH-KUMASI',      // ~200 km — アシャンティの古都
+      'GH-CAPECOAST',   // ~180 km — 奴隷貿易の城塞
+      'GH-TAKORADI',    // ~60 km — 西部の港
+      'GH-ELUBO',       // ~120 km, GH-CI border — タノ川
+      'CI-ABOISSO',     // ~60 km
+      'CI-ABIDJAN',     // ~90 km — 経済の中心
+      // Abidjan → Yamoussoukro ~215 km
+    ],
+    notes: 'アクラ→クマシ→ケープコースト→タコラディ→[国境]→エルボ→アボワッソ→アビジャン→ヤムスクロ',
   },
 
+  // Yamoussoukro → Ouagadougou north via Bouaké → Ferkessédougou →
+  // Ouangolodougou border → Banfora → Bobo-Dioulasso → Koudougou.
   {
     fromCapitalId: 'CI',
     toCapitalId: 'BF',
     routeType: 'land',
-    notes: 'ヤムスクロ→[国境 ~1000km Driving]→ワガドゥグー',
+    waypointCityIds: [
+      'CI-BOUAKE',          // ~100 km — 第二の都市
+      'CI-FERKESSEDOUGOU',  // ~210 km — 北部の鉄道分岐
+      'CI-OUANGOLO',        // ~40 km, near CI-BF border
+      'BF-BANFORA',         // ~85 km — カスケード
+      'BF-BOBODIOULASSO',   // ~80 km — 第二の都市
+      'BF-HOUNDE',          // ~90 km — 綿花地帯
+      'BF-BOROMO',          // ~70 km
+      'BF-KOUDOUGOU',       // ~85 km — 第三の都市
+      // Koudougou → Ouagadougou ~90 km
+    ],
+    notes: 'ヤムスクロ→ブアケ→フェルケセドゥグ→ワンゴロドゥグ→[国境]→バンフォラ→ボボ・ディウラッソ→ウンデ→ボロモ→クドゥグ→ワガドゥグー',
   },
 
+  // Ouagadougou → Monrovia SW through Burkina (Koudougou → Bobo →
+  // Banfora) then down the western Côte d'Ivoire highlands (Odienné →
+  // Touba → Man → Danané) into Guinée Forestière (Nzérékoré) and Liberia
+  // (Ganta → Gbarnga → Kakata).
   {
     fromCapitalId: 'BF',
     toCapitalId: 'LR',
     routeType: 'land',
-    notes: 'ワガドゥグー→[コートジボワール経由 ~1700km Driving]→モンロビア',
+    waypointCityIds: [
+      'BF-KOUDOUGOU',       // ~90 km
+      'BF-BOROMO',          // ~85 km
+      'BF-HOUNDE',          // ~70 km
+      'BF-BOBODIOULASSO',   // ~90 km
+      'BF-BANFORA',         // ~80 km
+      'CI-FERKESSEDOUGOU',  // ~125 km, BF-CI border
+      'CI-BOUNDIALI',       // ~140 km
+      'CI-ODIENNE',         // ~120 km — 北西部
+      'CI-TOUBA',           // ~135 km
+      'CI-MAN',             // ~100 km — 西部の山地
+      'CI-DANANE',          // ~70 km
+      'GN-NZEREKORE',       // ~90 km, CI-GN border — ギニア森林地帯
+      'LR-GANTA',           // ~55 km, GN-LR border
+      'LR-GBARNGA',         // ~60 km
+      'LR-KAKATA',          // ~110 km
+      // Kakata → Monrovia ~50 km
+    ],
+    notes: 'ワガドゥグー→クドゥグ→ボロモ→ウンデ→ボボ・ディウラッソ→バンフォラ→[国境]→フェルケセドゥグ→ブンジアリ→オジエンネ→トゥバ→マン→ダナネ→[国境]→ンゼレコレ→[国境]→ガンタ→グバルンガ→カカタ→モンロビア',
   },
 
+  // Monrovia → Freetown via Tubmanburg → the Mano River border at Zimmi
+  // → Pujehun → Bo → Moyamba.
   {
     fromCapitalId: 'LR',
     toCapitalId: 'SL',
     routeType: 'land',
-    notes: 'モンロビア→[国境 ~570km Driving]→フリータウン',
+    waypointCityIds: [
+      'LR-TUBMANBURG',  // ~65 km — ボミの旧鉄鉱山
+      'SL-ZIMMI',       // ~75 km, LR-SL border — マノ川
+      'SL-PUJEHUN',     // ~45 km
+      'SL-BO',          // ~70 km — 第二の都市
+      'SL-MOYAMBA',     // ~80 km
+      // Moyamba → Freetown ~95 km
+    ],
+    notes: 'モンロビア→タブマンバーグ→[国境・マノ川]→ジミ→プジェフン→ボー→モヤンバ→フリータウン',
   },
 
   {
@@ -2237,11 +2986,21 @@ export const segmentClassifications: SegmentClassification[] = [
     notes: 'フリータウン→[国境 ~330km]→コナクリ',
   },
 
+  // Conakry → Bissau up the coast (Boffa → Boké), crossing into
+  // Guinea-Bissau at Québo, then Gabú → Bafatá.
   {
     fromCapitalId: 'GN',
     toCapitalId: 'GW',
     routeType: 'land',
-    notes: 'コナクリ→[国境 ~440km]→ビサウ',
+    waypointCityIds: [
+      'GN-BOFFA',  // ~75 km — リオ・ポンゴ
+      'GN-BOKE',   // ~90 km — ボーキサイトの町
+      'GN-QUEBO',  // ~85 km, GN-GW border
+      'GW-GABU',   // ~135 km — 東部の交易都市
+      'GW-BAFATA', // ~50 km — ジェバ川
+      // Bafatá → Bissau ~70 km
+    ],
+    notes: 'コナクリ→ボファ→ボケ→[国境]→ケボ→ガブ→バファタ→ビサウ',
   },
 
   {

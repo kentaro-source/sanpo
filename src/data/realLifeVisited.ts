@@ -94,6 +94,7 @@ export const REAL_LIFE_VISITED_CAPITAL_IDS = new Set<string>([
   // 'BD' は未訪問
   // 'IN' は未訪問
   'ID', // ジャカルタ (インドネシア訪問)
+  'TL', // ディリ (東ティモール訪問)
   'PH', // マニラ (フィリピン訪問)
   'BN', // バンダルスリブガワン (ブルネイ訪問)
   'MY', // クアラルンプール (マレーシア訪問)
