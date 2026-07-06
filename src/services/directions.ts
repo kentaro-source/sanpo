@@ -12,9 +12,17 @@
 // be reused.
 const CACHE_KEY = 'sanpo-directions-cache-v2';
 const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+// Failures are ALSO cached (path: null), with a shorter TTL. Without
+// this, pairs that can never route — every North-Korea pair (Google
+// has no NK road data), closed land borders, etc. — re-fire the
+// Directions API on every single launch, twice each (WALKING then
+// DRIVING fallback), serially. ~9 NK pairs × 2 modes × network RTT
+// was the bulk of the "route takes a minute to appear" launch lag.
+const FAIL_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 interface CacheEntry {
-  path: google.maps.LatLngLiteral[];
+  /** null = the API failed for both modes (negative cache). */
+  path: google.maps.LatLngLiteral[] | null;
   timestamp: number;
 }
 
@@ -88,17 +96,30 @@ export function getCachedPolyline(
   const cacheKey = makeCacheKey(origin, destination, waypoints);
   const cache = loadCache();
   const cached = cache[cacheKey];
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+  if (cached && cached.path && Date.now() - cached.timestamp < CACHE_TTL_MS) {
     return cached.path;
   }
   return null;
 }
 
 /**
+ * In-flight request dedupe. At launch the route window can get built
+ * more than once concurrently (effect re-runs / double mount); without
+ * this each build fired its own WALKING+DRIVING calls for the SAME
+ * pair — visible in logs as every Directions error appearing twice.
+ * Concurrent callers now share one promise; the result lands in the
+ * localStorage cache once.
+ */
+const inFlight = new Map<
+  string,
+  Promise<google.maps.LatLngLiteral[] | null>
+>();
+
+/**
  * Get a road-following polyline for a segment.
  * Returns null on API failure (caller should fall back to straight line).
  */
-export async function getRoadPolyline(
+export function getRoadPolyline(
   origin: google.maps.LatLngLiteral,
   destination: google.maps.LatLngLiteral,
   waypoints: google.maps.LatLngLiteral[] = [],
@@ -106,9 +127,33 @@ export async function getRoadPolyline(
   const cacheKey = makeCacheKey(origin, destination, waypoints);
   const cache = loadCache();
   const cached = cache[cacheKey];
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
-    return cached.path;
+  if (cached) {
+    const age = Date.now() - cached.timestamp;
+    if (cached.path && age < CACHE_TTL_MS) return Promise.resolve(cached.path);
+    // Negative cache hit: this pair failed both WALKING and DRIVING
+    // recently (NK roads, closed borders…). Don't re-fire the API —
+    // the caller falls back to a straight line, same as last time.
+    if (!cached.path && age < FAIL_TTL_MS) return Promise.resolve(null);
   }
+
+  const existing = inFlight.get(cacheKey);
+  if (existing) return existing;
+
+  const job = fetchRoadPolyline(origin, destination, waypoints, cacheKey)
+    .finally(() => {
+      inFlight.delete(cacheKey);
+    });
+  inFlight.set(cacheKey, job);
+  return job;
+}
+
+async function fetchRoadPolyline(
+  origin: google.maps.LatLngLiteral,
+  destination: google.maps.LatLngLiteral,
+  waypoints: google.maps.LatLngLiteral[],
+  cacheKey: string,
+): Promise<google.maps.LatLngLiteral[] | null> {
+  const cache = loadCache();
 
   // Try walking first (fits the "歩いて世界一周" theme), then fall back to
   // driving for long inter-city legs the walking router refuses to compute.
@@ -158,8 +203,10 @@ export async function getRoadPolyline(
     // with driving so the polyline at least follows real roads.
     path = await tryRoute(google.maps.TravelMode.DRIVING);
   }
-  if (!path) return null;
 
+  // Cache the outcome either way — successes for 30 days, failures for
+  // 7 (FAIL_TTL_MS) so unroutable pairs stop costing two API calls per
+  // launch.
   cache[cacheKey] = { path, timestamp: Date.now() };
   saveCache(cache);
   return path;

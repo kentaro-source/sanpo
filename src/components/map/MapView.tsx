@@ -1,12 +1,130 @@
 /// <reference types="google.maps" />
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGame } from '../../hooks/useGame';
 import { cities, segmentClassifications } from '../../data';
 import { getRoadPolyline } from '../../services/directions';
+import { getManualLegPath } from '../../data/manualLegPaths';
 import { isRealLifeVisitedCapital } from '../../data/realLifeVisited';
 import { setBuiltPath, setStopKm } from '../../services/playerPath';
 
 const API_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
+
+/**
+ * Continuous projection of `target` onto the polyline: the closest point on
+ * the nearest EDGE (segment), not the nearest vertex. Returns a FRACTIONAL
+ * index (i + t, 0≤t≤1) plus the interpolated lat/lng.
+ *
+ * Why not nearest-vertex: RDP simplification drops near-collinear points, so
+ * a straight road leg can collapse to two far-apart vertices. Snapping the
+ * marker to the nearest VERTEX then froze it on one endpoint until the
+ * player crossed the leg's midpoint — on a long straight stretch that's
+ * thousands of ×1 steps with NO visible motion ("歩数は増えるのに動かない").
+ * Projecting onto the edge advances the marker smoothly, ~1 m per step.
+ * Still uses the raw-geometry `target` (same anti-overshoot behaviour as
+ * before) — only the snap granularity changes from vertex to edge.
+ */
+function projectOntoPath(
+  pts: google.maps.LatLngLiteral[],
+  target: google.maps.LatLngLiteral,
+): { idx: number; lat: number; lng: number } {
+  let bestD = Infinity;
+  let bestIdx = 0;
+  let bestLat = pts[0].lat;
+  let bestLng = pts[0].lng;
+  for (let i = 0; i < pts.length - 1; i += 1) {
+    const ax = pts[i].lat;
+    const ay = pts[i].lng;
+    const dx = pts[i + 1].lat - ax;
+    const dy = pts[i + 1].lng - ay;
+    const lenSq = dx * dx + dy * dy;
+    let t =
+      lenSq > 0
+        ? ((target.lat - ax) * dx + (target.lng - ay) * dy) / lenSq
+        : 0;
+    if (t < 0) t = 0;
+    else if (t > 1) t = 1;
+    const px = ax + t * dx;
+    const py = ay + t * dy;
+    const ddx = target.lat - px;
+    const ddy = target.lng - py;
+    const d = ddx * ddx + ddy * ddy;
+    if (d < bestD) {
+      bestD = d;
+      bestIdx = i + t;
+      bestLat = px;
+      bestLng = py;
+    }
+  }
+  return { idx: bestIdx, lat: bestLat, lng: bestLng };
+}
+
+/**
+ * Place the player on the BUILT (real-road) path by ARC LENGTH, anchored to
+ * EVERY stop (capitals + waypoint cities), not just capitals. `anchors` is the
+ * full route stop list sorted by raw km. Find the two adjacent stops bracketing
+ * distanceKm, then map the raw fraction between them onto the real-road arc
+ * between their points on the path → a fractional index + lat/lng.
+ *
+ * Per-CAPITAL anchoring was wrong: one capital→capital leg (China is a single
+ * ~12,000km leg with dozens of cities) made the linear km→arc mapping drift
+ * tens of km off the actual city positions, so the marker sat far from a city
+ * even as that city's 立ち寄り bonus fired (crossing detection keys off each
+ * city's km directly). Anchoring on every stop makes the marker reach each city
+ * exactly when its km is reached, matching the bonus/crossing logic. Returns
+ * null when the bracketing stops aren't on the current built window (caller
+ * falls back to projecting `position`).
+ */
+function markerOnBuiltPath(
+  built: { allPoints: google.maps.LatLngLiteral[]; cumKm: number[] },
+  distanceKm: number,
+  anchors: { km: number; lat: number; lng: number }[],
+): { idx: number; lat: number; lng: number } | null {
+  const { allPoints, cumKm } = built;
+  const n = anchors.length;
+  if (n < 2 || distanceKm < anchors[0].km || distanceKm > anchors[n - 1].km) {
+    return null;
+  }
+  // Binary search: largest anchor with km <= distanceKm.
+  let lo = 0;
+  let hi = n - 1;
+  while (lo < hi - 1) {
+    const mid = (lo + hi) >> 1;
+    if (anchors[mid].km <= distanceKm) lo = mid;
+    else hi = mid;
+  }
+  const a = anchors[lo];
+  const b = anchors[hi];
+  if (b.km <= a.km) return null;
+  const nearest = (lat: number, lng: number): number => {
+    let bi = -1;
+    let bd = Infinity;
+    for (let i = 0; i < allPoints.length; i += 1) {
+      const dl = allPoints[i].lat - lat;
+      const dg = allPoints[i].lng - lng;
+      const d = dl * dl + dg * dg;
+      if (d < bd) { bd = d; bi = i; }
+    }
+    return bi;
+  };
+  const ia = nearest(a.lat, a.lng);
+  const ib = nearest(b.lat, b.lng);
+  if (ia < 0 || ib < 0 || ia >= ib) return null;
+  const f = (distanceKm - a.km) / (b.km - a.km);
+  const targetArc = cumKm[ia] + f * (cumKm[ib] - cumKm[ia]);
+  for (let i = ia + 1; i <= ib; i += 1) {
+    if (cumKm[i] >= targetArc) {
+      const seg = cumKm[i] - cumKm[i - 1];
+      const t = seg > 0 ? Math.max(0, Math.min(1, (targetArc - cumKm[i - 1]) / seg)) : 0;
+      return {
+        idx: (i - 1) + t,
+        lat: allPoints[i - 1].lat + (allPoints[i].lat - allPoints[i - 1].lat) * t,
+        lng: allPoints[i - 1].lng + (allPoints[i].lng - allPoints[i - 1].lng) * t,
+      };
+    }
+  }
+  const last = allPoints[ib];
+  return { idx: ib, lat: last.lat, lng: last.lng };
+}
 
 const TYPE_COLORS: Record<string, string> = {
   metropolis: '#0ea5e9',
@@ -38,6 +156,29 @@ function loadGoogleMapsScript(apiKey: string): Promise<void> {
 
 export function MapView() {
   const { player, currentSquare, position, routeData } = useGame();
+
+  // Every route stop (capitals + waypoint cities) sorted by raw km. The marker
+  // is anchored to these so it reaches each city exactly when that city's km is
+  // hit — matching the 立ち寄り / crossing detection (which keys off the same
+  // per-city km). Memoized: only rebuilds if the route changes.
+  const stopAnchors = useMemo(() => {
+    const list: { km: number; lat: number; lng: number }[] = [];
+    for (const cap of routeData.capitals) {
+      const km = routeData.capitalDistances[cap.id];
+      if (km != null) list.push({ km, lat: cap.lat, lng: cap.lng });
+    }
+    const wpIds = new Set<string>();
+    for (const seg of segmentClassifications) {
+      for (const cid of seg.waypointCityIds ?? []) wpIds.add(cid);
+    }
+    for (const c of cities) {
+      if (!wpIds.has(c.id)) continue;
+      const km = routeData.cityDistances?.[c.id];
+      if (km != null) list.push({ km, lat: c.lat, lng: c.lng });
+    }
+    list.sort((p, q) => p.km - q.km);
+    return list;
+  }, [routeData]);
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<google.maps.Map | null>(null);
   const passedPolylineRef = useRef<google.maps.Polyline | null>(null);
@@ -58,6 +199,13 @@ export function MapView() {
   const cityMarkersRef = useRef<google.maps.Marker[]>([]);
   const squareMarkersRef = useRef<google.maps.Marker[]>([]);
   const currentMarkerRef = useRef<google.maps.Marker | null>(null);
+  // Smooth marker glide: requestAnimationFrame id, the marker's current
+  // (float) index along the built road path, and the built-path object
+  // identity (to detect a window rebuild and snap instead of gliding
+  // across a brand-new points array).
+  const markerAnimRef = useRef<number | null>(null);
+  const markerIdxRef = useRef<number | null>(null);
+  const builtIdentityRef = useRef<unknown>(null);
   const infoWindowRef = useRef<google.maps.InfoWindow | null>(null);
   const initialCenterDoneRef = useRef(false);
   const [loaded, setLoaded] = useState(false);
@@ -218,12 +366,6 @@ export function MapView() {
       return 2 * R * Math.asin(Math.sqrt(h));
     };
 
-    // Linear interpolate between two points.
-    const interpAt = (a: LL, b: LL, frac: number): LL => ({
-      lat: a.lat + (b.lat - a.lat) * frac,
-      lng: a.lng + (b.lng - a.lng) * frac,
-    });
-
     type Built = {
       allPoints: google.maps.LatLngLiteral[];
       cumKm: number[];
@@ -236,28 +378,23 @@ export function MapView() {
     const renderFromBuilt = (b: Built) => {
       if (!mapRef.current) return;
 
-      const playerKm = player.distanceKm;
-      let splitIdx = -1;
-      for (let i = 0; i < b.cumKm.length; i++) {
-        if (b.cumKm[i] >= playerKm) {
-          splitIdx = i;
-          break;
-        }
-      }
+      // Split walked/future at the continuous projection of the player's
+      // position onto the road, so the green/blue boundary sits exactly
+      // under the (also-continuous) marker instead of snapping to a vertex.
+      const proj =
+        markerOnBuiltPath(b, player.distanceKm, stopAnchors) ??
+        projectOntoPath(b.allPoints, position);
+      const splitIdx = Math.floor(proj.idx);
+      const splitPoint = { lat: proj.lat, lng: proj.lng };
       let walkedPath: google.maps.LatLngLiteral[] = [];
       let futurePath: google.maps.LatLngLiteral[] = [];
-      if (splitIdx === -1) {
-        walkedPath = b.allPoints;
-      } else if (splitIdx === 0) {
+      if (proj.idx <= 0) {
         futurePath = b.allPoints;
+      } else if (splitIdx >= b.allPoints.length - 1) {
+        walkedPath = b.allPoints;
       } else {
-        const a = b.allPoints[splitIdx - 1];
-        const c = b.allPoints[splitIdx];
-        const segKm = b.cumKm[splitIdx] - b.cumKm[splitIdx - 1];
-        const frac = segKm > 0 ? (playerKm - b.cumKm[splitIdx - 1]) / segKm : 0;
-        const splitPoint = interpAt(a, c, Math.max(0, Math.min(1, frac)));
-        walkedPath = [...b.allPoints.slice(0, splitIdx), splitPoint];
-        futurePath = [splitPoint, ...b.allPoints.slice(splitIdx)];
+        walkedPath = [...b.allPoints.slice(0, splitIdx + 1), splitPoint];
+        futurePath = [splitPoint, ...b.allPoints.slice(splitIdx + 1)];
       }
 
       const ensureWalked = (path: google.maps.LatLngLiteral[]) => {
@@ -354,6 +491,81 @@ export function MapView() {
       const cumKm: number[] = [];
       let runningKm = firstSegStartKm;
 
+      const nearestIdxIn = (lat: number, lng: number): number => {
+        let bestIdx = -1;
+        let bestD = Infinity;
+        for (let i = 0; i < allPoints.length; i++) {
+          const p = allPoints[i];
+          const dLat = p.lat - lat;
+          const dLng = p.lng - lng;
+          const d = dLat * dLat + dLng * dLng;
+          if (d < bestD) {
+            bestD = d;
+            bestIdx = i;
+          }
+        }
+        return bestIdx;
+      };
+
+      // Progressive publish: as soon as a segment's geometry is in,
+      // expose the partial polyline + its stops' snap-km overrides and
+      // draw the line. Previously everything was held back until ALL
+      // ~9 window segments finished fetching — one slow segment
+      // (uncached pairs, NK failures) kept the whole map blank for up
+      // to a minute.
+      const publishSegment = (seg: (typeof visibleSegs)[number]) => {
+        const snapshot = {
+          allPoints: allPoints.slice(),
+          cumKm: cumKm.slice(),
+        };
+        builtPathRef.current = snapshot;
+        setBuiltPath(snapshot);
+        for (const id of [seg.fromCapitalId, seg.toCapitalId]) {
+          const cap = routeData.capitals.find((c) => c.id === id);
+          if (!cap) continue;
+          const idx = nearestIdxIn(cap.lat, cap.lng);
+          if (idx >= 0) setStopKm('capital', id, cumKm[idx]);
+        }
+        for (const cityId of seg.waypointCityIds ?? []) {
+          const city = cities.find((c) => c.id === cityId);
+          if (!city) continue;
+          const idx = nearestIdxIn(city.lat, city.lng);
+          if (idx >= 0) setStopKm('city', cityId, cumKm[idx]);
+        }
+        renderFromBuilt(snapshot);
+        // Pan to the player as soon as the partial path covers their km.
+        if (!initialCenterDoneRef.current && mapRef.current) {
+          const km = player.distanceKm;
+          const lo = cumKm[0];
+          const hi = cumKm[cumKm.length - 1];
+          if (km >= lo - 0.001 && km <= hi + 0.001) {
+            let idx = -1;
+            for (let i = 0; i < cumKm.length; i++) {
+              if (cumKm[i] >= km) { idx = i; break; }
+            }
+            let snapped: google.maps.LatLngLiteral | null = null;
+            if (idx <= 0) snapped = allPoints[0];
+            else {
+              const a = allPoints[idx - 1];
+              const b = allPoints[idx];
+              const segKm = cumKm[idx] - cumKm[idx - 1];
+              const f =
+                segKm > 0
+                  ? Math.max(0, Math.min(1, (km - cumKm[idx - 1]) / segKm))
+                  : 0;
+              snapped = {
+                lat: a.lat + (b.lat - a.lat) * f,
+                lng: a.lng + (b.lng - a.lng) * f,
+              };
+            }
+            if (snapped) {
+              mapRef.current.panTo(snapped);
+              initialCenterDoneRef.current = true;
+            }
+          }
+        }
+      };
+
       for (const seg of visibleSegs) {
         if (cancelled) return;
         const fromCap = routeData.capitals.find((c) => c.id === seg.fromCapitalId);
@@ -370,34 +582,83 @@ export function MapView() {
 
         let segPath: google.maps.LatLngLiteral[];
 
-        if (seg.routeType === 'land') {
-          const roadPath = await getRoadPolyline(origin, destination, waypoints);
-          if (cancelled) return;
-          segPath = simplifyPath(roadPath ?? [origin, ...waypoints, destination]);
-        } else if (seg.routeType === 'mixed') {
+        if (seg.routeType === 'land' || seg.routeType === 'mixed') {
+          // Chunk consecutive non-sea points into Directions calls of
+          // ≤23 waypoints each (the API caps a request at ~25 stops).
+          // The old code passed ALL waypoints in one call (land) — which
+          // silently fails once a densified segment exceeds 25 stops — or
+          // fired one call PER PAIR (mixed), which for a 52-waypoint
+          // segment meant ~51 serial round-trips that never finished
+          // rendering (→ straight-line fallback the whole time). Chunking
+          // cuts that to ~2-3 calls per segment: roads render, fast.
           const points = [origin, ...waypoints, destination];
           const seaSet = new Set(
             (seg.seaSegments ?? []).map(([a, b]) => `${a}-${b}`),
           );
           const built: google.maps.LatLngLiteral[] = [];
-          for (let i = 0; i < points.length - 1; i++) {
+          let i = 0;
+          while (i < points.length - 1) {
             if (cancelled) return;
-            const isSea = seaSet.has(`${i}-${i + 1}`);
-            let pathSeg: google.maps.LatLngLiteral[];
-            if (isSea) {
-              pathSeg = [points[i], points[i + 1]];
-            } else {
-              const road = await getRoadPolyline(points[i], points[i + 1]);
-              if (cancelled) return;
-              pathSeg = road ?? [points[i], points[i + 1]];
+            if (seaSet.has(`${i}-${i + 1}`)) {
+              // Sea/ferry/border leg → straight line, UNLESS we have a
+              // hand-traced real route. The HK/Macau SAR crossings all return
+              // ZERO_RESULTS from Directions (verified on-device), so they're
+              // flagged sea to break the chunk cleanly — but they DO have real
+              // bridges/roads (深圳湾大橋, 港珠澳大橋, 拱北口岸). Draw those.
+              if (built.length === 0) built.push(points[i]);
+              const manual = getManualLegPath(points[i], points[i + 1]);
+              if (manual) {
+                for (const p of manual) built.push(p);
+              }
+              built.push(points[i + 1]);
+              i += 1;
+              continue;
             }
-            // Spread-push (`built.push(...pathSeg)`) blows the call stack
-            // for long paths because each spread arg becomes a function
-            // argument and the limit is ~65k. Walk-pushing is safe.
-            const start = i === 0 ? 0 : 1;
+            // Extend a run of consecutive land legs, ≤24 legs (= ≤23
+            // intermediate waypoints + origin + dest = ≤25 stops) per call.
+            let j = i;
+            while (
+              j < points.length - 1 &&
+              !seaSet.has(`${j}-${j + 1}`) &&
+              j - i < 24
+            ) {
+              j += 1;
+            }
+            const road = await getRoadPolyline(
+              points[i],
+              points[j],
+              points.slice(i + 1, j),
+            );
+            if (cancelled) return;
+            let pathSeg: google.maps.LatLngLiteral[];
+            if (road) {
+              pathSeg = road;
+            } else {
+              // The whole batch returned ZERO_RESULTS. Usually ONE leg is
+              // unroutable (香港→マカオ across water, a cross-border leg
+              // Google refuses, …) and it poisons the entire multi-city
+              // batch — straight-lining a dozen otherwise-routable China
+              // legs (this is what made 南京→…→深圳 render as one diagonal).
+              // Retry leg-by-leg so only the genuinely-bad leg degrades to a
+              // straight line; every other leg still follows real roads.
+              pathSeg = [points[i]];
+              for (let k = i; k < j; k++) {
+                if (cancelled) return;
+                const legRoad = await getRoadPolyline(points[k], points[k + 1]);
+                if (cancelled) return;
+                if (legRoad && legRoad.length > 1) {
+                  for (let p = 1; p < legRoad.length; p++) pathSeg.push(legRoad[p]);
+                } else {
+                  pathSeg.push(points[k + 1]);
+                }
+              }
+            }
+            // Spread-push blows the V8 arg limit (~65k) on long paths.
+            const start = built.length === 0 ? 0 : 1;
             for (let k = start; k < pathSeg.length; k++) {
               built.push(pathSeg[k]);
             }
+            i = j;
           }
           segPath = simplifyPath(built);
         } else {
@@ -415,6 +676,8 @@ export function MapView() {
           allPoints.push(p);
           cumKm.push(runningKm);
         }
+
+        publishSegment(seg);
       }
 
       if (cancelled || !mapRef.current) return;
@@ -431,21 +694,11 @@ export function MapView() {
       // into playerPath overrides, so upcomingStops / ShareToX
       // compute "next stop" against the same km axis as the rendered
       // polyline. Fixes the "湖西市にいるのに浜松はこれから" desync.
-      const findNearestIdx = (lat: number, lng: number): number => {
-        let bestIdx = -1;
-        let bestD = Infinity;
-        for (let i = 0; i < allPoints.length; i++) {
-          const p = allPoints[i];
-          const dLat = p.lat - lat;
-          const dLng = p.lng - lng;
-          const d = dLat * dLat + dLng * dLng;
-          if (d < bestD) {
-            bestD = d;
-            bestIdx = i;
-          }
-        }
-        return bestIdx;
-      };
+      // Final full-window pass — re-pushes each stop's km against the
+      // COMPLETE path (a stop near a window boundary can snap to a
+      // better polyline point once the neighbour segment exists).
+      // setStopKm no-ops on unchanged values, so this is cheap.
+      const findNearestIdx = nearestIdxIn;
       for (const seg of visibleSegs) {
         for (const id of [seg.fromCapitalId, seg.toCapitalId]) {
           const cap = routeData.capitals.find((c) => c.id === id);
@@ -521,32 +774,20 @@ export function MapView() {
     realRoutePolylinesRef.current.forEach((p) => p.setMap(null));
     realRoutePolylinesRef.current = [];
 
-    const playerKm = player.distanceKm;
-    let splitIdx = -1;
-    for (let i = 0; i < b.cumKm.length; i++) {
-      if (b.cumKm[i] >= playerKm) {
-        splitIdx = i;
-        break;
-      }
-    }
+    const proj =
+      markerOnBuiltPath(b, player.distanceKm, stopAnchors) ??
+      projectOntoPath(b.allPoints, position);
+    const splitIdx = Math.floor(proj.idx);
+    const splitPoint = { lat: proj.lat, lng: proj.lng };
     let walkedPath: google.maps.LatLngLiteral[] = [];
     let futurePath: google.maps.LatLngLiteral[] = [];
-    if (splitIdx === -1) {
-      walkedPath = b.allPoints;
-    } else if (splitIdx === 0) {
+    if (proj.idx <= 0) {
       futurePath = b.allPoints;
+    } else if (splitIdx >= b.allPoints.length - 1) {
+      walkedPath = b.allPoints;
     } else {
-      const a = b.allPoints[splitIdx - 1];
-      const c = b.allPoints[splitIdx];
-      const segKm = b.cumKm[splitIdx] - b.cumKm[splitIdx - 1];
-      const frac = segKm > 0 ? (playerKm - b.cumKm[splitIdx - 1]) / segKm : 0;
-      const f = Math.max(0, Math.min(1, frac));
-      const splitPoint = {
-        lat: a.lat + (c.lat - a.lat) * f,
-        lng: a.lng + (c.lng - a.lng) * f,
-      };
-      walkedPath = [...b.allPoints.slice(0, splitIdx), splitPoint];
-      futurePath = [splitPoint, ...b.allPoints.slice(splitIdx)];
+      walkedPath = [...b.allPoints.slice(0, splitIdx + 1), splitPoint];
+      futurePath = [splitPoint, ...b.allPoints.slice(splitIdx + 1)];
     }
 
     if (walkedPath.length >= 2) {
@@ -740,8 +981,9 @@ export function MapView() {
   }, [loaded, currentSquare.segmentIndex]);
 
   // Square dots: lazy-create only when zoomed close enough to actually see them.
-  // Sampling 1/5 keeps marker count manageable when they do exist.
-  const SQUARE_SAMPLE = 5;
+  // Sampling 1/40 keeps the dot-marker count ~constant now that squares are
+  // ~7× denser (~20km spacing) than the old 150km/40-cap model.
+  const SQUARE_SAMPLE = 40;
   const SQUARE_MIN_ZOOM = 8; // higher threshold — only at street-level views
 
   useEffect(() => {
@@ -832,44 +1074,23 @@ export function MapView() {
     if (!mapRef.current) return;
 
     const built = builtPathRef.current;
-    let markerPos: google.maps.LatLngLiteral = position;
-    if (built && built.cumKm.length > 1) {
-      const km = player.distanceKm;
-      const cumKm = built.cumKm;
-      const pts = built.allPoints;
-      // Only snap to polyline if the player's km lies within the visible
-      // window's km range; otherwise great-circle is the best we have.
-      const lo = cumKm[0];
-      const hi = cumKm[cumKm.length - 1];
-      if (km >= lo - 0.001 && km <= hi + 0.001) {
-        let idx = -1;
-        for (let i = 0; i < cumKm.length; i++) {
-          if (cumKm[i] >= km) {
-            idx = i;
-            break;
-          }
-        }
-        if (idx === 0) {
-          markerPos = pts[0];
-        } else if (idx === -1) {
-          markerPos = pts[pts.length - 1];
-        } else {
-          const a = pts[idx - 1];
-          const b = pts[idx];
-          const segKm = cumKm[idx] - cumKm[idx - 1];
-          const frac = segKm > 0 ? (km - cumKm[idx - 1]) / segKm : 0;
-          const f = Math.max(0, Math.min(1, frac));
-          markerPos = {
-            lat: a.lat + (b.lat - a.lat) * f,
-            lng: a.lng + (b.lng - a.lng) * f,
-          };
-        }
-      }
+    // Target: continuous projection of the raw-geometry position onto the
+    // rendered road (edge projection, not nearest vertex), so the marker
+    // advances smoothly even on RDP-sparsened straight legs.
+    let targetPos: google.maps.LatLngLiteral = position;
+    let targetIdx = -1;
+    if (built && built.allPoints.length > 1) {
+      const proj =
+        markerOnBuiltPath(built, player.distanceKm, stopAnchors) ??
+        projectOntoPath(built.allPoints, position);
+      targetIdx = proj.idx;
+      targetPos = { lat: proj.lat, lng: proj.lng };
     }
 
+    // First run: create the marker, no glide.
     if (!currentMarkerRef.current) {
       currentMarkerRef.current = new google.maps.Marker({
-        position: markerPos,
+        position: targetPos,
         map: mapRef.current,
         zIndex: 1000,
         icon: {
@@ -881,22 +1102,104 @@ export function MapView() {
           strokeWeight: 3,
         },
       });
-    } else {
-      currentMarkerRef.current.setPosition(markerPos);
+      markerIdxRef.current = targetIdx >= 0 ? targetIdx : null;
+      builtIdentityRef.current = built;
+      if (!initialCenterDoneRef.current && built) {
+        mapRef.current.panTo(targetPos);
+        initialCenterDoneRef.current = true;
+      }
+      return;
     }
 
-    // First time we have a real polyline-snapped marker position (i.e.
-    // the route is loaded), pan the map there. The init effect above
-    // could only use the great-circle interpolation — that lands a few
-    // km off the actual road, e.g. somewhere around Roppongi when the
-    // player is on the Tokyo→Yokohama leg. This snap aligns map center
-    // with the actual marker once we know where the road runs.
-    if (!initialCenterDoneRef.current && builtPathRef.current && mapRef.current) {
-      mapRef.current.panTo(markerPos);
+    const marker = currentMarkerRef.current;
+
+    // Cancel any in-flight glide before deciding the new motion.
+    if (markerAnimRef.current != null) {
+      cancelAnimationFrame(markerAnimRef.current);
+      markerAnimRef.current = null;
+    }
+
+    // Glide ALONG the road points from the marker's current index to the
+    // new target, so a step-sync batch (Health Connect delivers ~30s of
+    // steps at once) slides the marker smoothly instead of teleporting
+    // ("歩数は増えるが まとめて移動" → continuous glide). Snap (no glide)
+    // when there's no road path yet, or the built window was just rebuilt
+    // (the cached index belongs to a different points array).
+    const canGlide =
+      !!built &&
+      built.allPoints.length > 1 &&
+      targetIdx >= 0 &&
+      builtIdentityRef.current === built &&
+      markerIdxRef.current != null;
+    builtIdentityRef.current = built;
+
+    if (!canGlide) {
+      marker.setPosition(targetPos);
+      markerIdxRef.current = targetIdx >= 0 ? targetIdx : null;
+    } else {
+      const pts = built!.allPoints;
+      const fromIdx = markerIdxRef.current!;
+      const toIdx = targetIdx;
+      // Position at a fractional index = lerp between adjacent road pts,
+      // so the marker tracks the road's curve, not a straight chord.
+      const posAt = (fi: number): google.maps.LatLngLiteral => {
+        const c = Math.max(0, Math.min(pts.length - 1, fi));
+        const lo = Math.floor(c);
+        const hi = Math.min(pts.length - 1, lo + 1);
+        const f = c - lo;
+        return {
+          lat: pts[lo].lat + (pts[hi].lat - pts[lo].lat) * f,
+          lng: pts[lo].lng + (pts[hi].lng - pts[lo].lng) * f,
+        };
+      };
+      const fromPos = posAt(fromIdx);
+      const jLat = targetPos.lat - fromPos.lat;
+      const jLng = targetPos.lng - fromPos.lng;
+      const jump2 = jLat * jLat + jLng * jLng;
+      // Snap (no glide) for a negligible move OR a big jump. The big-jump
+      // snap keeps the marker glued to the walked/future boundary under high
+      // boosts (e.g. ×113): a slow glide left it trailing far behind the
+      // instantly-updated split line ("マーカーがずれている"). ~2.5e-7°² ≈ 55m.
+      if (Math.abs(toIdx - fromIdx) < 0.5 || jump2 > 2.5e-7) {
+        marker.setPosition(targetPos);
+        markerIdxRef.current = toIdx;
+      } else {
+        // Short glide (was 1500ms) — long enough to read as motion at ×1,
+        // short enough that it catches up to the split each update cycle.
+        const durationMs = 350;
+        const startT = performance.now();
+        const tick = (nowT: number) => {
+          const t = Math.min(1, (nowT - startT) / durationMs);
+          const ease = 1 - Math.pow(1 - t, 3); // ease-out cubic
+          const cur = fromIdx + (toIdx - fromIdx) * ease;
+          marker.setPosition(posAt(cur));
+          markerIdxRef.current = cur;
+          if (t < 1) {
+            markerAnimRef.current = requestAnimationFrame(tick);
+          } else {
+            markerIdxRef.current = toIdx;
+            markerAnimRef.current = null;
+          }
+        };
+        markerAnimRef.current = requestAnimationFrame(tick);
+      }
+    }
+
+    // First-render center alignment (route just loaded): pan to the marker.
+    if (!initialCenterDoneRef.current && built && mapRef.current) {
+      mapRef.current.panTo(targetPos);
       initialCenterDoneRef.current = true;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loaded, position, player.distanceKm]);
+
+  // Cancel any in-flight marker glide animation on unmount.
+  useEffect(
+    () => () => {
+      if (markerAnimRef.current != null) cancelAnimationFrame(markerAnimRef.current);
+    },
+    [],
+  );
 
   // Auto-pan was removed — it fought the user's manual pinch/zoom: every
   // step's distanceKm change re-fired this effect, and if the marker had

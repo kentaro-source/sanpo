@@ -18,6 +18,7 @@
 import { routeData } from '../data';
 import { cities } from '../data/cities';
 import { segmentClassifications } from '../data/segmentMeta';
+import { positionAtKm } from '../data/generateRoute';
 import { getCachedPolyline } from './directions';
 
 export interface SnappedPosition {
@@ -75,14 +76,21 @@ export function setStopKm(
   notifyOverrideListeners();
 }
 
-export function getCapitalKm(id: string, fallback: number): number {
-  const v = capitalKmOverrides.get(id);
-  return v != null ? v : fallback;
+// Scale unified to RAW routeData km. The snap-cumulative override is now
+// IGNORED for all km lookups: distanceKm accumulates in raw km (KM_PER_STEP)
+// and the player marker is positioned by raw routeData, so crossing/stop/
+// distance logic must use the SAME raw km — otherwise the marker sits at one
+// place (raw) while crossings fire at another (snap), which is exactly the
+// dual-scale bug that warped the player and re-credited already-passed
+// cities. Displayed "○○まで Nkm" is now raw (great-circle × road factor),
+// consistent everywhere. The override map is still written by MapView but
+// never read (harmless).
+export function getCapitalKm(_id: string, fallback: number): number {
+  return fallback;
 }
 
-export function getCityKm(id: string, fallback: number): number {
-  const v = cityKmOverrides.get(id);
-  return v != null ? v : fallback;
+export function getCityKm(_id: string, fallback: number): number {
+  return fallback;
 }
 
 /** Haversine km between two lat/lng — used to walk the cached polyline. */
@@ -185,6 +193,147 @@ function snapFromWindowPath(km: number): SnappedPosition | null {
   };
 }
 
+// ── Marker-matched positioning (anchor on EVERY stop, map onto built path) ──
+// This mirrors MapView's markerOnBuiltPath/projectOntoPath EXACTLY so that
+// ShareToX's start/current location agrees with the on-map player marker.
+//
+// Why this is needed: the old snapFromWindowPath used the built path's
+// cumulative km as the km axis. On device the Directions cache is near-empty,
+// so MapView builds the path with straight-line fallbacks (bug: 陸路で直線),
+// which COMPRESSES China's arc length — km 18,218 then maps onto Davao/PH on
+// that path even though the player is in Guangdong/China. The marker never had
+// this problem because it anchors on each stop's real lat/lng (raw km),
+// decoupling from the path's arc-length scale. ShareToX must do the same.
+
+let stopAnchorsCache: { km: number; lat: number; lng: number }[] | null = null;
+function getStopAnchors(): { km: number; lat: number; lng: number }[] {
+  if (stopAnchorsCache) return stopAnchorsCache;
+  const list: { km: number; lat: number; lng: number }[] = [];
+  for (const cap of routeData.capitals) {
+    const km = routeData.capitalDistances[cap.id];
+    if (km != null) list.push({ km, lat: cap.lat, lng: cap.lng });
+  }
+  const wpIds = new Set<string>();
+  for (const seg of segmentClassifications) {
+    for (const cid of seg.waypointCityIds ?? []) wpIds.add(cid);
+  }
+  for (const c of cities) {
+    if (!wpIds.has(c.id)) continue;
+    const km = routeData.cityDistances?.[c.id];
+    if (km != null) list.push({ km, lat: c.lat, lng: c.lng });
+  }
+  list.sort((p, q) => p.km - q.km);
+  stopAnchorsCache = list;
+  return list;
+}
+
+function nearestIdx(pts: SnappedPosition[], lat: number, lng: number): number {
+  let bi = -1;
+  let bd = Infinity;
+  for (let i = 0; i < pts.length; i += 1) {
+    const dl = pts[i].lat - lat;
+    const dg = pts[i].lng - lng;
+    const d = dl * dl + dg * dg;
+    if (d < bd) {
+      bd = d;
+      bi = i;
+    }
+  }
+  return bi;
+}
+
+function markerOnBuilt(
+  built: BuiltPath,
+  distanceKm: number,
+  anchors: { km: number; lat: number; lng: number }[],
+): SnappedPosition | null {
+  const { allPoints, cumKm } = built;
+  const n = anchors.length;
+  if (n < 2 || distanceKm < anchors[0].km || distanceKm > anchors[n - 1].km) {
+    return null;
+  }
+  let lo = 0;
+  let hi = n - 1;
+  while (lo < hi - 1) {
+    const mid = (lo + hi) >> 1;
+    if (anchors[mid].km <= distanceKm) lo = mid;
+    else hi = mid;
+  }
+  const a = anchors[lo];
+  const b = anchors[hi];
+  if (b.km <= a.km) return null;
+  const ia = nearestIdx(allPoints, a.lat, a.lng);
+  const ib = nearestIdx(allPoints, b.lat, b.lng);
+  if (ia < 0 || ib < 0 || ia >= ib) return null;
+  const f = (distanceKm - a.km) / (b.km - a.km);
+  const targetArc = cumKm[ia] + f * (cumKm[ib] - cumKm[ia]);
+  for (let i = ia + 1; i <= ib; i += 1) {
+    if (cumKm[i] >= targetArc) {
+      const seg = cumKm[i] - cumKm[i - 1];
+      const t =
+        seg > 0 ? Math.max(0, Math.min(1, (targetArc - cumKm[i - 1]) / seg)) : 0;
+      return {
+        lat: allPoints[i - 1].lat + (allPoints[i].lat - allPoints[i - 1].lat) * t,
+        lng: allPoints[i - 1].lng + (allPoints[i].lng - allPoints[i - 1].lng) * t,
+      };
+    }
+  }
+  const last = allPoints[ib];
+  return { lat: last.lat, lng: last.lng };
+}
+
+function projectOnto(
+  pts: SnappedPosition[],
+  target: SnappedPosition,
+): SnappedPosition {
+  let bestD = Infinity;
+  let bestLat = pts[0].lat;
+  let bestLng = pts[0].lng;
+  for (let i = 0; i < pts.length - 1; i += 1) {
+    const ax = pts[i].lat;
+    const ay = pts[i].lng;
+    const dx = pts[i + 1].lat - ax;
+    const dy = pts[i + 1].lng - ay;
+    const lenSq = dx * dx + dy * dy;
+    let t =
+      lenSq > 0 ? ((target.lat - ax) * dx + (target.lng - ay) * dy) / lenSq : 0;
+    if (t < 0) t = 0;
+    else if (t > 1) t = 1;
+    const px = ax + t * dx;
+    const py = ay + t * dy;
+    const ddx = target.lat - px;
+    const ddy = target.lng - py;
+    const d = ddx * ddx + ddy * ddy;
+    if (d < bestD) {
+      bestD = d;
+      bestLat = px;
+      bestLng = py;
+    }
+  }
+  return { lat: bestLat, lng: bestLng };
+}
+
+/**
+ * Player road position IDENTICAL to MapView's on-map marker: anchor `km` to
+ * every route stop's raw km and map onto the built road path. Returns null
+ * when MapView hasn't pushed a built window yet (caller falls back to the raw
+ * positionAtKm, which is on the same raw scale as the stops → correct country
+ * regardless).
+ */
+export function markerPositionAtKm(km: number): SnappedPosition | null {
+  if (!windowPath || windowPath.allPoints.length < 2) return null;
+  const anchors = getStopAnchors();
+  const m = markerOnBuilt(windowPath, km, anchors);
+  if (m) return m;
+  // Same fallback the marker uses: project the raw position onto the path.
+  return projectOnto(windowPath.allPoints, positionAtKm(routeData, km));
+}
+
 export function snappedPositionAtKm(km: number): SnappedPosition | null {
-  return snapFromSegmentCache(km) ?? snapFromWindowPath(km);
+  // Prefer the marker-matched position so ShareToX agrees with the on-map
+  // marker. snapFromSegmentCache (real road, when a per-segment polyline is
+  // cached) and the legacy window-path snap remain as fallbacks.
+  return (
+    markerPositionAtKm(km) ?? snapFromSegmentCache(km) ?? snapFromWindowPath(km)
+  );
 }

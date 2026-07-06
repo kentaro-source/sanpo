@@ -5,8 +5,15 @@ import { segmentClassifications } from './segmentMeta';
 import { segmentDistances } from './segmentDistances';
 
 function calculateSquareCount(distanceKm: number): number {
-  // 150km = 1マス, 最小5マス, 最大40マス → 合計約3,000マス
-  return Math.max(5, Math.min(40, Math.round(distanceKm / 150)));
+  // ~20km per square. WAS 150km capped at 40 squares — which on a long
+  // capital-to-capital leg (China's Beijing→next-capital is thousands of km
+  // with dozens of waypoint cities) put the squares ~300km APART. positionAtKm
+  // then interpolated a coarse chord tens of km off the winding road, so the
+  // marker barely tracked it and could sit still for a whole 1km walk
+  // ("歩数は増えるのに動かない"). Dense squares keep the interpolated position
+  // glued to the waypoint chain so the marker advances ~every step. The cap is
+  // high enough that the longest legs aren't starved.
+  return Math.max(5, Math.min(3000, Math.round(distanceKm / 20)));
 }
 
 /** Sum great-circle distances along origin → waypoints → destination. */
