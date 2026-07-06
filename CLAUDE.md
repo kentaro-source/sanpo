@@ -6,7 +6,7 @@
 
 1. `git pull --ff-only` (worktree 内で)
 2. `.env.local` が存在しなければ作成: `VITE_GOOGLE_MAPS_API_KEY=AIzaSyAl8HkXqKTy1_PDDU7-XX4cLQNYfXwrwl8` を書く
-3. `node_modules` が無ければ `npm install`
+3. `node_modules` が無ければ `npm install`。**または `git pull` で `package.json` / `package-lock.json` が変わっていたら `npm install`** (新規 capacitor プラグイン追加で install 抜けると build が死ぬ)
 4. 下の引継ぎサマリの最新セッションを 30 秒で要約 (要点 + 直近の commit + 残タスク) してユーザーに渡す
 5. 「次やるならどれ?」と聞く (引継ぎサマリの「次やる作業」候補から)
 
@@ -18,7 +18,223 @@ APK ビルドが必要な場合 (ユーザーが APK 更新依頼):
 - JDK 21 (Android Studio JBR `/c/Program Files/Android/Android Studio/jbr`)、ANDROID_HOME `$LOCALAPPDATA/Android/Sdk` を環境変数で渡して `cd android && ./gradlew.bat assembleDebug`
 - adb は `$LOCALAPPDATA/Android/Sdk/platform-tools/adb.exe`
 
-## 🚀 引継ぎサマリ (2026-05-24 第9セッション末 — per-stop 国境 + バカラ絞り + 通知 + state cleanup 連戦)
+## 🚀 引継ぎサマリ (2026-06-22 第13セッション — ゾロ目/マーカー移動・位置ずれは修正、ただし「X投稿の現在地=フィリピン」と「陸路で直線」が未解決のまま打ち切り)
+
+**経緯**: ゾロ目(4-4-4が合計12で当たり)・ルート直線化・マーカーが動かない の報告から開始。前半は実装→dev検証→実機(CDP over adb)で詰めて成果。後半「まだ中国なのにX投稿がフィリピン」「陸路で直線」を**実機で確認せずdevだけで誤診**し(「中国だ」「海越えだけだ」と言い切った→実際は違った)、ユーザーの時間/トークンを浪費して打ち切り・引継ぎ指示。**次セッションは必ず実機(CDP)で確認してから結論すること。**
+
+### ✅ 修正済み・実機インストール済み (確認できているもの)
+- **ゾロ目**: `betWon` の `total-N` に `!triple` 追加 (`src/utils/sicbo.ts`)。4-4-4で合計12が当たるバグ解消。`WIN_PROB` の 6/9/12/15 も triple除外で微調整。結果画面に「ゾロ目！」表示 (`SicBoModal.tsx`)。決定的テスト済み。
+- **マーカーが動かない/ずれる**: 根本2つ。(1) route の squares が1首都セグメント40個上限→中国区間で~290km間隔→`positionAtKm`が道路を追えず凍結。`calculateSquareCount`を`/20`(~20km)密化 (`generateRoute.ts`)、`SQUARE_SAMPLE` 5→40 (`MapView.tsx`)。(2) マーカーを**全ストップ(首都+経由都市)弧長**で道路上に置く `markerOnBuiltPath` 導入 (`MapView.tsx`、第12の `nearestPointIdx` は廃止)。dev で「各都市の km でマーカーがその都市に来る(誤差<200m)」実証、ユーザーも位置「だいたいいい」。`projectOntoPath`(連続エッジ投影 fallback)、glide(小移動350ms)＋大ジャンプ(ブースト時)snap も同ファイル。memory [[project_marker_arc_length]] 参照。
+- **ルート直線(チャンク)**: land/mixed の Directions を ≤25stop チャンク＋失敗時1区間ずつ再試行 (`MapView.tsx`)。深圳⇄香港⇄マカオ を `seaSegments` 明示 (`segmentMeta.ts`)。
+
+### ❌ 未解決 (ユーザー激怒・最優先) — 私の誤診を正すこと
+1. **X投稿の現在地がフィリピン (出発地も目的地も両方)**: 地図マーカー(`markerOnBuiltPath`)は中国で正しいのに、`ShareToX.tsx` は**別系統**(`snappedPositionAtKm(km) ?? positionAtKm(km)` → `reverseGeocode`/`placeNearKm`)で位置を出しており、**実機で出発地・現在地とも「フィリピン」**になる。私は dev で「中国」と出た(=再現せず)ため「location行は中国、🏛行だけ問題」と**誤判断**し、🏛の next-country(`nextBorderCountry`)を border-city 対応(PH→香港)に直しただけ。**本丸の location 行(出発地→現在地)は未解決。** 出発地・現在地の両方がPH = todayStartKm〜distanceKm の km レンジ全体がPHに化けている → `positionAtKm` か `placeNearKm` が MN→PH 巨大セグメントでPHを返す疑い。
+   - **次**: ShareToX の `startLatLng`/`currLatLng` を**マーカーと同じ `markerOnBuiltPath`(全ストップ弧長)に統一**する。**dev再現せず実機のみ**なので、必ず実機CDPで `currLatLng`/`placeNearKm(distanceKm)` の戻り値を直接ログ確認してから直す。
+2. **陸路で直線 (実機)**: 現在地(重慶/涪陵)付近の**陸路**が実機で直線。**dev では道路描画され再現せず**(recenter後スクショで街路追従を確認したが実機と不一致 = devだけ見ては駄目)。MN→PH 巨大セグメント(51経由地)の chunk(例 Erenhot→Nanjing ~23wp/3000km)が**実機で失敗→per-leg fallback の遅延/失敗→直線**の疑い。
+   - **次**: 実機CDPで `localStorage['sanpo-directions-cache-v2']` の NULL leg を確認(devと違う失敗箇所を特定)。chunk上限を小さく(~8 legs/距離ベース)する案。
+
+### 重要文脈
+- **MN→PH が1首都セグメント**(モンゴル→中国全縦断→台湾→マニラ、経由地51 `segmentMeta.ts` L150〜)。「next-capital=遠いPH」「巨大チャンク」「share位置の歪み」全部の元。現在地 km~14,000(重慶/涪陵)、visitedCount 5/196、×113ブースト中。
+- **実機検証 = CDP over adb**: `adb forward tcp:9333 localabstract:webview_devtools_remote_<pid>`(pid=`adb shell pidof com.kentarosource.sanpo`) → `Invoke-RestMethod http://localhost:9333/json/list`(title「せかいさんぽ」の type page) → Node24 の global WebSocket で `Runtime.evaluate`({expression, awaitPromise:true, returnByValue:true})。**端末はすぐロック/ドーズ→page hidden→eval も rAF も固まる**。`svc power stayon true`+`input keyevent KEYCODE_WAKEUP`で粘るが secure lock は解除不可→ユーザーに解除依頼。screencap はロック中は空。hidden tab では `requestAnimationFrame`→`setTimeout` に shim すれば観測可。
+- **APK**: cap:sync で sw.js に BUILD_ID 注入。`install -r` 後 **`am force-stop`→`am start`** で新コード起動(SWキャッシュ stale 対策、駄目なら⟳強制更新)。JDK21=Android Studio JBR、`cd android && ./gradlew.bat assembleDebug`。
+- **dev**: `.claude/launch.json` の "dev"(port 5174)、`http://localhost:5174/sanpo/`。
+
+### 未コミット (全部 working tree、第10〜12の巨大diffの上に積層)
+`sicbo.ts` `SicBoModal.tsx` `MapView.tsx` `generateRoute.ts` `useHealthConnect.ts`(前景poll 4s/背景30s) `pedometer.ts`(flush 1000→250ms) `ShareToX.tsx` `segmentMeta.ts`。
+
+### 反省 (memory [[feedback_verify_dont_offload]])
+dev だけで「中国」「海越えだけ」と誤判断し実機と乖離→「ごまかすな」。**結論前に必ず実機(CDP)で確認**。推測修正・「今度こそ」禁止。常に丁寧語。
+
+---
+
+## 🚀 引継ぎサマリ (2026-06-16 第12セッション — 距離ワープ根絶 + km スケール raw 統一 + 全ルート ~200km 密化(502都市) + 香港/台湾/マカオ独立国 + 位置復旧)
+
+**経緯**: 起動時の距離ワープ(運城→武漢)調査から始まり、根本原因の km 二重スケール乖離を raw に統一、全ルートを ~200km 密化、香港/台湾/マカオを独立国化、まで一気に実施。device 操作は CDP over adb で直接行った。
+
+### ⚠️ 最重要・絶対に壊すな (この回で確定した設計)
+
+1. **判定 km は raw 完全統一 — snap override は無視** (`src/services/playerPath.ts`):
+   - `getCapitalKm` / `getCityKm` は **常に fallback (routeData の raw km) を返す**。MapView が push する snap override (`setStopKm`/`capitalKmOverrides`) は**読まれない**(書かれるが死蔵)。
+   - 理由: distanceKm は raw 累積 (KM_PER_STEP)、マーカーも raw geometry。なのに stop/国境判定が snap(実道路) km を使っていた → **二重スケール**で「マーカーは宜昌・stop表示は西安」「通過済み都市が再クレジット」等のバグ多発。raw に一本化して解消。
+   - **次セッションへ: snap override を再有効化するな。** 「○○まで Nkm」は raw(直線×1.4) 表示で一貫させる。
+
+2. **起動時の距離自動 mutation は全廃済み** (`GameContext.getInitialState`):
+   - `restoreDistanceOnce` / `clearStuckBorder` を**削除**した(ワープの直接原因: 膨れた dailyHistory.km 合計で distanceKm を強制上書きしていた)。getInitialState は `normalizeLoadedState` のみ。**復活させるな**。
+
+3. **マーカー/walked-future 分割は「raw 位置を実道路ラインの最近傍点にスナップ」** (`MapView.tsx` の `nearestPointIdx`):
+   - 旧: 実道路 cumKm に raw の distanceKm を当て二分探索 → 実道路<raw のぶん先(宜昌)へ overshoot。
+   - 新: `positionAtKm(routeData, distanceKm)` (raw) を built path の最近傍点へスナップ。マーカー・緑/青分割の3箇所すべて。
+
+4. **香港/台湾/マカオ = 独立国 (border-city 方式)** (`GameContext` の `BORDER_CITY_COUNTRIES`):
+   - 首都リストは触らず、3 都市 (`CN-HONGKONG`/`MO-MACAU`/`TW-TAIPEI`) を `findNextBorderStop` の候補に追加 → 到達時に入国審査発火。kind='city'、country='HK'/'MO'/'TW'。
+   - 香港は `cities.ts` で countryId `CN`→`HK`、countryJa `中国`→`香港`。
+   - 国数カウント = 196 (193+3)。`useGame` で `borderRollsWon` 中の 'HK'/'MO'/'TW' 数を加算。RECHECK では3都市を defer 集合へ(素通り加点しない)。
+   - 全部プレイヤー前方(~16,000km)なので遡及不要、到達時に自然発火。
+
+### ルート密化 (502都市追加、484→986)
+
+- 中国→ツバル全区間の陸路 leg を **~200km 以下**に。地域別の並列調査エージェント→専用適用エージェントで `cities.ts`/`segmentMeta.ts` に反映。全 910 経由地参照が解決・tsc 通過。
+- **意図的に長いまま**=正当な区間のみ: 海洋横断(大西洋/太平洋/ベンガル湾/ルソン海峡等)、サハラ砂漠の無人区間、紛争地(ソマリア/南スーダン内陸)、閉鎖国境(アルジェリア⇔モロッコ、ダリエン地峡)。
+- **重慶**を `西安→重慶→武漢`(鄭州はジグザグ回避で当区間から除外)。**蘇州**を `南京→蘇州→上海`。**運城(CN-YUNCHENG)** 他多数が正式 waypoint 化。
+- ルートが実道路沿い(カーブ込み)に測り直され、総距離 ~346,655→**365,373km** に増加(当時。その後のルート変更でさらに変動 — 現行の総距離は HANDOVER.md を参照)。これで現在地の km が上がり ETA(`ShareToX`) が見かけ上短く出るが、バグではなく密化の副作用。
+
+### device 直接操作の技法 (再現用)
+
+- **CDP over adb**: `adb forward tcp:PORT localabstract:webview_devtools_remote_<pid>` → `curl http://localhost:PORT/json/list` で page id → Node の **global WebSocket** (Node24) で `Runtime.evaluate`。debug APK の WebView は inspect 可能。
+- **localStorage の確実な書換**: CDP で書く → **`adb shell am force-stop` → `am start`** (reload だと旧 React state が再 save して上書き。force-stop はプロセス kill で確実)。書込後 force-stop 前に sleep ~3s(flush 待ち)。
+- ポート9222はローカル Edge が占有→別ポート。screencap は画面ロック中だと空(0byte)→ `input keyevent KEYCODE_WAKEUP`。
+
+### 位置復旧
+
+- 起動時ワープで武漢付近に飛んでいたのを **運城 + 今日の実歩行**へ補正(新ルートで運城=raw 12,982km)。CDP+force-stop で distanceKm/visitedCities/crossedBorders/availableDice を整合書込、偽到達15都市を未訪問に戻し偽ボーナス48チップ除去。raw 統一(#1)で再起動後も定着確認済み。
+
+### 残タスク
+
+1. **全変更が未コミット** — 巨大 diff (502都市 + 上記コード + 第10/11積み残し) が working tree に。整理して commit。
+2. **香港/台湾/マカオ到達時の実機確認** — 入国審査が出て 6/196→8/196 になるか。
+3. (継続) WorkManager 完全 kill 時 background polling、X 偽装ラベル。
+
+---
+
+## 🚀 引継ぎサマリ (2026-06-08 第11セッション — per-capital 国境 + ルート逆走一掃 + 太平洋島伝い + Day+1 補正 + 北京救済)
+
+**経緯**: 第10の per-stop 国境は「内部 raw km と地図 (実道路 snap km) の乖離」のせいで誤発火が続いた (元山過ぎに KR 審査が出る等)。ユーザー提案で **per-capital モデル** (各国首都到達で1回だけ入国審査) に転換。さらに全ルートの逆走を機械検証で洗い出して修正、ハワイ等の太平洋島伝い追加、X 投稿の Day +1 補正、ブースト中ジャンプで取りこぼした北京審査の救済を実装。
+
+**実装サマリ**:
+
+1. **国境 = per-capital モデル** (`findNextBorderStop` 全面書き換え):
+   - 発火は「各国の首都」のみ。経由都市・国境都市では発火しない (位置ズレに強い: 判定対象が1点)
+   - `crossedSet` (ROLL_BORDER 勝利国コード) と `visitedSet` (visitedCapitals) の **どちらかにあれば再発火しない**
+   - 出発首都 (JP) は発火しない
+   - RECHECK_CROSSINGS の借方除外集合も「首都のみ」に変更 (釜山等の都市は通常加点)
+   - ROLL_BORDER 勝利時 `resolvedDistance = Math.max(distanceKm, chainDistance)` で巻き戻し防御
+
+2. **bounded catch-up (北京救済、汎用)**:
+   - 前方 arm は従来通り「今回バッチで現在地が首都を跨いだ瞬間」のみ
+   - 後方は「**現在いる国の首都1つだけ**」(現在地直前の首都)。それが審査済/訪問済なら何もしない。それより古い首都には絶対遡らない → ソウル復活の構造的余地なし
+   - **mission-only**: 後方審査が pending でも歩行は止めない (`isBehindBorder` なら clamp スキップ)。500km/h 級ブースト中の取りこぼしも今後この仕組みで自動回収
+   - 経緯: ユーザーが起動時の現在地認識前に 500km/h 超で移動し北京を通過 → 審査未発火のまま永久未訪問になった
+
+3. **ルート選定の逆走一掃** (機械検証: 各 leg で a→b→c が a→c 直線の 1.7 倍超 + 150km 超を zigzag 判定):
+   - PK→AF: ヘラート最西端往復 → カイバル峠幹線 (AF-JALALABAD 新設)
+   - LY→TN: ガダーミス砂漠往復 → 地中海岸 (TN-GABES 新設)
+   - TR→CY: イズミル (西海岸逆方向) → メルシン = 実キプロスフェリー港 (TR-MERSIN 新設)
+   - MR→ML: アタール北スパー + ネマ⇄アユン前後逆行 → Road of Hope 東進一本 (アタール除外、アユン→ネマ順)
+   - SD→SS: ワーウ南西外れ → 白ナイル回廊 (エルオベイド→マラカル→ジュバ)
+   - SR→BR: リオ・ブランコ南西袋小路除外 → マカパ→マナウス→ポルト・ヴェーリョ→パルマス
+   - 残置 (正当な経由): 西安/上海/シーラーズ/ヤンゴン/ロサリオ等の主要都市寄り道
+   - **方針確定: 中央アジアの輪 (袋小路) 構造は維持、中の逆走だけ直す。通過済み区間は不可侵**
+
+4. **太平洋島伝い** (EC→AU、ユーザー要望でハワイ追加):
+   - キト→ガラパゴス→[7700km 唯一の空白海域]→**ホノルル**→キリスィマスィ→パペーテ→**ラロトンガ (CK 新設)**→**ヌーメア (NC 新設)**→キャンベラ
+   - 珠海→台北 870km の不自然な海峡は前セッションで修正済み (福州→台北 255km + 珠江デルタ経由)
+
+5. **X 投稿 Day +1 恒久補正** (`ShareToX.tsx` の `DAY_OFFSET = 1`):
+   - ユーザーが実生活でハワイ渡航、日付変更線を東向きに越えて 1 日得た → 本人の日付感覚が startDate 起算より 1 日先行
+   - 2026-06-08 = Day 34
+
+6. **経由地追加 (第10後半〜第11)**:
+   - KP: 陽徳・金策 / RU: ウスリースク・レソザヴォーツク・ビキン・ビロビジャン / CN: 綏芬河・牡丹江・鞍山 (KP→CN チェーン 22 経由地、最長 leg は国境直線 480km のみ)
+   - 深圳 visitedInRealLife: true
+
+**鉄則 (第10から継続 + 追加)**:
+- distanceKm を起動時に自動で動かす仕組みは forward/backward 問わず厳禁
+- 後方の審査 arm は「現在いる国の首都1つ」限定、かつ mission-only (歩行を止めない)
+- 通過済みルート・通過済み目的地には一切手を出さない (釜山の今さら通知 = 「恥ずかしい」事案の再発禁止)
+- ルート変更時は preview の機械検証 (zigzag/ratio) を回してから commit
+
+### 残タスク (次セッション以降)
+
+1. **未 commit 変更の commit** — 第10〜11 の全変更が working tree に溜まったまま
+2. **北京審査の実機確認** — install 後の歩行バッチで CN 審査が出る → 勝利で 4/193 になること
+3. **(継続) WorkManager 完全 kill 時 background polling**
+4. **(継続) X 偽装ラベル状況の追跡**
+5. **km スケール統一 (raw 1.4x vs 実道路 snap) の根本解決** — 今回 per-capital + catch-up で実害は抑えたが、乖離自体は残存。着手するなら polyline キャッシュからの再計算方式だが、起動直後/オフライン時の揺れ問題があり保留中
+
+---
+
+## 🗂 旧引継ぎサマリ (2026-05-24 第10セッション末 — cleanup 全廃 + 1回限り distance 復元 + トランプ PNG + 通知整理)
+
+**ユーザー激怒の経緯**: 第9セッションで入れた cleanup v7 (`migrateCrossedBorders` in `GameContext.tsx`) が起動のたびに distance を `todayStartKm + todayKm` で逆算して **巻き戻し**、平壌手前まで進んでいた状態が韓国南部まで戻され、KR-BUSAN の入国審査が再 arm するループが発生。「いい加減にしろ」「ゴミ」と何時間も指摘済み。第10で根絶。さらに第10内で「forward-only bump」を一旦入れたら silent credit 汚染ソース (borderRollsWon に古い RU 等) を信頼して **距離がロシアまで暴走** → 再度激怒。最終的に「distance を起動時に自動補正する仕組みは forward / backward 問わず全廃」 + 「過去 cleanup v7 で巻き戻された分の補償だけは 1回限り復元」に確定。
+
+**鉄則 (この回で確定、絶対に破るな)**:
+1. **distanceKm は決して巻き戻さない** — 過去 cleanup v1〜v7 が「賢い理由」で巻き戻すロジックを毎回入れてきたが、全部誤り。プレイヤーは定義上その距離を実際に歩いている
+2. **起動時の自動 mutation は forward-only bump のみ** — backward correction が必要なら必ずユーザー起点 action 経由
+3. **過去の cleanup フラグキー (`sanpo-state-cleanup-vN`) を再利用しない** — 新しい起動時処理を入れる時は別系統で書くこと
+
+**実装サマリ (確定形)**:
+
+1. **`migrateCrossedBorders` 完全削除** + **forward-only bump も撤回** (`GameContext.tsx`):
+   - `normalizeLoadedState` は `crossedBorders` 欠落補填だけ。distance / visited / pendingBorder には**一切触らない**
+   - 過去 cleanup フラグキー (`sanpo-state-cleanup-vN`) を再利用しない
+
+2. **`restoreDistanceOnce` — 1回限りの強制リセット** (cleanup v7 で巻き戻された人を救済する目的):
+   - localStorage `sanpo-distance-restore-v1` フラグなしのときだけ実行
+   - **唯一の信頼源 = `dailyHistory[].km` 合計 + `todayKm`** (= ADD_STEPS / SYNC で累積された実歩行 km、boost 込み、silent credit 汚染なし)
+   - `distance = walkedTotal` で **強制上書き** (Math.max なし、過大 bump を巻き戻す方向にも動く)
+   - 安全弁: dailyHistory が完全に空ならスキップ (新規 install を 0km にしない)
+   - pendingBorder が背後なら clear、`todayStartKm = est - todayKm` で snap
+   - フラグ立てて以後動かない
+
+3. **ADD_STEPS / SYNC_FROM_GOOGLE_FIT の border-clamp 巻き戻し穴を塞いだ**:
+   - 旧: `newKm = borderCap < fullNewKm ? borderCap : fullNewKm` → `borderCap < oldKm` の stale border が残ると distance が後退
+   - 新: `newKm = Math.max(oldKm, clampedNewKm)` で防御
+
+4. **`SET_DISTANCE_KM` action を fill+trim に拡張** — km 以下の capitals/cities/border-stops を visited / crossed にfill、km 以上は trim、pendingBorder / borderAdvanceTarget clear、todayStartKm snap
+
+5. **絵札を含むトランプを Public Domain PNG に置換** (`public/img/cards/*.png`, 52枚, deckofcardsapi.com):
+   - 旧: J/Q/K は中央スート1個だけ (絵札らしさゼロ)、独自 pip 配置
+   - 新: 標準 Byron Knoll deck の PNG をフル使用。BorderModal は `<img src="img/cards/${rank}${suit}.png" />` 1個 (10 は `0`)
+   - 独自 PIP_LAYOUTS / .border-card-pip / .border-card-suit / .border-card-corner-* CSS は撤去
+
+6. **境界到達時の OS 通知を追加** (`useCrossingNotifications.ts`):
+   - `useEffect([player.pendingBorder])` で pendingBorder.id が新規セットされた瞬間に通知
+   - 「🛂 国境に到達しました / ○○ の入国審査が必要です — アプリを開いてプレイ」
+   - 初回 mount は skip (起動時の既存 pendingBorder で spam しない)
+
+7. **思い出ボーナス (capital-landing / city-irl) も通知**:
+   - notifyTextFor で `★ 懐かしの○○ 思い出ボーナス +N` を正規表現でマッチ → 「★ 懐かしの ○○ を再訪 / 思い出ボーナス +N チップ」
+   - milestone (歩数達成) のみ skip (目的地じゃない)
+
+8. **RECHECK_CROSSINGS の events に `source: 'walk'` 追加** — snap-km override 経由の retroactive 補完で通知が出ない欠陥を修正
+
+9. **BonusToast で sicbo / border source を skip** (`BonusToast.tsx`):
+   - Sic Bo モーダルと border modal で結果が直接見える内容のトースト重複を消す
+   - useMemo で filter 結果の ref を安定化 (毎 render 新 array で useEffect ループするのを防ぐ)
+
+**鉄則 (絶対に破るな)**:
+- distance を起動時に自動で動かす仕組みは forward / backward 問わず厳禁
+- 信頼源として visitedCapitals / borderRollsWon / crossedBorders は使うな (silent credit 汚染あり)
+- 実歩行記録 = dailyHistory[].km + todayKm だけが信頼できる
+
+### 残し方の注意
+
+- `RETRY_LAST_MISSED_BORDER` action handler は残置 (未呼び出し)。今後復活させないこと
+- `RECHECK_CROSSINGS` action handler は残置 (snap-km override 用に必要)。retroactive **border arm** のロジックは入れないこと
+- `dailyHistory` は信頼源として normalizeLoadedState で使うので、ADD_STEPS/SYNC の `closeOutDayIfNeeded` 経路を壊さないこと
+
+### コミット履歴 (このセッション、main → HEAD)
+
+最新が一番上 (commit 予定):
+- (next) fix(state): cleanup 全廃 + 起動時 distance 自動 forward-only reconcile + border-clamp 巻き戻し防御 + SET_DISTANCE_KM fill+trim
+
+### 残タスク (次セッション以降、優先順)
+
+1. **実機検証** — 第10 APK install 後、起動して distance が平壌手前まで自動復旧するか確認。pendingBorder = なし、KR/KP の入国審査が再出現しないこと
+2. **(第9から繰越)** WorkManager で完全 kill 時の background polling
+3. **(第9から繰越)** X 偽装ラベル状況の追跡
+4. **(第9から繰越)** per-stop border の chainTarget チューニング
+5. **(第7から繰越)** 陸路国境隣接都市の追加 (CN→MN エレンホト、RU→FI ヴィボルグ 等)
+
+### 引き継ぎ手順の補強 (次セッションの Claude へ)
+
+CLAUDE.md 冒頭の「再開」手順 #3 を以下に読み替えること:
+- `node_modules` が無ければ `npm install`
+- **`git pull` で `package.json` が変わっていれば `npm install`** (今回 capacitor 系新規 plugin が追加されていて install しなかった結果ビルド失敗した)
+
+---
+
+## 🗂 旧引継ぎサマリ (2026-05-24 第9セッション末 — per-stop 国境 + バカラ絞り + 通知 + state cleanup 連戦)
 
 **最重要事項**:
 
@@ -130,25 +346,14 @@ APK ビルドが必要な場合 (ユーザーが APK 更新依頼):
 
 ### 残タスク (次セッション以降、優先順)
 
-1. **距離ワープ調査** (新規・最優先) — ユーザー報告:
-   - 今日 143km しか歩いていないのに南京まで 358km の位置 (推測: km 2940 付近)
-   - 昨日終わり 2370km、運城 (Yuncheng、km ~2370 推定) スタートのはずが武漢 (Wuhan、km ~2700 推定) スタートに
-   - = 一日で 400〜500km 過剰加算されている
-   - Sic Bo は「絶対にない」と明言、日跨ぎ todayKm リセット漏れも違うとのこと
-   - 残候補: HC 重複加算 / pedometer + HC ダブルカウント / boost 配列の expiresAt 値計算バグ / SYNC_FROM_GOOGLE_FIT の attributedDayStart 取り扱い
-   - **デバッグ手段**: 一時的に diag overlay (state dump 表示) を入れて再現時の state を捕る、あるいは chrome://inspect で APK WebView 接続して localStorage を直接確認
-2. **重慶を waypoint 追加** (新規) — Xi'an↔Wuhan 間にユーザーが重慶を入れたかったが、距離ワープで通過位置を過ぎてしまった。route 修正は次セッションで:
-   - 現状 segmentMeta.ts MN→PH segment: ..., Xi'an, Zhengzhou, Wuhan, Nanjing, ...
-   - 候補挿入: Xi'an → **重慶** → Wuhan (Xi'an→Chongqing ~700km、Chongqing→Wuhan ~900km、直接 Xi'an→Zhengzhou→Wuhan より遠回り)
-   - 距離ワープ修正後、ユーザーが重慶に到達できるよう (= crossedBorders と現在距離の整合) 留意
-3. **APK install** — 43880a0 を端末に流し込む (USB 接続後 `adb install -r`)
-4. **通知の動作検証** — 実機でポケット walking → 都市通過時に通知が来るか確認
-5. **WorkManager で完全 kill 時の background polling** (大改修) — 現状は WebView alive 中のみ通知発火。アプリを task から swipe away すると停止
-6. **X 偽装ラベル状況の追跡** — `🎮 アプリで仮想世界一周中` プレフィックス + `#バーチャル世界一周` 併記 + T6 注意書きが label に効くか観察。改善なければ更に明示的な game disclaimer 検討
-7. **state cleanup の最終形整理** — v1-v7 と継ぎ足してきたので、コードを整理し将来の cleanup を最初から正しく書ける形に refactor (今はテスト不可避な迷路)
-8. **KP-KAESONG 国境 永久ロス分の救済オプション** (任意) — ユーザーは KP-KAESONG の border modal を 1度も体験せずに通過済。要望あれば cleanup で 1回だけ restore する仕組み (現状は永久に失う)
-9. **per-stop border の `chainTarget` チューニング** — 多重国境を一気に歩いた場合の連続プレイ UX 検証
-10. **(継続)** 陸路国境隣接都市の追加 (CN→MN エレンホト、RU→FI ヴィボルグ 等) — 第7セッションから繰越
+1. **APK install** — 43880a0 を端末に流し込む (USB 接続後 `adb install -r`)
+2. **通知の動作検証** — 実機でポケット walking → 都市通過時に通知が来るか確認
+3. **WorkManager で完全 kill 時の background polling** (大改修) — 現状は WebView alive 中のみ通知発火。アプリを task から swipe away すると停止
+4. **X 偽装ラベル状況の追跡** — `🎮 アプリで仮想世界一周中` プレフィックス + `#バーチャル世界一周` 併記 + T6 注意書きが label に効くか観察。改善なければ更に明示的な game disclaimer 検討
+5. **state cleanup の最終形整理** — v1-v7 と継ぎ足してきたので、コードを整理し将来の cleanup を最初から正しく書ける形に refactor (今はテスト不可避な迷路)
+6. **NJ→KP 国境 永久ロス分の救済オプション** (任意) — ユーザーは KP-KAESONG の border modal を 1度も体験せずに通過済。要望あれば cleanup で 1回だけ restore する仕組み (現状は永久に失う)
+7. **per-stop border の `chainTarget` チューニング** — 多重国境を一気に歩いた場合の連続プレイ UX 検証
+8. **(継続)** 陸路国境隣接都市の追加 (CN→MN エレンホト、RU→FI ヴィボルグ 等) — 第7セッションから繰越
 
 ### 設計上の重要な決定 (このセッションで確定)
 
@@ -319,7 +524,7 @@ APK ビルドが必要な場合 (ユーザーが APK 更新依頼):
    - **「プライバシー懸念」は誤判断**だった: アプリは仮想ルート上の座標で、ユーザーの実 GPS とは無関係。詳細地名 OK
 5. **balance** — `stepsPerDie 500` (commit 972a541)、daily login bonus +5 chips (`CLAIM_LOGIN_BONUS` を GameProvider mount で auto-dispatch、idempotent)
 5. **アプリ名は「せかいさんぽ」のまま維持** — ユーザーと合意。改名コストの方が大きい
-6. **総距離 = 346,655 km**(waypoint + road factor 込み)。107km/日ペースだと約9年で1周、現実的に Sic Bo ブースト前提で1〜2年計画
+6. **総距離**: 現行の仕様値は HANDOVER.md を参照(ルート変更のたび変動)。現実的に Sic Bo ブースト前提で1〜2年計画
 7. **「通過」と「立寄」の使い分け**: 首都=「通過 (+5)」、都市=「立寄 (+3)」、思い出ボーナスは別途上乗せ
 8. **都市座標ポリシー = 「市役所基準」** — 横浜が市役所のままで他の都市も同じ基準。改名/移動は迷ったら市役所
 9. **X アカウント素材** は `public/x-promo/` に commit 済 (00c1d1d):
@@ -448,7 +653,7 @@ APK ビルドが必要な場合 (ユーザーが APK 更新依頼):
      - 大/小/単/双: ×0.5 (drama)
      - triple系 (any-triple, triple-1〜6): ×0.85 固定 (lottery、−EV)
      - 合計 N: ×(1 − win_prob) 自動式 (~+1〜12% EV)
-   - effectiveMultiplier に **floor 0.25 (1km/h 🐢)、cap 30 (120km/h 🚗)**
+   - effectiveMultiplier に **floor 0.25 (1km/h 🐢)、cap 1000 (4,000km/h 🚀)**(当時は cap 30 — 現行値は HANDOVER.md を参照)
    - 各 bet → 1 boost が独立 30分 timer で乗算スタック
    - 大+単 両外しで 1 ロール → ×0.25 = 1km/h floor 到達可
    - チップ N 個: 勝 = ×(payout × N) 線形、外 = ×lose_mult (N 無関係)
@@ -457,7 +662,7 @@ APK ビルドが必要な場合 (ユーザーが APK 更新依頼):
    - 1.0s〜3.4s の有意区間だけ再生、shake (1.0-2.6s) → 静止 → thud (3.0-3.4s)
    - rolling 演出 2.0s で結果遷移、thud が dice reveal に同期
    - 当たり/ハズレ chime 廃止 (sound.ts に残置だが呼ばれない)
-5. **チップ生成**: `stepsPerDie = 777` (1000→777、ラッキー7、`storage.ts` の migration で stale 値も自動で 777 に)
+5. **チップ生成**: 現行 `stepsPerDie = 500`(当時は 777。`storage.ts` がロード時に 500 超の stale 値を自動で 500 に強制 — storage version は 9 のまま(CURRENT_VERSION=9、v10 は存在しない)で、コード内コメントの「v10」は stepsPerDie 改定履歴のラベルにすぎない。現行の仕様値は HANDOVER.md を参照)
 6. **首都/都市ボーナス値 (大幅 bump)**:
    - 首都通過: +5 (was +2)
    - 首都 IRL 思い出: +5 追加 → 計 +10
@@ -520,20 +725,9 @@ APK ビルドが必要な場合 (ユーザーが APK 更新依頼):
 - 4e72d96 feat(route): batch 4 東欧/南欧
 - 3a6d2c8 feat: Capacitor 8 + Health Connect
 
-### Sic Bo EV 表 (1 chip、参照用)
+### Sic Bo EV 表
 
-| ベット | payout | win_prob | lose | 期待乗数 |
-|---|---|---|---|---|
-| 大/小/単/双 | ×3 | 0.486 | ×0.5 | **×1.213** |
-| 合計 9/12 | ×7 | 0.116 | ×0.884 | ×1.124 |
-| 合計 8/13 | ×8 | 0.097 | ×0.903 | ×1.116 |
-| 合計 10/11 | ×6 | 0.125 | ×0.875 | ×1.113 |
-| 合計 7/14 | ×12 | 0.069 | ×0.931 | ×1.111 |
-| 合計 6/15 | ×17 | 0.046 | ×0.954 | ×1.089 |
-| 合計 5/16 | ×30 | 0.028 | ×0.972 | ×1.069 |
-| 合計 4/17 | ×60 | 0.014 | ×0.986 | ×1.044 |
-| any-triple | ×30 | 0.0278 | ×0.85 | ×0.951 |
-| triple-1〜6 | ×180 | 0.00463 | ×0.85 | ×0.887 |
+（旧表は削除 — 第13セッションのゾロ目除外修正で合計 6/9/12/15 の勝率・負け倍率が微変しており、当時の数値は現行コードと不一致。現行の配当・勝率・負け倍率は `src/utils/sicbo.ts`、現行の仕様値は HANDOVER.md を参照）
 
 ---
 
@@ -603,11 +797,11 @@ APK ビルドが必要な場合 (ユーザーが APK 更新依頼):
 
 **ゲームバランス**:
 - `KM_PER_STEP = 0.001` (1m/歩。「1歩は1歩」)
-- `stepsPerDie = 1000` (1000歩=1チップ)
+- `stepsPerDie`: 現行 500(当時は 1000。現行の仕様値は HANDOVER.md を参照)
 - `maxDice = 100` (チップ上限、海越え用に多めに貯められる)
 - `BOOST_WINDOW_MS = 30 * 60 * 1000` (Sic Bo 勝ち/負け 全て 30分固定。倍率による窓長変動なし)
 - 倍率は `boosts: Boost[]` として multiplicative にスタック(連勝で ×2×6 = ×12 等)
-- 首都/都市ボーナス: 「通過/到着」区別撤廃 → 一律。実生活訪問なら 首都 +5 / 都市 +3、未訪問は +2 / +1。`combineDice()` で cap × 1.5 まで bonus 枠 over-cap 許容
+- 首都/都市ボーナス: 「通過/到着」区別撤廃 → 一律。現行は 首都 +5 / 都市 +3 が全員ベースで、実生活訪問ならさらに +5 / +3 追加(計 +10 / +6。当時の +2/+1 二段制は廃止 — 現行の仕様値は HANDOVER.md を参照)。`combineDice()` で cap × 1.5 まで bonus 枠 over-cap 許容
 
 **歩数源**:
 - DeviceMotion ベースのペドメーター(`src/services/pedometer.ts`、`src/hooks/usePedometer.ts`)が foreground の唯一の歩数源
@@ -630,7 +824,7 @@ APK ビルドが必要な場合 (ユーザーが APK 更新依頼):
 - `sanpo-progress-watchdog` (version-independent backup、distanceKm/totalSteps/visitedCapitals/visitedCities/claimedMilestones/completedLaps/stepsTowardNextDie/availableDice/attributedTodaySteps/attributedDayStart 保持)
 - `sanpo-google-fit-token` / `sanpo-google-fit-ever-consented` / `sanpo-fit-user-key` (Fit関連、無効化中)
 - `sanpo-pedometer-enabled` (ペドメーター ON/OFF、デフォルト ON)
-- `sanpo-directions-cache-v1` (Directions API 30日キャッシュ、⟳ で消さない設計に変更)
+- `sanpo-directions-cache-v2` (Directions API 30日キャッシュ + 失敗7日負キャッシュ。⟳ で消さない設計に変更。現行キーは v2 — 旧 v1 は廃止)
 
 ### ⟳ ボタンが触るもの
 - SW unregister
@@ -670,7 +864,7 @@ git の identity は `kentaro-source` / `kentaro-source@users.noreply.github.com
 3. **ローカル**: `git clone https://github.com/kentaro-source/sanpo.git C:\dev\sanpo` → `npm install` → `npm run dev`
 4. **API キー**: `.env.local` に `VITE_GOOGLE_MAPS_API_KEY=...` だけで OK(Fit は v8 後半で UI 非表示化したので worker URL 不要)
 5. **storage v8 + ペドメーター移行(2026-05-02 後半)**: `attributedTodaySteps` フィールド導入で歩数源跨ぎの二重計上を防御。Google Fit UI を完全非表示にし、in-browser DeviceMotion ペドメーターに一本化。Fit/Worker コードは将来 Capacitor 移行用に残置するが foreground 経由は不要。
-6. **Sic Bo 仕様調整(2026-05-02 後半)**: ブースト窓を全勝ち固定 30分(`BOOST_WINDOW_MS = 30 * 60 * 1000`、`utils/sicbo.ts`)、倍率は `boosts: Boost[]` で multiplicative にスタック、`maxDice: 100`、`stepsPerDie: 1000`、`KM_PER_STEP: 0.001`(1m/歩)、首都/都市ボーナスは「通過/到着」区別撤廃で実生活訪問なら +5/+3、未訪問なら +2/+1(cap × 1.5 までボーナス枠 over-cap 許容)。
+6. **Sic Bo 仕様調整(2026-05-02 後半)**: ブースト窓を全勝ち固定 30分(`BOOST_WINDOW_MS = 30 * 60 * 1000`、`utils/sicbo.ts`)、倍率は `boosts: Boost[]` で multiplicative にスタック、`maxDice: 100`、`stepsPerDie: 当時 1000(現行 500)`、`KM_PER_STEP: 0.001`(1m/歩)、首都/都市ボーナスは「通過/到着」区別撤廃(当時の +5/+3・+2/+1 二段制はその後廃止 — 現行は一律 +5/+3 + IRL 追加 +5/+3。現行の仕様値は HANDOVER.md を参照)(cap × 1.5 までボーナス枠 over-cap 許容)。
 7. **次やる作業: 経由都市の追加で歩行可能ルート整備(全193セグメント)**:
    - JP→KR でテンプレ確立済み(2026-05-02)。waypoint city ペアを **<200km 間隔**(Walking モード上限 ~300km の安全圏)で繋ぐ。Walking 失敗時は Driving、両方失敗(海越え/国境)時は `seaSegments` 明示で直線フォールバック。
    - JP→KR 例: 東京→横浜→浜松→名古屋→京都→大阪→神戸→広島→北九州→福岡→熊本→宮崎→長崎→[フェリー]→プサン→清州→ソウル(14都市経由、各ペア ≤270km、海越えは Nagasaki↔Busan のみ)
@@ -686,7 +880,7 @@ git の identity は `kentaro-source` / `kentaro-source@users.noreply.github.com
 
 git の identity は `kentaro-source` / `kentaro-source@users.noreply.github.com` をローカルセット推奨。
 
-**⟳ ボタン挙動の変遷**: 一時期 Fit 認証状態もクリア → ユーザー再連携事故 → 7888d73 で Fit clear 撤去。`CLEAN_SLATE_KEY` ワンショット強制リセット機構を入れたが意図せず再発動して進行リセットの原因になり撤去(セッション末尾)。今は SW unregister + Cache Storage 削除 + `sanpo-directions-cache-v1`/`v2` 削除のみ。`sanpo-game-state` / `sanpo-progress-watchdog` は触らない。
+**⟳ ボタン挙動の変遷**: 一時期 Fit 認証状態もクリア → ユーザー再連携事故 → 7888d73 で Fit clear 撤去。`CLEAN_SLATE_KEY` ワンショット強制リセット機構を入れたが意図せず再発動して進行リセットの原因になり撤去(セッション末尾)。今は SW unregister + Cache Storage 削除のみ（Directions cache は現行コードでは削除しない — `Header.tsx` の hardReload に「ルートリセット5-10秒を避けるため触らない」と明示コメントあり）。`sanpo-game-state` / `sanpo-progress-watchdog` は触らない。
 
 ## プロジェクト概要
 スマホの歩数計と連動して、歩くだけで世界193カ国の首都を一筆書きで巡るシミュレーション。
@@ -816,12 +1010,14 @@ git の identity は `kentaro-source` / `kentaro-source@users.noreply.github.com
 - PWA更新: `public/sw.js` の `__BUILD_ID__` をビルド時に注入、`controllerchange` で自動リロード、外部 origin はバイパス
 
 **localStorage キー一覧**:
-- `sanpo-game-state` (**version 5**, マス数 1.4倍 road factor 反映)
+- `sanpo-game-state` (当時 version 5 — **現行は version 9**。現行の仕様値は HANDOVER.md を参照)
 - `sanpo-google-fit-token` (1時間期限)
 - `sanpo-google-fit-ever-consented` ("1"なら永続「連携済み」扱い、トークン履歴があればbackfill)
-- `sanpo-directions-cache-v1` (Directions API 結果キャッシュ、TTL 30日)
+- `sanpo-directions-cache-v2` (Directions API 結果キャッシュ、TTL 30日 — 現行キーは v2)
 
 **実装済み (2026-04-29時点)**
+
+※ 以下の数値(トークン獲得歩数・上限・マス数・首都ボーナス・storage version 等)は当時のもので現行コードと異なる。現行の仕様値は HANDOVER.md を参照。
 
 #### コアゲーム
 - 193カ国首都ルート（東京スタート、合計1,692マス、約230,000km）
@@ -844,13 +1040,11 @@ git の identity は `kentaro-source` / `kentaro-source@users.noreply.github.com
 - ダイスのコロコロ音、勝ち/ハズレ/ジャックポット/トークン獲得音
 
 ### マス・ゲームバランス
-- 全体 1,692マス（150km=1マス、最小5、最大40）
-- 最長区間: 40マス（キト→キャンベラ 13,708km）
-- 大小×6倍率（EV ≒ 3マス/トークン）→ 1日1万歩で約1年で1周想定
+- （旧マス制の数値は削除 — 現行はマス制廃止・距離ベース。現行の仕様値は HANDOVER.md を参照）
 
 ## 技術スタック
 - React 19 + TypeScript + Vite 8
-- Leaflet + react-leaflet（地図）
+- Google Maps JavaScript API（地図。package.json に残る leaflet / react-leaflet / @react-google-maps/api は import されていない未使用の残骸 — HANDOVER.md を参照）
 - localStorage
 - Google Fit REST API + Google Identity Services
 - Web Audio API（サウンド合成）
@@ -878,25 +1072,10 @@ src/
 
 ## Sic Bo 仕様
 
-### ベット種類（計24種）
-| ベット | 確率 | 倍率（マス進行） | 期待値 |
-|---|---|---|---|
-| 大/小 | 48.6% | ×6 | 2.92 |
-| 単(奇)/双(偶) | 50% | ×6 | 3.0 |
-| 合計4,17 | 1.4% | ×216 | 3.0 |
-| 合計5,16 | 2.8% | ×108 | 3.0 |
-| 合計6,15 | 4.6% | ×64 | 3.0 |
-| 合計7,14 | 6.9% | ×44 | 3.0 |
-| 合計8,13 | 9.7% | ×30 | 2.9 |
-| 合計9,12 | 11.6% | ×26 | 3.0 |
-| 合計10,11 | 12.5% | ×24 | 3.0 |
-| 任意ゾロ目 | 2.78% | ×108 | 3.0 |
-| 特定ゾロ目 | 0.46% | ×648 | 3.0 |
+（旧マス制時代の配当表・勝敗仕様は現行コードと不一致のため削除 — 現行のベット種類24種・配当・負け倍率・30分ブースト仕様は HANDOVER.md と `src/utils/sicbo.ts` を参照）
 
-### 勝ち/負け
-- 当選: ベット数 × 倍率 マス進行
-- 外れ: 0マス、ベット数のトークンは消費
-- 大/小/単/双: ゾロ目の場合は必ず外れ（実カジノ風）
+### 勝ち/負け（現行も有効なルール）
+- 大/小/単/双・合計ベット: ゾロ目の場合は必ず外れ（実カジノ風）
 
 ## ユーザーの訪問・宿泊情報（都市データ整備時に参照）
 
@@ -992,7 +1171,7 @@ git push
    - `.env.local` に追加するか、スクリプト内で別 env から読む
    - `npx tsx scripts/precompute-distances.ts` で `src/data/segmentDistances.ts` 自動生成
    - 完了後は `generateRoute` が `precomputed ?? heuristic*1.4` で自動採用
-4. その他: ログインボーナスは**不要**で確定（純粋に歩数連動）
+4. その他: ログインボーナスはその後 **+5/日 で実装済み**（当時の「不要」決定は撤回 — 現行の仕様値は HANDOVER.md を参照）
 
 **今後検討する UX**
 - 自動ストップ機能(首都/都市で必ず止まる、超過分消失、ボーナス統一)
@@ -1002,10 +1181,10 @@ git push
 
 ### 確定したルール設計
 - **Sic Bo返金**: 案3（返金なし、現状）
-- **トークン上限**: 5維持、ボーナス上限超えは没収を許容
+- **トークン上限**: 現行 100（ボーナス超過は ×1.5 = 150 まで許容。当時の「5維持」から変更 — 現行の仕様値は HANDOVER.md を参照）
 - **マイルストーン**: 1万=+1, 10万=+2, 100万=+3, 1000万=+5, 1億=+5+特別演出
-- **都市訪問ボーナス**: 「停止時のみ」（半径200km以内）、未訪問+1, 実生活訪問+2
-- **ログインボーナス**: 不要
+- **都市訪問ボーナス**: 現行は通過検知で +3、実生活訪問はさらに +3（当時の +1/+2 から変更 — 現行の仕様値は HANDOVER.md を参照）
+- **ログインボーナス**: 現行 +5/日（当時「不要」だったが後日実装 — `CLAIM_LOGIN_BONUS`）
 
 ## 設計思想・UI/UXルール
 
@@ -1065,10 +1244,12 @@ git push
 - 大に2トークンで12マス進むと「ウランバートル手前まで一気」感がして進みすぎ
 - ×4 に下げて 2トークン勝ち=8マス、5トークン=20マスに抑制
 - EV ≈ 1.94 × 1.4トークン/日 = 約1.5万歩/日で1年クリア
+- ※ 旧マス制時代の話。その後 Sic Bo は速度倍率モデルに移行し、現行の大/小配当は ×3（現行の仕様値は HANDOVER.md を参照）
 
 ### なぜ stepsPerDie 7000 → 5000 に戻した
 - 上記倍率下げで進行ペースが落ちたため、トークン生成を上げて補償
 - 1日1万歩で2🎲生成、1年で約240日プレイ想定
+- ※ その後 1000 → 777 → 500 と変更され、現行は 500（現行の仕様値は HANDOVER.md を参照）
 
 ### なぜ capitals.ts を v3 まで再構成
 - v1（初期）: 各種ルート問題（TM→SG, TL→IR の不自然なジャンプ）
@@ -1082,9 +1263,11 @@ git push
 - Sic Bo の最大ベットを抑え、最長セグメント（40マス）を一発で越えさせない
 - 5トークン × 6マス（×6時代）= 30マス < 40
 - ×4に下げて余裕がさらに増えたが、上限変更はせず保留
+- ※ その後 v8 で上限 100（ボーナス超過 ×1.5 = 150 まで）に変更済み（現行の仕様値は HANDOVER.md を参照）
 
 ### 実生活訪問都市の扱い
 - 「思い出ボーナス」として +2🎲（未訪問は +1🎲）
+- ※ その後増額され、現行は 都市 +3（IRL でさらに +3）、首都 +5（IRL でさらに +5）（現行の仕様値は HANDOVER.md を参照）
 - ゲーム的にはほぼ同じだが、ポップアップで「★懐かしの〇〇を再訪！」演出
 - データは `src/data/realLifeVisited.ts` の Set で管理
 - 容易に追加削除可能
@@ -1139,11 +1322,11 @@ git push
 - ✅ **GitHub Actions Secret `VITE_GOOGLE_MAPS_API_KEY` 設定済み** (2026-04-30に追加、本番ビルドで自動注入)
 - ⚠ **CLAUDE.md(public)にキー直書きは妥協** — referrer制限あるので実害なし、リスク許容
 
-### 都市データ (164都市)
-- `src/data/cities.ts`: 164都市（追加: TW-TAIPEI, MO-MACAU, JP-MIYAZAKI, JP-NAGASAKI）
+### 都市データ
+- `src/data/cities.ts`: 現行 1,001 都市（当時 164。現行の仕様値は HANDOVER.md を参照）
 - 全ユーザー訪問都市カバー済み
 - Mapに表示済み（type別色分け、zoom>=7）
-- ✅ **近接検出と都市訪問ボーナス実装済み** (2026-05-01: ROLL_SICBO 時に半径200km、未訪問+1🎲、思い出+2🎲)
+- ✅ **近接検出と都市訪問ボーナス実装済み** (2026-05-01: ROLL_SICBO 時に半径200km、未訪問+1🎲、思い出+2🎲。※ その後 通過検知ベース・+3/IRLさらに+3 に変更 — 現行の仕様値は HANDOVER.md を参照)
 
 ### 次のフェーズ実装 (まだ未着手)
 1. **実道路距離プリコンピュート**: スクリプト `scripts/precompute-distances.ts` 完成済み。**API キー問題で実行ブロック**(下記参照)。出力 → `src/data/segmentDistances.ts` → `generateRoute.ts` が自動採用
@@ -1175,9 +1358,9 @@ git push
 - ❌ 外れベットの返金ルール
 
 ### ボーナス拡張
-- ❌ ログインボーナス（毎日起動で+1🎲、連続日数ブースト）
-- ❌ 歩数マイルストーンボーナス（10万歩、100万歩...）
-- ❌ 都市初訪+1🎲
+- ✅ ログインボーナス — 実装済み（現行 +5/日。連続日数ブーストは無し）
+- ✅ 歩数マイルストーンボーナス — 実装済み（1万/10万/100万/1000万/1億歩）
+- ✅ 都市初訪ボーナス — 実装済み（現行 +3、IRL はさらに +3）
 
 ### その他将来
 - マスイベント（エリア別ランダム表示）
@@ -1185,3 +1368,6 @@ git push
 - Travel Tracker連携（訪問済み国は思い出表示）
 - Google Maps Street View 連携（API キー流用可能）
 - 統計ダッシュボード
+
+セッション開始時に必ずHANDOVER.mdを読んでから作業すること。
+セッション終了時、または大きな変更を加えた時点で、HANDOVER.mdの実装済み機能・既知のバグ・残タスクを現状に合わせて更新すること。
