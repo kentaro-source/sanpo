@@ -115,36 +115,39 @@
 
 ## 4. 既知のバグ・未解決の問題
 
-1. **【最優先・確認待ち】ShareToX の現在地が実機でフィリピンになる**
-   - 症状: マーカーは中国広東で正しいのに、share 文面の位置行が「🇵🇭 フィリピン Davao City」（2026-06-25 実機 CDP で textarea を読んで確証）
-   - 原因（確定）: 実機の Directions キャッシュがほぼ空 → windowPath の中国区間が直線退化 → 旧 `snapFromWindowPath` が「パスの弧長 cumKm」を km 軸に使うため km 18,218 がパス上の Davao に対応してしまう。マーカーは stop 実座標アンカーなので無事
-   - 修正: `playerPath.ts` に `markerPositionAtKm` を追加し `snappedPositionAtKm` の最優先に（**実装済み・APK インストール済み**）
-   - **残作業: 実機で share を開いて位置行が中国になることの最終確認だけが中断されたまま**（手順は §5 参照）
-2. **実機の Directions キャッシュがほぼ蓄積されない疑い**: 2026-06-25 時点で `sanpo-directions-cache-v2` にエントリ1件のみ（dev は多数）。中国内陸の陸路が実機で直線化していた報告（第13）と同根の疑い。チャンク上限を小さくする案（~8 legs）は**未実装**
-3. **バリ→ディリ（ID→TL の seaSegments [8,9] ~1,100km）と ディリ→シンガポール（TL→SG、routeType 'sea' 全体）が直線のまま**: 前セッションで高雄→マニラ→ボルネオを島伝い化した続きとして、ユーザーが対応継続に合意済み
-4. **韓国・北朝鮮内は Google が routing 拒否**（韓国の地図輸出規制・北朝鮮データ無し）→ 恒久的に直線。回避不能（既知の制約）
-5. **X 直接投稿は 402**（Free tier が POST /2/tweets を課金必須化）。OAuth/token 部分は動作。intent URL 運用が現状の正
-6. **アプリを task から swipe away すると歩数取得も通知も停止**（WebView 死亡）。WorkManager での常駐 polling は未実装（大改修）
-7. **未使用コード/依存**: `GoogleFitButton.tsx`（意図的非表示）、`DiceResult.tsx`（import ゼロの死コード）、`RETRY_LAST_MISSED_BORDER`（未呼出）、package.json の leaflet / react-leaflet / @react-google-maps/api / @types/leaflet（import ゼロ）
-8. **`segmentDistances.ts` が空**: 実道路距離 precompute は API キーの referrer 制限で実行不可のまま（サーバ用キーが必要）。全 land/mixed は great-circle×1.4 の概算
-9. **第10〜14セッションの変更は 2026-07-07 に7コミットへ整理して main にコミット済み**（sicbo / route / map / state / ui / steps / scripts。**push は未実施** — push すると GitHub Pages へ自動デプロイされるため要ユーザー判断）。**リポジトリ直下の `救護室*.pdf` ×2・`c418d23f-*.jpg`・`_devshot.png` は作者の個人ファイル/スクショでプロジェクト無関係 — 意図的に未コミットで残置。今後もコミットに含めないこと**
+1. **X投稿の位置化け（マーカーは正しいのに share の現在地が別の国になる）— 修正コミット済み・実機の修正後確認は未実施**
+   - 症状の確証: 2026-06-25 実機 CDP で share 文面が「🇵🇭 フィリピン Davao City」、マーカー/🏛行は中国広東で正しい（乖離を直接観測）
+   - 原因（確定）: 実機の Directions キャッシュがほぼ空 → windowPath が直線退化 → 旧 `snapFromWindowPath` が「パスの弧長 cumKm」を km 軸に使うため位置が化ける。マーカーは stop 実座標アンカーなので無事
+   - 修正: `markerPositionAtKm`（マーカーと同一の全ストップ弧長方式）を `snappedPositionAtKm` の最優先に — **コミット済み（`b7e7855`）・修正入り APK は 2026-06-25 に端末へインストール済み（install Success 確認済み）**
+   - **未実施: 修正後の実機確認**（確認直前で中断）。2026-07-07 現在プレイヤーの実位置がフィリピンのため「PH と表示される」だけでは正誤判定できない — **地図マーカーの地点と share の現在地行が同一地点（同じ市/州）か**で確認すること
+2. **陸路/海路の直線描画 — 区間ごとに状態が異なる**
+   - ✅ **香港/マカオ越境（深圳→香港→マカオ→珠海）: 解決・実機確認済み**。Google は SAR 越境を全て ZERO_RESULTS（実機 DirectionsService で確認）→ 手動橋ポリライン（深圳湾大橋/港珠澳大橋/拱北）で実ルート描画（`581e3e3`+`b7e7855`）。2026-06-25 実機スクショで橋・道路を辿る描画を目視確認
+   - 🟡 **高雄→マニラ→ボルネオ→ジャカルタの島伝い: コミット済み・実機未確認**。旧 890km 直線をバスコ/アパリ経由ルソン陸路に、PH→BN をサバ上陸（タワウ/コタキナバル）経由に、BN→ID をサラワク陸路に分割（`581e3e3`）。全陸路 leg が Google でルート可能なことは実機 DirectionsService で確認済み、stop 配線・道路追従は dev で確認済み。**ただしこの変更を含む APK は端末に未インストールの可能性が高い**（3回目ビルドは成功したが install の実行記録がセッションログに無い — 当時の「インストール完了」報告は誤りだった）。端末の PH 区間 stop リストにバスコ/アパリが出るかで新旧を判別できる
+   - ❌ **実機の Directions キャッシュがほぼ蓄積されない問題（中国内陸等の一般陸路の直線化）: 未解決**。2026-06-25 時点でキャッシュ1件のみ（dev は多数）。チャンク上限縮小案（~8 legs）は未実装。手動橋・島伝いで目立つ区間は回避したが根本は残存
+   - ❌ **バリ→ディリ（ID→TL）/ ディリ→シンガポール（TL→SG）: 未着手**。島伝い化の次対象（ユーザー合意済み）
+3. **韓国・北朝鮮内は Google が routing 拒否**（韓国の地図輸出規制・北朝鮮データ無し）→ 恒久的に直線。回避不能（既知の制約）
+4. **X 直接投稿は 402**（Free tier が POST /2/tweets を課金必須化）。OAuth/token 部分は動作。intent URL 運用が現状の正
+5. **アプリを task から swipe away すると歩数取得も通知も停止**（WebView 死亡）。WorkManager での常駐 polling は未実装（大改修）
+6. **未使用コード/依存**: `GoogleFitButton.tsx`（意図的非表示）、`DiceResult.tsx`（import ゼロの死コード）、`RETRY_LAST_MISSED_BORDER`（未呼出）、package.json の leaflet / react-leaflet / @react-google-maps/api / @types/leaflet（import ゼロ）
+7. **`segmentDistances.ts` が空**: 実道路距離 precompute は API キーの referrer 制限で実行不可のまま（サーバ用キーが必要）。全 land/mixed は great-circle×1.4 の概算
+8. **第10〜14セッションの変更は 2026-07-07 に7コミットへ整理して main にコミット・push 済み**（sicbo / route / map / state / ui / steps / scripts。GitHub Pages デプロイ success）。**リポジトリ直下の `救護室*.pdf` ×2・`c418d23f-*.jpg`・`_devshot.png` は作者の個人ファイル/スクショでプロジェクト無関係 — 意図的に未コミットで残置。今後もコミットに含めないこと**
 
-### 実機のゲーム状態（2026-06-25 実測、CDP）
-- `distanceKm` ≈ 18,800（広東省・深圳過ぎ、香港手前）。Day 48 表示
-- `visitedCapitals` = JP/KR/KP/CN/MN（**5/196**）、`crossedBorders` 8件、`borderRollsWon` = KR/KP/RU/CN/MN
-- watchdog と一致・dailyHistory 50日分整合（距離ワープなし）
+### 実機のゲーム状態
+- **2026-06-25 実測（CDP）**: `distanceKm` ≈ 18,800（広東省・深圳過ぎ、香港手前）。Day 48 表示。`visitedCapitals` = JP/KR/KP/CN/MN（**5/196**）、`crossedBorders` 8件、`borderRollsWon` = KR/KP/RU/CN/MN。watchdog と一致・dailyHistory 50日分整合（距離ワープなし）
+- **2026-07-07 ユーザー申告**: 現在地は**フィリピン**（ルソン島伝い区間）→ 香港/マカオ/台湾は通過済みのはず。ただし入国審査の発火・国数（8/196 になっている想定）・端末の APK 版は**実機未確認**（同日 adb 未接続で CDP 実測不可）
 
 ---
 
 ## 5. 残タスクと次に着手すべきこと（優先順）
 
-1. **ShareToX 修正の実機最終確認**（すぐ、5分）: 下の CDP 手順で share モーダルを開き textarea を読む。位置行が 🇨🇳 中国（広東の地名）になっていれば解決、まだ PH なら `markerPositionAtKm` の戻り値を CDP で直接ログして追う
-2. **バリ→ディリ / ディリ→シンガポールの島伝い化**（ユーザー合意済みの継続作業): ヌサトゥンガラ列島（ロンボク/スンバワ/フローレス/西ティモール=クパン等）を cities.ts + segmentMeta.ts に追加し、海 hop を短く分割。**先に実機 CDP の DirectionsService で各陸路 leg が OK を返すか確認してから**組むこと（ボルネオ方式。ZERO_RESULTS の越境があれば manualLegPaths 方式）
-3. ~~未コミット変更の整理 commit~~ — **済（2026-07-07、7コミット）**。push は未実施（GitHub Pages 自動デプロイが発火するため要ユーザー判断）
-4. **香港/マカオ/台北到達時の入国審査の実機確認**（第12から繰越。到達すれば 5/196 → 8/196 になるはず。現在地は香港直前なので近い）
-5. **WorkManager で完全 kill 時の background polling**（大改修・継続）
-6. **X 偽装ラベル状況の追跡**（継続観察）
-7. （任意）Directions チャンク縮小 / leaflet 系未使用依存の削除 / `DiceResult.tsx` 削除
+1. **最新 APK（島伝い入り）のインストール確認と実施（最優先）**: 端末には 2026-06-25 の2回目ビルド（位置化け修正+HK/マカオ橋）までしか入っていない可能性が高い（3回目=島伝い入りは**ビルド成功のみ確認、install の実行記録なし**）。判別: PH 区間の stop リストにバスコ/アパリが出るか、または `dumpsys package com.kentarosource.sanpo` の lastUpdateTime。古ければコミット済みソースから `npm run cap:sync` → gradle → `adb install -r` → `am force-stop` → 起動。なお現在地より手前の新経由地（バスコ等の通過済み分）は前進時のみ検知のため遡及加点されない（仕様通り、補正不要）
+2. **ShareToX 位置化け修正の実機確認**: 現在地が実際にフィリピンのため国名では判定不可。**地図マーカーの地点と share の現在地行が同一地点（同じ市/州）か**で確認（CDP で ☰→𝕏投稿→4.5s 待って textarea 読取り）。不一致なら `markerPositionAtKm(distanceKm)` の戻り値を CDP で直接ログして追う
+3. **香港/マカオ/台湾の入国審査が発火したかの確認**（第12から繰越）: ユーザー申告で通過済みのはず → `borderRollsWon` に HK/MO/TW が入り国数 **8/196** になっているか CDP で確認。抜けがあれば原因調査（勝手に補填しない — 鉄則参照）
+4. **バリ→ディリ / ディリ→シンガポールの島伝い化**（ユーザー合意済みの継続作業): ヌサトゥンガラ列島（ロンボク/スンバワ/フローレス/西ティモール=クパン等）を cities.ts + segmentMeta.ts に追加し、海 hop を短く分割。**先に実機 CDP の DirectionsService で各陸路 leg が OK を返すか確認してから**組むこと（ボルネオ方式。ZERO_RESULTS の越境があれば manualLegPaths 方式）
+5. ~~未コミット変更の整理 commit~~ — **済（2026-07-07、7コミット + push 済み、GitHub Pages デプロイ success）**
+6. **WorkManager で完全 kill 時の background polling**（大改修・継続）
+7. **X 偽装ラベル状況の追跡**（継続観察）
+8. （任意）Directions チャンク縮小 / leaflet 系未使用依存の削除 / `DiceResult.tsx` 削除
 
 ### 絶対に破ってはいけない設計ルール（過去の重大事故から確定）
 - **distanceKm を起動時に自動で動かすロジックを書かない**（forward/backward とも。過去 cleanup v1〜v7 が全て事故化）
