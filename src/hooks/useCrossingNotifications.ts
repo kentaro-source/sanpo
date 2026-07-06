@@ -31,15 +31,16 @@ function notifyTextFor(b: BonusEvent): { title: string; body: string } | null {
       body: `+${m[2]} チップ`,
     };
   }
-  // Skip IRL bonus dupes and milestones — they fire alongside the main
-  // event and would spam the user.
-  if (
-    b.kind === 'capital-landing' ||
-    b.kind === 'city-irl' ||
-    b.kind === 'milestone'
-  ) {
-    return null;
+  // IRL memory bonus: "★ 懐かしのX 思い出ボーナス +5"
+  m = b.label.match(/^★\s*懐かしの(.+?)\s+思い出ボーナス\s+\+(\d+)$/);
+  if (m) {
+    return {
+      title: `★ 懐かしの ${m[1]} を再訪`,
+      body: `思い出ボーナス +${m[2]} チップ`,
+    };
   }
+  // Milestone (歩数達成) — not a destination, skip.
+  if (b.kind === 'milestone') return null;
   // Fallback for unrecognised labels.
   return { title: b.label, body: '' };
 }
@@ -57,6 +58,8 @@ export function useCrossingNotifications(): void {
   const { player } = useGame();
   const seenIdsRef = useRef<Set<number>>(new Set());
   const initializedRef = useRef(false);
+  const lastBorderIdRef = useRef<string | null>(null);
+  const borderInitRef = useRef(false);
 
   // Request POST_NOTIFICATIONS permission once on first mount (Android 13+).
   useEffect(() => {
@@ -130,4 +133,44 @@ export function useCrossingNotifications(): void {
       }
     })();
   }, [player.recentBonuses]);
+
+  // Border arrival is the single most important moment to surface
+  // when the app is backgrounded: the player has walked into a
+  // border and the world freezes until they open the app and roll.
+  // Fire a dedicated notification the first time pendingBorder.id
+  // becomes a new value. Skip the very first mount so a launch with
+  // an existing pendingBorder doesn't spam.
+  useEffect(() => {
+    if (!isAndroidNative()) return;
+    const pid = player.pendingBorder?.id ?? null;
+    if (!borderInitRef.current) {
+      borderInitRef.current = true;
+      lastBorderIdRef.current = pid;
+      return;
+    }
+    if (pid === lastBorderIdRef.current) return;
+    lastBorderIdRef.current = pid;
+    if (!pid) return; // cleared (rolled or cancelled) — no notification
+    const country = player.pendingBorder?.country ?? '';
+    void (async () => {
+      try {
+        const now = Date.now();
+        await LocalNotifications.schedule({
+          notifications: [
+            {
+              id: (now >>> 0) % 0x7fffffff,
+              title: '🛂 国境に到達しました',
+              body: country
+                ? `${country} の入国審査が必要です — アプリを開いてプレイ`
+                : '入国審査が必要です — アプリを開いてプレイ',
+              schedule: { at: new Date(now + 100) },
+              smallIcon: 'ic_stat_icon',
+            },
+          ],
+        });
+      } catch {
+        // Plugin unavailable or permission denied — silent failure.
+      }
+    })();
+  }, [player.pendingBorder]);
 }

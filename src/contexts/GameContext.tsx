@@ -317,23 +317,32 @@ type StopRec = {
  * each border-detection action.
  */
 function orderedStops(): StopRec[] {
+  // CRITICAL: use raw routeData.*Distances (NOT snap-km override).
+  // This list is consumed by findNextBorderStop / listMissedBorders /
+  // RECHECK_CROSSINGS which compare against player.distanceKm — and
+  // player.distanceKm is a raw km accumulator (1.4× road-factor scale)
+  // because that's what ADD_STEPS / SYNC produce. Mixing snap km
+  // (some stops with override, some without) here would produce a
+  // sort order inconsistent with the player position scale, causing
+  // border arms at the wrong country (e.g. "KR 入国審査" arming when
+  // the player is already past Pyongyang).
   const stops: StopRec[] = [];
   for (const cap of routeData.capitals) {
-    const orig = routeData.capitalDistances[cap.id];
-    if (orig == null) continue;
+    const km = routeData.capitalDistances[cap.id];
+    if (km == null) continue;
     stops.push({
       id: cap.id,
-      km: getCapitalKm(cap.id, orig),
+      km,
       country: cap.id,
       kind: 'capital',
     });
   }
   for (const city of cities) {
-    const orig = routeData.cityDistances[city.id];
-    if (orig == null) continue;
+    const km = routeData.cityDistances[city.id];
+    if (km == null) continue;
     stops.push({
       id: city.id,
-      km: getCityKm(city.id, orig),
+      km,
       country: city.countryId,
       kind: 'city',
     });
@@ -343,29 +352,126 @@ function orderedStops(): StopRec[] {
 }
 
 /**
- * Find the first uncrossed border-stop in (oldKm, newKm]. A "border
- * stop" is any stop whose country differs from the previous stop in
- * route-km order — so the same country can have multiple entries
- * (KP→RU on the KP→CN leg AND later RU→FI; the player rolls at each).
+ * Per-capital immigration model. The roll fires when the player
+ * reaches the CAPITAL of a country that hasn't been cleared yet —
+ * never at an intermediate city, never at the country's first border
+ * city. This sidesteps the raw-km vs road-km position drift: the
+ * judgement target is a single point (the capital), so even when the
+ * internal distance lags the map, the roll just appears slightly late
+ * at the capital rather than mis-firing in the wrong country.
+ *
+ * `crossedSet` = cleared capital ids (= country codes, ROLL_BORDER
+ * wins). `visitedSet` = visitedCapitals (already credited some other
+ * way). A capital in EITHER set never re-arms — this is what stops a
+ * long-passed capital (Seoul/Busan etc.) from reappearing.
+ *
+ * Arrival is judged by the player's CURRENT position only: the
+ * forward pass arms a capital exactly when this batch walks across
+ * it. The single bounded exception is the capital of the country the
+ * player is currently standing in (most recent capital behind) — see
+ * the catch-up block below. The start capital (Tokyo / JP) never
+ * arms.
  */
+// 香港 / マカオ / 台湾 are recognised as their own countries (B option):
+// their entry city arms an immigration roll and counts toward the country
+// total, even though geometrically they remain waypoint cities (no route
+// restructure, no capital added). Map: waypoint city id → ISO country code.
+const BORDER_CITY_COUNTRIES: Record<string, string> = {
+  'CN-HONGKONG': 'HK',
+  'MO-MACAU': 'MO',
+  'TW-TAIPEI': 'TW',
+};
+
 function findNextBorderStop(
   oldKm: number,
   newKm: number,
   crossedSet: Set<string>,
+  visitedSet?: Set<string>,
 ): BorderInfo | null {
-  const stops = orderedStops();
-  let prevCountry: string | null = null;
-  for (const s of stops) {
-    const isBorder = prevCountry !== null && prevCountry !== s.country;
-    prevCountry = s.country;
-    if (!isBorder) continue;
-    if (crossedSet.has(s.id)) continue;
-    if (s.km <= oldKm || s.km > newKm) continue;
+  const startCapId = routeData.capitals[0]?.id;
+  // Capitals in km order. Uses snap-corrected km (getCapitalKm
+  // override, pushed by MapView from the real road polyline) so the
+  // border judgement agrees with what the user SEES — the stop list
+  // and map use the same overrides. With raw 1.4×-factor km only,
+  // the map can show Beijing already passed while raw distance still
+  // sits short of Beijing's raw km, and the roll never fires (the
+  // exact "北京出ない" failure). Out-of-window capitals fall back to
+  // raw km, which is safe: they only ever arm once the player is
+  // near, by which point MapView has pushed their override.
+  const caps = routeData.capitals
+    .map((c) => {
+      const raw = routeData.capitalDistances[c.id];
+      return {
+        id: c.id,
+        km: raw == null ? null : getCapitalKm(c.id, raw),
+        country: c.id,
+        kind: 'capital' as 'capital' | 'city',
+      };
+    })
+    .concat(
+      // 香港/マカオ/台湾: their entry city is treated as a country border.
+      Object.entries(BORDER_CITY_COUNTRIES).map(([cid, code]) => {
+        const raw = routeData.cityDistances[cid];
+        return {
+          id: cid,
+          km: raw == null ? null : getCityKm(cid, raw),
+          country: code,
+          kind: 'city' as 'capital' | 'city',
+        };
+      }),
+    )
+    .filter((c) => c.km != null)
+    .sort((a, b) => (a.km as number) - (b.km as number));
+  // 1) Forward arm — fires exactly when THIS batch carries the
+  //    player's position across the capital. Current-position-based,
+  //    never retroactive.
+  for (const c of caps) {
+    if (c.id === startCapId) continue;
+    if (crossedSet.has(c.id)) continue;
+    if (visitedSet && visitedSet.has(c.id)) continue;
+    const km = c.km as number;
+    if (km <= oldKm || km > newKm) continue;
     return {
-      kind: s.kind,
-      id: s.id,
-      atKm: s.km,
-      country: s.country,
+      kind: c.kind,
+      id: c.id,
+      atKm: km,
+      country: c.country,
+      cost: 1 + Math.floor(Math.random() * 5),
+    };
+  }
+
+  // 2) Bounded catch-up — ONLY the capital of the country the player
+  //    is currently in (= the single most recent capital behind
+  //    oldKm). If its roll was lost (e.g. a migration cleared the
+  //    pendingBorder while a catch-up step batch jumped past the
+  //    capital — how Beijing went missing), it would otherwise stay
+  //    un-credited forever, since per-capital crediting happens only
+  //    via the roll. The scan stops at the most recent behind
+  //    capital: if that one is already cleared/visited, NOTHING arms,
+  //    so older capitals (Seoul etc.) can never resurface. Arming a
+  //    behind-capital never rewinds distance — the walk clamp is
+  //    Math.max(oldKm, …) and ROLL_BORDER resolves with
+  //    Math.max(distanceKm, …).
+  let lastBehind:
+    | { id: string; km: number; country: string; kind: 'capital' | 'city' }
+    | null = null;
+  for (const c of caps) {
+    const km = c.km as number;
+    if (km <= oldKm)
+      lastBehind = { id: c.id, km, country: c.country, kind: c.kind };
+    else break;
+  }
+  if (
+    lastBehind &&
+    lastBehind.id !== startCapId &&
+    !crossedSet.has(lastBehind.id) &&
+    !(visitedSet && visitedSet.has(lastBehind.id))
+  ) {
+    return {
+      kind: lastBehind.kind,
+      id: lastBehind.id,
+      atKm: lastBehind.km,
+      country: lastBehind.country,
       cost: 1 + Math.floor(Math.random() * 5),
     };
   }
@@ -490,127 +596,43 @@ function createInitialState(): GameState {
   };
 }
 
-const STATE_CLEANUP_KEY = 'sanpo-state-cleanup-v7';
-
 /**
- * One-shot state cleanup. The v6 pass bumped `distance = max(distance,
- * maxVisitedCapitalKm)` and inflated the player's km by hundreds when
- * old silent-credit had marked capitals as visited far ahead of the
- * actual walked total. v7 reverses that by trusting `todayStartKm +
- * todayKm` (= legitimately-walked km accumulated by ADD_STEPS / SYNC
- * including Sic Bo boosts) as the source of truth and trimming
- * visited sets back to match.
- *
- * Also clears pendingBorder/borderAdvanceTarget (stale arm artefacts)
- * and recovers crossedBorders from borderRollsWon (= legit ROLL_BORDER
- * wins).
+ * Launch-time normalization. The ONLY rule for the recurring path:
+ * NEVER touch distanceKm automatically. Distance is moved exclusively
+ * by step crediting (ADD_STEPS / SYNC_FROM_GOOGLE_FIT). This function
+ * only fills the `crossedBorders` field if missing (legacy saves
+ * predate it). Everything else passes through.
  */
-function migrateCrossedBorders(loaded: GameState): GameState {
-  let alreadyReset = false;
-  try {
-    alreadyReset = localStorage.getItem(STATE_CLEANUP_KEY) === '1';
-  } catch {
-    // ignore
-  }
-  if (alreadyReset) {
-    if (loaded.player.crossedBorders) return loaded;
-    return {
-      ...loaded,
-      player: { ...loaded.player, crossedBorders: [] },
-    };
-  }
-  try {
-    localStorage.setItem(STATE_CLEANUP_KEY, '1');
-  } catch {
-    // ignore
-  }
-
-  // Auto-correct distance via the per-day legit gain. todayStartKm and
-  // todayKm are maintained by ADD_STEPS / SYNC_FROM_GOOGLE_FIT and only
-  // reflect real walked contributions (including Sic Bo boosts). If
-  // the stored distance is far above that, it was inflated by a
-  // previous cleanup bump — pull it back.
-  const distance = loaded.player.distanceKm;
-  const todayStartKm = loaded.player.todayStartKm;
-  const todayKm = loaded.player.todayKm;
-  let correctedDistance = distance;
-  if (
-    typeof todayStartKm === 'number' &&
-    Number.isFinite(todayStartKm) &&
-    typeof todayKm === 'number' &&
-    Number.isFinite(todayKm)
-  ) {
-    const expected = todayStartKm + todayKm;
-    if (distance > expected + 1) {
-      correctedDistance = expected;
-    }
-  }
-
-  // Trim visited sets to match the corrected distance.
-  const startCap = routeData.capitals[0].id;
-  const trimmedCapitals = loaded.player.visitedCapitals.filter((id) => {
-    if (id === startCap) return true;
-    const km = routeData.capitalDistances[id];
-    return km == null || km <= correctedDistance;
-  });
-  const trimmedCities = (loaded.player.visitedCities ?? []).filter((id) => {
-    const km = routeData.cityDistances[id];
-    return km == null || km <= correctedDistance;
-  });
-
-  // Recover crossedBorders from borderRollsWon (legit win evidence)
-  // plus trim to within corrected distance.
-  const wonCountries = new Set(loaded.player.borderRollsWon ?? []);
-  const recoveredCrossed = new Set(loaded.player.crossedBorders ?? []);
-  if (wonCountries.size > 0) {
-    type Stop = { id: string; km: number; country: string };
-    const stops: Stop[] = [];
-    for (const cap of routeData.capitals) {
-      const km = routeData.capitalDistances[cap.id];
-      if (km != null) stops.push({ id: cap.id, km, country: cap.id });
-    }
-    for (const city of cities) {
-      const km = routeData.cityDistances[city.id];
-      if (km != null) stops.push({ id: city.id, km, country: city.countryId });
-    }
-    stops.sort((a, b) => a.km - b.km);
-    let prev: string | null = null;
-    for (const s of stops) {
-      if (
-        prev !== null &&
-        prev !== s.country &&
-        wonCountries.has(s.country)
-      ) {
-        recoveredCrossed.add(s.id);
-      }
-      prev = s.country;
-    }
-  }
-  const trimmedCrossed = Array.from(recoveredCrossed).filter((id) => {
-    const capKm = routeData.capitalDistances[id];
-    const cityKm = routeData.cityDistances[id];
-    const km = capKm ?? cityKm;
-    return km == null || km <= correctedDistance;
-  });
-
+function normalizeLoadedState(loaded: GameState): GameState {
+  if (loaded.player.crossedBorders) return loaded;
   return {
     ...loaded,
-    player: {
-      ...loaded.player,
-      distanceKm: correctedDistance,
-      visitedCapitals: trimmedCapitals,
-      visitedCities: trimmedCities,
-      crossedBorders: trimmedCrossed,
-      borderAdvanceTarget: undefined,
-      pendingBorder: undefined,
-    },
+    player: { ...loaded.player, crossedBorders: [] },
   };
 }
+
+// NOTE (warp fix): restoreDistanceOnce + clearStuckBorder were removed.
+// They were one-time, run-once-per-install migrations that force-set
+// distanceKm (and silently credited stops) from the
+// (dailyHistory.km + todayKm) walked-total proxy. That proxy OVER-counts
+// vs real distance because todayKm keeps accumulating while distanceKm
+// sits clamped at a border — so the "restore" warped players forward on
+// the first launch after a new install. Per the iron rule, distance is
+// never auto-mutated at launch; backward correction is user-initiated
+// via SET_DISTANCE_KM only.
 
 function getInitialState(): GameState {
   const loaded = loadGameState();
   if (loaded) {
-    return migrateCrossedBorders(loaded);
+    // Launch-time normalization ONLY — NEVER auto-mutate distanceKm.
+    // The old restoreDistanceOnce / clearStuckBorder one-time migrations
+    // were removed: they force-overwrote distance from the inflated
+    // (dailyHistory.km + todayKm) proxy, which over-counts every time the
+    // player sat clamped at a border. On the first launch after a fresh
+    // install that warped the player forward (e.g. 運城 → 武漢, ~+427km).
+    // Backward correction is now exclusively user-initiated via
+    // SET_DISTANCE_KM (HamburgerMenu → 🔧 現在地を補正).
+    return normalizeLoadedState(loaded);
   }
   // Loader returned null. Try the watchdog (progress side-channel) before
   // resetting the player to Tokyo Station. The user reported "たびたび
@@ -675,9 +697,10 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       // physically advancing past the boundary.
       const existingBorder = state.player.pendingBorder ?? null;
       const crossedSet = new Set(state.player.crossedBorders ?? []);
+      const visitedCapSet = new Set(state.player.visitedCapitals ?? []);
       const newBorder = existingBorder
         ? null
-        : findNextBorderStop(oldKm, fullNewKm, crossedSet);
+        : findNextBorderStop(oldKm, fullNewKm, crossedSet, visitedCapSet);
       const pendingBorder = existingBorder ?? newBorder ?? undefined;
       const borderCap = pendingBorder?.atKm;
       // Remember the original target so ROLL_BORDER can keep advancing
@@ -694,8 +717,19 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       // stop itself — that's deferred to ROLL_BORDER on a successful
       // roll. Cities on the way (within the same already-visited country)
       // are still credited.
-      const newKm =
-        borderCap != null && borderCap < fullNewKm ? borderCap : fullNewKm;
+      // A BEHIND border (catch-up arm for an already-passed capital,
+      // e.g. Beijing missed during a 500km/h boost jump) is a
+      // mission-only revival: the roll is playable but walking must
+      // NOT freeze and distance must NOT rewind — so the clamp is
+      // skipped entirely. Only a border at/ahead of the current
+      // position (normal forward arm, where distance sits exactly at
+      // borderCap) blocks progress.
+      const isBehindBorder = borderCap != null && borderCap < oldKm;
+      const clampedNewKm =
+        !isBehindBorder && borderCap != null && borderCap < fullNewKm
+          ? borderCap
+          : fullNewKm;
+      const newKm = Math.max(oldKm, clampedNewKm);
       const detectKm =
         borderCap != null && borderCap === newKm ? borderCap - 0.001 : newKm;
 
@@ -809,9 +843,10 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       // Border-gamble clamp (same as ADD_STEPS).
       const existingBorder = state.player.pendingBorder ?? null;
       const crossedSet = new Set(state.player.crossedBorders ?? []);
+      const visitedCapSet = new Set(state.player.visitedCapitals ?? []);
       const newBorder = existingBorder
         ? null
-        : findNextBorderStop(oldKm, fullNewKm, crossedSet);
+        : findNextBorderStop(oldKm, fullNewKm, crossedSet, visitedCapSet);
       const pendingBorder = existingBorder ?? newBorder ?? undefined;
       const borderCap = pendingBorder?.atKm;
       // Keep the MAX of any existing target and fullNewKm — otherwise
@@ -822,8 +857,14 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         pendingBorder && borderCap != null && borderCap < fullNewKm
           ? Math.max(state.player.borderAdvanceTarget ?? 0, fullNewKm)
           : state.player.borderAdvanceTarget;
-      const newKm =
-        borderCap != null && borderCap < fullNewKm ? borderCap : fullNewKm;
+      // Same as ADD_STEPS: a behind (catch-up) border is mission-only —
+      // never freezes walking, never rewinds distance.
+      const isBehindBorder = borderCap != null && borderCap < oldKm;
+      const clampedNewKm =
+        !isBehindBorder && borderCap != null && borderCap < fullNewKm
+          ? borderCap
+          : fullNewKm;
+      const newKm = Math.max(oldKm, clampedNewKm);
       const detectKm =
         borderCap != null && borderCap === newKm ? borderCap - 0.001 : newKm;
 
@@ -1156,12 +1197,18 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       // borders without waiting for the next HC poll.
       const target = state.player.borderAdvanceTarget;
       const currentKm = pb.atKm;
+      const visitedCapSetAfter = new Set(nextVisitedCapitals);
       const crossedSetAfterWin = new Set(nextCrossed);
       let chainPending: BorderInfo | undefined;
       let chainDistance = currentKm;
       let chainTarget = state.player.borderAdvanceTarget;
       if (typeof target === 'number' && target > currentKm) {
-        const next = findNextBorderStop(currentKm, target, crossedSetAfterWin);
+        const next = findNextBorderStop(
+          currentKm,
+          target,
+          crossedSetAfterWin,
+          visitedCapSetAfter,
+        );
         if (next) {
           chainPending = next;
           chainDistance = next.atKm;
@@ -1174,6 +1221,13 @@ function gameReducer(state: GameState, action: GameAction): GameState {
         chainTarget = undefined;
       }
 
+      // Never rewind: if this was a behind-current capital (its pending
+      // border had been silently cleared and the player already walked
+      // past its km), winning it must not pull distance back to the
+      // capital. Clamp to the max of the current distance and the
+      // chain target.
+      const resolvedDistance = Math.max(state.player.distanceKm, chainDistance);
+
       return {
         ...state,
         player: {
@@ -1183,7 +1237,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           visitedCities: nextVisitedCities,
           pendingBorder: chainPending,
           borderAdvanceTarget: chainTarget,
-          distanceKm: chainDistance,
+          distanceKm: resolvedDistance,
           borderRollsWon: nextWon,
           crossedBorders: nextCrossed,
           recentBonuses: [...events, ...(state.player.recentBonuses ?? [])].slice(
@@ -1208,16 +1262,21 @@ function gameReducer(state: GameState, action: GameAction): GameState {
       const localKm = ((km % total) + total) % total;
       const visitedCapitalsSet = new Set(state.player.visitedCapitals);
       const visitedCitiesSet = new Set(state.player.visitedCities ?? []);
-      // Precompute the route's border-stop set so we can skip them in
-      // the silent-credit loops below.
+      // Per-capital border model: the immigration roll happens at each
+      // country's CAPITAL, so capitals are deferred to the border draw
+      // (never silently credited here). Every city — including a
+      // country's first/border city like 釜山 — is a normal pass-by and
+      // gets credited. So the deferred set is exactly the capital ids
+      // (excluding the start capital, which never arms).
+      const startCapId = routeData.capitals[0]?.id;
       const borderStopIds = new Set<string>();
-      {
-        const ordered = orderedStops();
-        let prev: string | null = null;
-        for (const s of ordered) {
-          if (prev !== null && prev !== s.country) borderStopIds.add(s.id);
-          prev = s.country;
-        }
+      for (const cap of routeData.capitals) {
+        if (cap.id !== startCapId) borderStopIds.add(cap.id);
+      }
+      // 香港/マカオ/台湾 are border cities — defer to the immigration roll,
+      // never silently credit them here.
+      for (const cid of Object.keys(BORDER_CITY_COUNTRIES)) {
+        borderStopIds.add(cid);
       }
       let bonusTokens = 0;
       const events: BonusEvent[] = [];
@@ -1237,6 +1296,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           amount: 5,
           label: `🏛 ${cap.nameJa}(${cap.countryJa}) 通過 +5`,
           timestamp: now,
+          source: 'walk',
         });
         if (irl) {
           bonusTokens += 5;
@@ -1245,6 +1305,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             amount: 5,
             label: `★ 懐かしの${cap.nameJa} 思い出ボーナス +5`,
             timestamp: now,
+            source: 'walk',
           });
         }
       }
@@ -1264,6 +1325,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
           amount: 3,
           label: `📍 ${city.nameJa} 立ち寄り +3`,
           timestamp: now,
+          source: 'walk',
         });
         if (irl) {
           bonusTokens += 3;
@@ -1272,6 +1334,7 @@ function gameReducer(state: GameState, action: GameAction): GameState {
             amount: 3,
             label: `★ 懐かしの${city.nameJa} 思い出ボーナス +3`,
             timestamp: now,
+            source: 'walk',
           });
         }
       }
@@ -1400,42 +1463,94 @@ function gameReducer(state: GameState, action: GameAction): GameState {
     }
 
     case 'SET_DISTANCE_KM': {
-      // Manual distance correction — used to roll back the v6 cleanup
-      // over-credit. Trims any visited capitals/cities/crossedBorders
-      // that sit beyond the new distance so the state stays consistent.
+      // Manual distance correction (HamburgerMenu → 🔧 現在距離 を補正).
+      // Fills visited capitals/cities/crossedBorders for every stop at
+      // km' <= km and trims anything beyond — so the new position is
+      // self-consistent and border rolls don't re-arm for stops the
+      // player has effectively passed.
       const km = Math.max(
         0,
         Math.min(action.km, routeData.totalDistanceKm),
       );
-      const visitedCapitals = state.player.visitedCapitals.filter((id) => {
-        if (id === routeData.capitals[0].id) return true; // keep start
+      const startCap = routeData.capitals[0].id;
+
+      const capsSet = new Set<string>([startCap]);
+      for (const id of state.player.visitedCapitals) capsSet.add(id);
+      for (const cap of routeData.capitals) {
+        const capKm = routeData.capitalDistances[cap.id];
+        if (capKm != null && capKm <= km) capsSet.add(cap.id);
+      }
+      const visitedCapitals = Array.from(capsSet).filter((id) => {
+        if (id === startCap) return true;
         const capKm = routeData.capitalDistances[id];
         return capKm == null || capKm <= km;
       });
-      const visitedCities = (state.player.visitedCities ?? []).filter(
-        (id) => {
-          const cityKm = routeData.cityDistances[id];
-          return cityKm == null || cityKm <= km;
-        },
-      );
-      const crossedBorders = (state.player.crossedBorders ?? []).filter(
-        (id) => {
-          const capKm = routeData.capitalDistances[id];
-          const cityKm = routeData.cityDistances[id];
-          const stopKm = capKm ?? cityKm;
-          return stopKm == null || stopKm <= km;
-        },
-      );
+
+      const citiesSet = new Set<string>();
+      for (const id of state.player.visitedCities ?? []) citiesSet.add(id);
+      for (const city of cities) {
+        const cityKm = routeData.cityDistances[city.id];
+        if (cityKm != null && cityKm <= km) citiesSet.add(city.id);
+      }
+      const visitedCities = Array.from(citiesSet).filter((id) => {
+        const cityKm = routeData.cityDistances[id];
+        return cityKm == null || cityKm <= km;
+      });
+
+      // All border-stops (= where prev stop's country differs from this
+      // stop's country) at km' <= km are marked as crossed so
+      // findNextBorderStop doesn't re-arm them on the next walk batch.
+      const crossedSet = new Set(state.player.crossedBorders ?? []);
+      {
+        type Stop = { id: string; km: number; country: string };
+        const stops: Stop[] = [];
+        for (const cap of routeData.capitals) {
+          const cKm = routeData.capitalDistances[cap.id];
+          if (cKm != null) stops.push({ id: cap.id, km: cKm, country: cap.id });
+        }
+        for (const city of cities) {
+          const cKm = routeData.cityDistances[city.id];
+          if (cKm != null) stops.push({ id: city.id, km: cKm, country: city.countryId });
+        }
+        stops.sort((a, b) => a.km - b.km);
+        let prev: string | null = null;
+        for (const s of stops) {
+          if (prev !== null && prev !== s.country && s.km <= km) {
+            crossedSet.add(s.id);
+          }
+          prev = s.country;
+        }
+      }
+      const crossedBorders = Array.from(crossedSet).filter((id) => {
+        const capKm = routeData.capitalDistances[id];
+        const cityKm = routeData.cityDistances[id];
+        const stopKm = capKm ?? cityKm;
+        return stopKm == null || stopKm <= km;
+      });
+
+      // Snap today's accounting so distance doesn't get re-rewound by
+      // any future logic that compares against todayStartKm+todayKm.
+      const dayStart = (() => {
+        const d = new Date();
+        d.setHours(0, 0, 0, 0);
+        return d.getTime();
+      })();
+      const sameDay = state.player.attributedDayStart === dayStart;
+      const todayKmSoFar = sameDay ? (state.player.todayKm ?? 0) : 0;
+      const todayStartKm = km - todayKmSoFar;
+
       return {
         ...state,
         player: {
           ...state.player,
           distanceKm: km,
+          currentSquareIndex: squareIndexAtKm(routeData, km),
           visitedCapitals,
           visitedCities,
           crossedBorders,
           pendingBorder: undefined,
           borderAdvanceTarget: undefined,
+          todayStartKm,
           lastUpdated: Date.now(),
         },
       };
@@ -1485,6 +1600,50 @@ export function GameProvider({ children }: { children: ReactNode }) {
   // app open / SW reload.
   useEffect(() => {
     dispatch({ type: 'CLAIM_LOGIN_BONUS' });
+  }, []);
+
+  // ONE-TIME recovery for the 2026-06 startup warp. The removed
+  // restoreDistanceOnce migration force-set distanceKm from the inflated
+  // (Σ dailyHistory.km + todayKm) proxy and shoved the player ~1,100km past
+  // 運城 into the 武漢→南京 stretch. We rebuild the true position =
+  // 運城 (≈45% along the 西安→鄭州 leg — not a waypoint, so derived from the
+  // two surrounding waypoints) + today's ACTUAL walk (distanceKm −
+  // todayStartKm), and apply it ONCE via SET_DISTANCE_KM (which also trims
+  // the falsely-credited stops between). Flag-gated and strictly
+  // backward-only: it fires only when the player sits clearly AHEAD of the
+  // rebuilt target (i.e. the ~1,100km warp gap is present), so a player who
+  // is legitimately in this region — or has already corrected manually — is
+  // never pulled back. Manual fine-tune remains in HamburgerMenu → 現在地を補正.
+  useEffect(() => {
+    const KEY = 'sanpo-yuncheng-warp-undo-v1';
+    try {
+      if (localStorage.getItem(KEY) === '1') return;
+    } catch {
+      return;
+    }
+    const xian = routeData.cityDistances['CN-XIAN'];
+    const zz = routeData.cityDistances['CN-ZHENGZHOU'];
+    if (xian != null && zz != null) {
+      const yuncheng = xian + 0.45 * (zz - xian);
+      const p = state.player;
+      const todaysWalk = Math.max(
+        0,
+        p.distanceKm - (p.todayStartKm ?? p.distanceKm),
+      );
+      const corrected = yuncheng + todaysWalk;
+      // Undo only a genuine forward warp: require the player to sit ≥300km
+      // ahead of the rebuilt target. Never moves anyone forward.
+      if (Number.isFinite(p.distanceKm) && p.distanceKm > corrected + 300) {
+        dispatch({ type: 'SET_DISTANCE_KM', km: corrected });
+      }
+    }
+    try {
+      localStorage.setItem(KEY, '1');
+    } catch {
+      // ignore
+    }
+    // One-shot: intentionally read first-render state only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Retroactive border-recovery (RETRY_LAST_MISSED_BORDER) is

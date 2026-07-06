@@ -106,8 +106,14 @@ export function useGame() {
     })();
 
     const progressPercent = (localKm / total) * 100;
-    const visitedCount = player.visitedCapitals.length;
-    const totalCapitals = capitals.length;
+    // 香港/マカオ/台湾 are recognised as separate countries: counted once
+    // their immigration roll is won (their code lands in borderRollsWon).
+    const MICRO_COUNTRIES = ['HK', 'MO', 'TW'];
+    const microVisited = (player.borderRollsWon ?? []).filter((c) =>
+      MICRO_COUNTRIES.includes(c),
+    ).length;
+    const visitedCount = player.visitedCapitals.length + microVisited;
+    const totalCapitals = capitals.length + MICRO_COUNTRIES.length;
 
     // Build the upcoming stop chain in km space. Walk forward through
     // capital + city km marks and collect the next ~6 stops.
@@ -220,6 +226,7 @@ export function useGame() {
   }, [
     player.distanceKm,
     player.visitedCapitals.length,
+    player.borderRollsWon?.length,
     player.boosts,
     overrideVersion,
   ]);

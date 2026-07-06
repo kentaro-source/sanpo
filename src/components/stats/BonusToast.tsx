@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useGame } from '../../hooks/useGame';
 import type { BonusEvent } from '../../types';
 
@@ -10,7 +10,17 @@ const TOAST_DURATION_MS = 5000;
  */
 export function BonusToast() {
   const { player } = useGame();
-  const recent = player.recentBonuses ?? [];
+  // Sic Bo and border rolls already have their own modal feedback —
+  // throwing an extra floating toast on top is just noise. Memoize
+  // so the filtered array keeps a stable reference (otherwise the
+  // useEffect below re-fires on every render and loops setVisible).
+  const recent = useMemo(
+    () =>
+      (player.recentBonuses ?? []).filter(
+        (e) => e.source !== 'sicbo' && e.source !== 'border',
+      ),
+    [player.recentBonuses],
+  );
   const [visible, setVisible] = useState<BonusEvent[]>([]);
 
   useEffect(() => {
