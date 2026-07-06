@@ -342,7 +342,15 @@ export function SicBoModal({ open, onClose }: Props) {
                 </div>
               ))}
             </div>
-            <div className="sicbo-stage-sum">合計 {resultRoll.dice[0] + resultRoll.dice[1] + resultRoll.dice[2]}</div>
+            <div className="sicbo-stage-sum">
+              合計 {resultRoll.dice[0] + resultRoll.dice[1] + resultRoll.dice[2]}
+              {resultRoll.dice[0] === resultRoll.dice[1] &&
+                resultRoll.dice[1] === resultRoll.dice[2] && (
+                  <span style={{ marginLeft: 8, color: '#f59e0b', fontWeight: 800 }}>
+                    ゾロ目！
+                  </span>
+                )}
+            </div>
             <div className={`sicbo-advance ${resultRoll.won ? 'win' : 'lose'}`}>
               {resultRoll.won
                 ? `×${resultRoll.multiplier} 加速 ${formatWindowMs(resultRoll.windowMs)}！`

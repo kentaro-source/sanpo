@@ -46,16 +46,19 @@ const WIN_PROB: Record<string, number> = {
   even: 0.486,
   'total-4': 0.014,
   'total-5': 0.028,
-  'total-6': 0.046,
+  // 6/9/12/15 exclude their triple combo (2-2-2 / 3-3-3 / 4-4-4 / 5-5-5):
+  // a ゾロ目 now loses sum bets too, so those combos no longer count as a
+  // win — see betWon(). (e.g. 合計12 is 24/216, not 25/216.)
+  'total-6': 0.042,
   'total-7': 0.069,
   'total-8': 0.097,
-  'total-9': 0.116,
+  'total-9': 0.111,
   'total-10': 0.125,
   'total-11': 0.125,
-  'total-12': 0.116,
+  'total-12': 0.111,
   'total-13': 0.097,
   'total-14': 0.069,
-  'total-15': 0.046,
+  'total-15': 0.042,
   'total-16': 0.028,
   'total-17': 0.014,
   'any-triple': 0.0278,
@@ -138,7 +141,8 @@ export function isTriple(dice: [number, number, number]): boolean {
 
 /**
  * Did this bet WIN against the given dice? (true/false).
- * Note: 大/小/奇/偶 lose on triples (Sic Bo standard).
+ * Note: 大/小/奇/偶 AND 合計 (sum) bets all lose on a triple (Sic Bo
+ * standard) — only any-triple / triple-N win on a ゾロ目.
  */
 export function betWon(bet: BetSlot, dice: [number, number, number]): boolean {
   const sum = dice[0] + dice[1] + dice[2];
@@ -159,7 +163,9 @@ export function betWon(bet: BetSlot, dice: [number, number, number]): boolean {
     default: {
       if (bet.type.startsWith('total-')) {
         const n = parseInt(bet.type.slice('total-'.length), 10);
-        return sum === n;
+        // A ゾロ目 (triple) loses sum bets too: 4-4-4 must NOT win 合計12.
+        // Only any-triple / triple-N pay out on a triple.
+        return !triple && sum === n;
       }
       if (bet.type.startsWith('triple-')) {
         const n = parseInt(bet.type.slice('triple-'.length), 10);
