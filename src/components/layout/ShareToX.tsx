@@ -3,6 +3,16 @@ import { createPortal } from 'react-dom';
 import { useGame } from '../../hooks/useGame';
 import { cities } from '../../data/cities';
 import { positionAtKm } from '../../data/generateRoute';
+import { segmentClassifications } from '../../data/segmentMeta';
+
+/** City IDs that are explicit route waypoints. Mirrors useGame's
+ *  WAYPOINT_CITY_IDS — non-waypoint cities are only "projected" onto
+ *  the nearest route point and must NOT participate in next-border
+ *  detection (their projected km can land anywhere along the route,
+ *  scrambling stop order). */
+const WAYPOINT_CITY_IDS = new Set<string>(
+  segmentClassifications.flatMap((s) => s.waypointCityIds ?? []),
+);
 import {
   isXAuthConfigured,
   loadStoredToken,
@@ -14,7 +24,20 @@ import {
   reverseGeocode,
   reverseGeocodeCached,
 } from '../../services/geocode';
-import { snappedPositionAtKm } from '../../services/playerPath';
+import {
+  snappedPositionAtKm,
+  getCapitalKm,
+  getCityKm,
+  subscribeOverrides,
+} from '../../services/playerPath';
+
+// Permanent calendar correction. The player physically flew to Hawaii
+// and crossed the International Date Line eastward, gaining a day, so
+// their personal day count runs one ahead of the app's
+// startDate-based reckoning. This +1 is permanent (the dateline gain
+// doesn't reverse), so the displayed Day in share posts is bumped by
+// this constant.
+const DAY_OFFSET = 1;
 
 interface PlaceLabel {
   name: string;
@@ -76,6 +99,12 @@ export function ShareToX({ onClose, initialComment, mode = 'daily' }: Props) {
   const { nextCapital, visitedCount, totalCapitals, player, routeData, upcomingStops } =
     useGame();
 
+  // Subscribe to playerPath snap-km override updates so the
+  // useMemo for nextBorderCountry re-runs when MapView pushes new km
+  // values (e.g. once the polyline window builds around the player).
+  const [overrideTick, setOverrideTick] = useState(0);
+  useEffect(() => subscribeOverrides(() => setOverrideTick((v) => v + 1)), []);
+
   // Country of the next UNCROSSED border in route order. Differs from
   // `nextCapital` when the player's visitedCapitals has stale entries
   // (e.g. KP capital silent-credited by the old RECHECK bug while the
@@ -83,28 +112,53 @@ export function ShareToX({ onClose, initialComment, mode = 'daily' }: Props) {
   // reflect "next country to enter" by border-roll progress, not by
   // capital-visit set.
   const nextBorderCountry = useMemo(() => {
-    const crossedSet = new Set(player.crossedBorders ?? []);
-    type S = { id: string; km: number; country: string };
+    // Use the same delta-from-player-position logic that drives
+    // useGame's nextCapital / upcomingStops, with the same snap-km
+    // override source. Sorting by delta puts stops in actual route
+    // order from the player's position. The first stop's country is
+    // taken as the current country (= the player is in the same
+    // segment as the next destination); the first country change
+    // along the chain is the next border.
+    const total = routeData.totalDistanceKm;
+    const localKm =
+      ((player.distanceKm % total) + total) % total;
+    type S = { country: string; delta: number; id: string; countryJa: string; nameJa: string };
     const stops: S[] = [];
     for (const cap of routeData.capitals) {
-      const km = routeData.capitalDistances[cap.id];
-      if (km != null) stops.push({ id: cap.id, km, country: cap.id });
+      const orig = routeData.capitalDistances[cap.id];
+      if (orig == null) continue;
+      const km = getCapitalKm(cap.id, orig);
+      const delta = km - localKm;
+      // Skip past stops outright — wrapping behind-the-player stops
+      // around the full lap puts JP cities ahead of nearby KR/KP
+      // cities and falsely identifies the player's current country.
+      if (delta <= 0) continue;
+      stops.push({ country: cap.id, delta, id: cap.id, countryJa: cap.countryJa, nameJa: cap.nameJa });
     }
     for (const city of cities) {
-      const km = routeData.cityDistances[city.id];
-      if (km != null) stops.push({ id: city.id, km, country: city.countryId });
+      if (!WAYPOINT_CITY_IDS.has(city.id)) continue;
+      const orig = routeData.cityDistances[city.id];
+      if (orig == null) continue;
+      const km = getCityKm(city.id, orig);
+      const delta = km - localKm;
+      if (delta <= 0) continue;
+      stops.push({ country: city.countryId, delta, id: city.countryId, countryJa: city.countryJa, nameJa: city.nameJa });
     }
-    stops.sort((a, b) => a.km - b.km);
-    let prev: string | null = null;
+    stops.sort((a, b) => a.delta - b.delta);
+    if (stops.length === 0) return null;
+    const currentCountry = stops[0].country;
+    // First stop ahead whose country differs — INCLUDING border-cities like
+    // 香港 / マカオ / 台北 (which have no capital entry). Previously a capital
+    // entry was required, so HK/MO/TW were skipped and the next *capital*
+    // (Philippines) was shown as the goal even while the player was still deep
+    // in China — "まだ中国なのにフィリピン". Now it reports the real next country.
     for (const s of stops) {
-      if (prev !== null && prev !== s.country && !crossedSet.has(s.id)) {
-        const cap = routeData.capitals.find((c) => c.id === s.country);
-        if (cap) return cap;
+      if (s.country !== currentCountry) {
+        return { id: s.id, countryJa: s.countryJa, nameJa: s.nameJa };
       }
-      prev = s.country;
     }
     return null;
-  }, [player.crossedBorders, routeData]);
+  }, [player.distanceKm, routeData, overrideTick]);
   // The full editable text. Initialized from the auto-generated template
   // when the modal opens (and again on demand via the reset button) so
   // the user can freely tweak/delete/reorder before posting.
@@ -269,7 +323,9 @@ export function ShareToX({ onClose, initialComment, mode = 'daily' }: Props) {
     nowMid.setHours(0, 0, 0, 0);
     const dayNum = Math.max(
       1,
-      Math.floor((nowMid.getTime() - startMid.getTime()) / 86400000) + 1,
+      Math.floor((nowMid.getTime() - startMid.getTime()) / 86400000) +
+        1 +
+        DAY_OFFSET,
     );
 
     const todayStart = nowMid.getTime();

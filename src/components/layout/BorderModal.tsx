@@ -43,83 +43,6 @@ const RANK_DEFS: Array<{ label: string; value: number }> = [
   { label: 'A', value: 14 },
 ];
 
-/** Canonical pip positions ([left%, top%, flipped]) for number cards.
- *  Face cards (J/Q/K) and the Ace render a single large center pip. */
-const PIP_LAYOUTS: Record<number, Array<[number, number, boolean]>> = {
-  2: [
-    [50, 17, false],
-    [50, 83, true],
-  ],
-  3: [
-    [50, 17, false],
-    [50, 50, false],
-    [50, 83, true],
-  ],
-  4: [
-    [31, 17, false],
-    [69, 17, false],
-    [31, 83, true],
-    [69, 83, true],
-  ],
-  5: [
-    [31, 17, false],
-    [69, 17, false],
-    [50, 50, false],
-    [31, 83, true],
-    [69, 83, true],
-  ],
-  6: [
-    [31, 17, false],
-    [69, 17, false],
-    [31, 50, false],
-    [69, 50, false],
-    [31, 83, true],
-    [69, 83, true],
-  ],
-  7: [
-    [31, 17, false],
-    [69, 17, false],
-    [50, 33, false],
-    [31, 50, false],
-    [69, 50, false],
-    [31, 83, true],
-    [69, 83, true],
-  ],
-  8: [
-    [31, 17, false],
-    [69, 17, false],
-    [50, 33, false],
-    [31, 50, false],
-    [69, 50, false],
-    [50, 67, true],
-    [31, 83, true],
-    [69, 83, true],
-  ],
-  9: [
-    [31, 15, false],
-    [69, 15, false],
-    [31, 38, false],
-    [69, 38, false],
-    [50, 50, false],
-    [31, 62, true],
-    [69, 62, true],
-    [31, 85, true],
-    [69, 85, true],
-  ],
-  10: [
-    [31, 15, false],
-    [69, 15, false],
-    [50, 28, false],
-    [31, 38, false],
-    [69, 38, false],
-    [31, 62, true],
-    [69, 62, true],
-    [50, 72, true],
-    [31, 85, true],
-    [69, 85, true],
-  ],
-};
-
 function drawCard(): DrawnCard {
   const suit = SUITS[Math.floor(Math.random() * SUITS.length)];
   const r = RANK_DEFS[Math.floor(Math.random() * RANK_DEFS.length)];
@@ -129,6 +52,14 @@ function drawCard(): DrawnCard {
     value: r.value,
     isRed: suit === '♥' || suit === '♦',
   };
+}
+
+/** Suit symbol → file-name letter (S/H/D/C) used by deck SVG assets. */
+function suitLetter(suit: Suit): 'S' | 'H' | 'D' | 'C' {
+  if (suit === '♠') return 'S';
+  if (suit === '♥') return 'H';
+  if (suit === '♦') return 'D';
+  return 'C';
 }
 
 function flagEmoji(cc: string): string {
@@ -426,35 +357,15 @@ export function BorderModal({ onClose }: Props) {
               style={{ transform: `rotate${axisLetter}(180deg)` }}
             >
               {card && (
-                <>
-                  <span className="border-card-corner top">
-                    {card.rank}
-                    <span className="border-card-corner-suit">{card.suit}</span>
-                  </span>
-                  {PIP_LAYOUTS[card.value] ? (
-                    PIP_LAYOUTS[card.value].map(([x, y, flip], i) => (
-                      <span
-                        key={i}
-                        className="border-card-pip"
-                        style={{
-                          left: `${x}%`,
-                          top: `${y}%`,
-                          transform: `translate(-50%, -50%)${
-                            flip ? ' rotate(180deg)' : ''
-                          }`,
-                        }}
-                      >
-                        {card.suit}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="border-card-suit">{card.suit}</span>
-                  )}
-                  <span className="border-card-corner bottom">
-                    {card.rank}
-                    <span className="border-card-corner-suit">{card.suit}</span>
-                  </span>
-                </>
+                // All ranks render the public-domain deckofcardsapi
+                // PNG. "10" maps to file-code "0" per the deck API
+                // convention.
+                <img
+                  className="border-card-face-img"
+                  src={`${import.meta.env.BASE_URL}img/cards/${card.rank === '10' ? '0' : card.rank}${suitLetter(card.suit)}.png`}
+                  alt={`${card.rank}${card.suit}`}
+                  draggable={false}
+                />
               )}
             </div>
           </div>

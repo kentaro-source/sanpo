@@ -1,6 +1,8 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ShareToX } from './ShareToX';
 import { useGame } from '../../hooks/useGame';
+import { cities } from '../../data/cities';
 
 interface Props {
   onForceReload: () => void;
@@ -20,10 +22,78 @@ function formatDay(ts: number): string {
 }
 
 export function HamburgerMenu({ onForceReload }: Props) {
-  const { player } = useGame();
+  const { player, routeData, distanceKm, setDistanceKm } = useGame();
   const [open, setOpen] = useState(false);
-  const [view, setView] = useState<'menu' | 'history'>('menu');
+  const [view, setView] = useState<'menu' | 'history' | 'correct'>('menu');
   const [shareOpen, setShareOpen] = useState(false);
+  const [targetKm, setTargetKm] = useState(0);
+
+  // Sorted list of every route stop (capital + city) with its km, for the
+  // 🔧 現在地を補正 panel's "どの街を過ぎたか" live readout.
+  const stops = useMemo(() => {
+    const s: { name: string; km: number }[] = [];
+    for (const cap of routeData.capitals) {
+      const km = routeData.capitalDistances[cap.id];
+      if (km != null) s.push({ name: `${cap.nameJa}(${cap.countryJa})`, km });
+    }
+    for (const c of cities) {
+      const km = routeData.cityDistances[c.id];
+      if (km != null) s.push({ name: c.nameJa, km });
+    }
+    s.sort((a, b) => a.km - b.km);
+    return s;
+  }, [routeData]);
+
+  const locate = (km: number): string => {
+    let passed: { name: string; km: number } | undefined;
+    let next: { name: string; km: number } | undefined;
+    for (const s of stops) {
+      if (s.km <= km) passed = s;
+      else {
+        next = s;
+        break;
+      }
+    }
+    const head = passed ? `${passed.name} を過ぎた地点` : 'スタート地点';
+    const tail = next ? ` / ${next.name} まで ${Math.round(next.km - km)}km` : '';
+    return head + tail;
+  };
+
+  // One-time warp recovery. The 2026-06 restoreDistanceOnce bug shoved the
+  // player ~1,100km forward (運城 → past 武漢). 運城(Yuncheng) is not a
+  // waypoint; it sits ~45% along the 西安→鄭州 leg, so we rebuild its km from
+  // those two waypoints (survives minor route shifts). Adding back exactly
+  // today's real walk (distanceKm − todayStartKm) means nothing walked today
+  // is lost.
+  const yunchengKm = useMemo(() => {
+    const xian = routeData.cityDistances['CN-XIAN'];
+    const zz = routeData.cityDistances['CN-ZHENGZHOU'];
+    if (xian == null || zz == null) return null;
+    return xian + 0.45 * (zz - xian);
+  }, [routeData]);
+
+  const todaysWalk = Math.max(
+    0,
+    distanceKm - (player.todayStartKm ?? distanceKm),
+  );
+  const suggestedKm =
+    yunchengKm != null ? Math.round(yunchengKm + todaysWalk) : null;
+
+  const openCorrect = () => {
+    setTargetKm(suggestedKm ?? Math.round(distanceKm));
+    setView('correct');
+  };
+
+  const clampKm = (km: number) =>
+    Math.max(0, Math.min(routeData.totalDistanceKm, km));
+
+  const nudge = (delta: number) => setTargetKm((k) => clampKm(k + delta));
+
+  const applyCorrection = () => {
+    setDistanceKm(targetKm);
+    setOpen(false);
+    setView('menu');
+  };
 
   if (!open) {
     return (
@@ -62,6 +132,11 @@ export function HamburgerMenu({ onForceReload }: Props) {
   };
   const past = (player.dailyHistory ?? []).slice().reverse();
 
+  const titleFor =
+    view === 'menu' ? 'メニュー' : view === 'history' ? '日別記録' : '現在地を補正';
+
+  const delta = targetKm - Math.round(distanceKm);
+
   return (
     <>
       <button
@@ -72,12 +147,11 @@ export function HamburgerMenu({ onForceReload }: Props) {
       >
         ☰
       </button>
-      <div className="menu-overlay" onClick={() => setOpen(false)}>
+      {createPortal(
+        <div className="menu-overlay" onClick={() => setOpen(false)}>
         <div className="menu-sheet" onClick={(e) => e.stopPropagation()}>
           <header className="menu-header">
-            <span className="menu-title">
-              {view === 'menu' ? 'メニュー' : '日別記録'}
-            </span>
+            <span className="menu-title">{titleFor}</span>
             <button
               type="button"
               className="menu-close"
@@ -109,6 +183,15 @@ export function HamburgerMenu({ onForceReload }: Props) {
                   onClick={() => setView('history')}
                 >
                   📊 日別記録
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  className="menu-item"
+                  onClick={openCorrect}
+                >
+                  🔧 現在地を補正
                 </button>
               </li>
               <li>
@@ -175,8 +258,96 @@ export function HamburgerMenu({ onForceReload }: Props) {
               </ol>
             </div>
           )}
+
+          {view === 'correct' && (
+            <div className="menu-correct">
+              <button
+                type="button"
+                className="menu-back"
+                onClick={() => setView('menu')}
+              >
+                ← 戻る
+              </button>
+
+              <p className="correct-note">
+                起動時のバグで現在地が約1,100km 前方へワープしました。下の値は
+                「運城（昨日の終点）＋今日歩いた {formatKm(Math.round(todaysWalk))}」に
+                自動セット済みです。地図で確認して「この位置に補正」を押してください。
+                今日歩いた分は失われません。ズレていれば下のボタンで微調整できます。
+              </p>
+
+              {suggestedKm != null && (
+                <button
+                  type="button"
+                  className="correct-suggest"
+                  onClick={() => setTargetKm(suggestedKm)}
+                >
+                  🛂 運城＋今日の歩行に自動セット（{formatKm(suggestedKm)}）
+                </button>
+              )}
+
+              <div className="correct-row">
+                <span className="correct-label">現在値（ワープ後）</span>
+                <span className="correct-value">
+                  {formatKm(Math.round(distanceKm))}
+                </span>
+              </div>
+
+              <div className="correct-row correct-target">
+                <span className="correct-label">補正後</span>
+                <span className="correct-value">
+                  {formatKm(targetKm)}
+                  {delta !== 0 && (
+                    <span
+                      className="correct-delta"
+                      style={{ color: delta < 0 ? '#2563eb' : '#dc2626' }}
+                    >
+                      {' '}
+                      ({delta > 0 ? '+' : ''}
+                      {delta.toLocaleString()}km)
+                    </span>
+                  )}
+                </span>
+              </div>
+
+              <div className="correct-locate">📍 {locate(targetKm)}</div>
+
+              <div className="correct-steppers">
+                {[-100, -10, -1, 1, 10, 100].map((d) => (
+                  <button
+                    key={d}
+                    type="button"
+                    className="correct-step"
+                    onClick={() => nudge(d)}
+                  >
+                    {d > 0 ? `+${d}` : d}
+                  </button>
+                ))}
+              </div>
+
+              <div className="correct-actions">
+                <button
+                  type="button"
+                  className="correct-reset"
+                  onClick={() => setTargetKm(Math.round(distanceKm))}
+                >
+                  現在値に戻す
+                </button>
+                <button
+                  type="button"
+                  className="correct-apply"
+                  disabled={delta === 0}
+                  onClick={applyCorrection}
+                >
+                  この位置に補正
+                </button>
+              </div>
+            </div>
+          )}
         </div>
-      </div>
+        </div>,
+        document.body,
+      )}
       {shareOpen && <ShareToX onClose={() => setShareOpen(false)} />}
     </>
   );
