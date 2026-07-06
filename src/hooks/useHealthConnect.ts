@@ -6,7 +6,13 @@ import {
   getTodayStepTotal,
 } from '../services/healthConnect';
 
-const POLL_INTERVAL_MS = 30_000;
+// Poll fast while the app is in the foreground (the user is watching the
+// marker) and slow when hidden (battery). The foreground rate is the real
+// lever for smooth motion: each poll advances distanceKm and the marker
+// glides to it — at 30 s that's a glide then a long freeze ("まとめて移動");
+// at a few seconds it reads as continuous walking.
+const POLL_VISIBLE_MS = 4_000;
+const POLL_HIDDEN_MS = 30_000;
 /** Burst poll offsets (ms) after auth. Health Connect lags the OS step
  *  counter by a few seconds while the device flushes pending writes;
  *  these extra early polls catch the flush quickly so the in-app
@@ -42,7 +48,7 @@ export function useHealthConnect() {
       return;
     }
     let cancelled = false;
-    let timer: ReturnType<typeof setInterval> | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
 
     const tick = async () => {
       const total = await getTodayStepTotal();
@@ -66,7 +72,21 @@ export function useHealthConnect() {
           if (!cancelled) void tick();
         }, delay);
       }
-      timer = setInterval(tick, POLL_INTERVAL_MS);
+      // Self-rescheduling poll: the interval is re-read each cycle from
+      // the current visibility, so foreground/background transitions take
+      // effect on the next tick (fast while watching, slow when hidden).
+      const scheduleNext = () => {
+        if (cancelled) return;
+        const ms =
+          document.visibilityState === 'visible'
+            ? POLL_VISIBLE_MS
+            : POLL_HIDDEN_MS;
+        timer = setTimeout(async () => {
+          await tick();
+          scheduleNext();
+        }, ms);
+      };
+      scheduleNext();
     })();
 
     const onVisible = () => {
@@ -76,7 +96,7 @@ export function useHealthConnect() {
 
     return () => {
       cancelled = true;
-      if (timer) clearInterval(timer);
+      if (timer) clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisible);
     };
   }, []);

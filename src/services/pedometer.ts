@@ -40,7 +40,11 @@ interface DeviceMotionEventConstructorWithPermission {
 // almost any human can sustain without running.
 const STEP_THRESHOLD_M_S2 = 13;
 const STEP_COOLDOWN_MS = 380;
-const FLUSH_INTERVAL_MS = 1000; // forward buffered steps to consumer 1×/sec
+// Forward buffered steps to the consumer 4×/sec. At 1×/sec the marker
+// advanced in once-a-second hops; 250 ms keeps foreground walking smooth
+// when DeviceMotion is delivering steps. (No-op if the WebView never fires
+// devicemotion — Health Connect polling is then the only step source.)
+const FLUSH_INTERVAL_MS = 250;
 
 class Pedometer {
   private listening = false;
