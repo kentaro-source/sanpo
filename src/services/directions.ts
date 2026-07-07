@@ -38,6 +38,16 @@ let memCache: Cache | null = null;
 function loadCache(): Cache {
   if (memCache) return memCache;
   try {
+    // One-time cleanup: an old build persisted the built window path
+    // under this key (~1.5M chars on the user's device). Nothing reads
+    // it anymore, but it permanently ate ~30% of the localStorage
+    // quota and pushed directions-cache writes into QuotaExceededError.
+    // Same pattern as geocode.ts removing 'sanpo-geocode-cache-v1'.
+    localStorage.removeItem('sanpo-snapped-path-v1');
+  } catch {
+    // ignore
+  }
+  try {
     const raw = localStorage.getItem(CACHE_KEY);
     memCache = raw ? (JSON.parse(raw) as Cache) : {};
   } catch {
@@ -48,17 +58,99 @@ function loadCache(): Cache {
 
 function saveCache(cache: Cache): void {
   memCache = cache;
-  try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
-  } catch {
-    // Quota exceeded - clear and retry
+  // QuotaExceeded recovery: evict the OLDEST entries and retry, instead
+  // of dropping the whole cache. The old clear-everything handler was
+  // the root cause of "device cache never accumulates": one oversized
+  // write (a single unsimplified WALKING chunk could exceed the whole
+  // ~5MB WebView quota by itself) nuked every previously cached leg,
+  // so on-device routes re-fetched from scratch every launch and drew
+  // straight lines while (re)loading.
+  for (let attempt = 0; attempt < 12; attempt += 1) {
     try {
-      localStorage.removeItem(CACHE_KEY);
-      memCache = {};
+      localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+      return;
     } catch {
-      // ignore
+      const keys = Object.keys(cache);
+      if (keys.length === 0) break;
+      keys.sort((a, b) => (cache[a].timestamp ?? 0) - (cache[b].timestamp ?? 0));
+      // Drop the oldest ~20% (at least 1) and retry.
+      const drop = Math.max(1, Math.floor(keys.length / 5));
+      for (let i = 0; i < drop && i < keys.length; i += 1) {
+        delete cache[keys[i]];
+      }
     }
   }
+  // Still failing with an empty (or undroppable) cache — give up on
+  // persisting this round; the in-memory copy stays usable.
+}
+
+/**
+ * Iterative Douglas-Peucker simplification (same ~10 m tolerance the
+ * map rendering uses). Directions WALKING paths carry a vertex every
+ * ~10 m — a single ≤25-stop chunk reached 138k points / 5.5M JSON
+ * chars, which alone exceeds the Android WebView localStorage quota.
+ * Simplifying BEFORE caching keeps a whole-world cache well under
+ * quota with no visible quality loss (MapView re-simplifies at the
+ * same epsilon anyway).
+ */
+const SIMPLIFY_EPS_DEG = 0.0001;
+
+function simplifyForCache(
+  pts: google.maps.LatLngLiteral[],
+): google.maps.LatLngLiteral[] {
+  if (pts.length < 3) return pts;
+  const perpDist = (
+    p: google.maps.LatLngLiteral,
+    a: google.maps.LatLngLiteral,
+    b: google.maps.LatLngLiteral,
+  ): number => {
+    const dx = b.lat - a.lat;
+    const dy = b.lng - a.lng;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq === 0) {
+      const ddx = p.lat - a.lat;
+      const ddy = p.lng - a.lng;
+      return Math.sqrt(ddx * ddx + ddy * ddy);
+    }
+    const t = ((p.lat - a.lat) * dx + (p.lng - a.lng) * dy) / lenSq;
+    const px = a.lat + t * dx;
+    const py = a.lng + t * dy;
+    const ddx = p.lat - px;
+    const ddy = p.lng - py;
+    return Math.sqrt(ddx * ddx + ddy * ddy);
+  };
+  const keep = new Uint8Array(pts.length);
+  keep[0] = 1;
+  keep[pts.length - 1] = 1;
+  const stack: [number, number][] = [[0, pts.length - 1]];
+  while (stack.length > 0) {
+    const [start, end] = stack.pop()!;
+    if (end - start < 2) continue;
+    let maxD = 0;
+    let maxI = -1;
+    const a = pts[start];
+    const b = pts[end];
+    for (let i = start + 1; i < end; i += 1) {
+      const d = perpDist(pts[i], a, b);
+      if (d > maxD) {
+        maxD = d;
+        maxI = i;
+      }
+    }
+    if (maxD > SIMPLIFY_EPS_DEG && maxI > -1) {
+      keep[maxI] = 1;
+      stack.push([start, maxI]);
+      stack.push([maxI, end]);
+    }
+  }
+  const out: google.maps.LatLngLiteral[] = [];
+  // 5 decimals ≈ 1 m — full doubles ("-8.123456789012345") were ~45
+  // JSON chars per point; rounding cuts the cache another ~30%.
+  const round5 = (n: number) => Math.round(n * 1e5) / 1e5;
+  for (let i = 0; i < pts.length; i += 1) {
+    if (keep[i]) out.push({ lat: round5(pts[i].lat), lng: round5(pts[i].lng) });
+  }
+  return out;
 }
 
 function makeCacheKey(
@@ -147,6 +239,21 @@ export function getRoadPolyline(
   return job;
 }
 
+/**
+ * Failure statuses that mean "this pair can never route" — safe to
+ * negative-cache for FAIL_TTL_MS. Everything else (OVER_QUERY_LIMIT
+ * rate limiting, UNKNOWN_ERROR, network hiccups, REQUEST_DENIED key
+ * problems) is transient: caching those for 7 days froze perfectly
+ * routable legs into straight lines after one bad launch burst.
+ */
+const PERMANENT_FAIL_STATUSES = new Set([
+  'ZERO_RESULTS',
+  'NOT_FOUND',
+  'MAX_WAYPOINTS_EXCEEDED',
+  'MAX_ROUTE_LENGTH_EXCEEDED',
+  'INVALID_REQUEST',
+]);
+
 async function fetchRoadPolyline(
   origin: google.maps.LatLngLiteral,
   destination: google.maps.LatLngLiteral,
@@ -159,7 +266,7 @@ async function fetchRoadPolyline(
   // driving for long inter-city legs the walking router refuses to compute.
   const tryRoute = async (
     travelMode: google.maps.TravelMode,
-  ): Promise<google.maps.LatLngLiteral[] | null> => {
+  ): Promise<{ path: google.maps.LatLngLiteral[] | null; status: string }> => {
     try {
       const service = getService();
       const result = await new Promise<google.maps.DirectionsResult>(
@@ -176,7 +283,7 @@ async function fetchRoadPolyline(
               if (status === 'OK' && res) {
                 resolve(res);
               } else {
-                reject(new Error(`Directions ${travelMode} failed: ${status}`));
+                reject(new Error(String(status)));
               }
             },
           );
@@ -190,26 +297,45 @@ async function fetchRoadPolyline(
           }
         }
       }
-      return path;
+      return { path, status: 'OK' };
     } catch (e) {
-      console.warn('Directions API error:', e);
-      return null;
+      const status = e instanceof Error ? e.message : String(e);
+      console.warn(`Directions ${travelMode} failed:`, status);
+      return { path: null, status };
     }
   };
 
-  let path = await tryRoute(google.maps.TravelMode.WALKING);
+  const walking = await tryRoute(google.maps.TravelMode.WALKING);
+  let path = walking.path;
+  let driving: { path: google.maps.LatLngLiteral[] | null; status: string } | null =
+    null;
   if (!path) {
     // Walking router rejects routes longer than a few hundred km. Retry
     // with driving so the polyline at least follows real roads.
-    path = await tryRoute(google.maps.TravelMode.DRIVING);
+    driving = await tryRoute(google.maps.TravelMode.DRIVING);
+    path = driving.path;
   }
 
-  // Cache the outcome either way — successes for 30 days, failures for
-  // 7 (FAIL_TTL_MS) so unroutable pairs stop costing two API calls per
-  // launch.
-  cache[cacheKey] = { path, timestamp: Date.now() };
-  saveCache(cache);
-  return path;
+  if (path) {
+    // Simplify BEFORE caching — raw WALKING paths are ~1 vertex/10m and
+    // a single chunk's JSON could exceed the WebView's entire quota.
+    const simplified = simplifyForCache(path);
+    cache[cacheKey] = { path: simplified, timestamp: Date.now() };
+    saveCache(cache);
+    return simplified;
+  }
+
+  // Negative-cache ONLY when both modes failed permanently; a transient
+  // failure must retry next launch instead of straight-lining for 7 days.
+  const permanentFailure =
+    PERMANENT_FAIL_STATUSES.has(walking.status) &&
+    driving != null &&
+    PERMANENT_FAIL_STATUSES.has(driving.status);
+  if (permanentFailure) {
+    cache[cacheKey] = { path: null, timestamp: Date.now() };
+    saveCache(cache);
+  }
+  return null;
 }
 
 /** Clear all cached polylines (e.g., when route data changes). */
