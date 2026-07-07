@@ -153,6 +153,21 @@
 7. **X 偽装ラベル状況の追跡**（継続観察）
 8. （任意）Directions チャンク縮小 / leaflet 系未使用依存の削除 / `DiceResult.tsx` 削除
 
+### コードレビュー指摘（2026-07-07 実施、重要度順 — 修正は未着手）
+
+セキュリティ（キー/個人情報/公開リポ）と設計（壊れやすさ/技術的負債）の全体レビュー結果。各項目は grep・コード読解・実測で確認済みの事実。
+
+1. **[セキュリティ・高] Google Maps API キーの防御が referrer の localhost 許可で実質崩れている**: キー全文が public リポの CLAUDE.md（3箇所）・git 履歴・PWA バンドルに存在し、かつ referrer 制限に `https://localhost/*` / `http://localhost/*`（Capacitor APK 用）を追加済みのため、**誰でも手元の localhost ページから同キーで Maps/Directions を叩ける**。「referrer 制限があるので実害なし」という当初の受容判断は APK 対応の時点で弱体化している。対処案: キーを2本に分離（APK 用 = Android アプリ制限付きキー / Web 用 = referrer から localhost を除去）+ Cloud Console で予算アラートと quota 上限を設定。悪用時はローテーション（git 履歴からは消せないため、ローテーションが唯一の根治）
+2. **[設計・高] 進行データが端末の localStorage 単独でバックアップ手段がない**: 端末故障・紛失・WebView データ消去で全進行（数百日分の歩行実績）が消える。watchdog も同一端末内の保険にすぎない。対処案: ☰メニューに state の JSON エクスポート/インポートを追加（クリップボード経由で十分）
+3. **[設計・高] ルートデータとセーブデータの意味的結合**: `distanceKm` は「その時点の routeData の km 軸上の位置」でしかなく、ルート編集（都市追加等）で既存セーブの位置が黙って再解釈される（歴代ワープ事故の根。現在は「プレイヤー前方しか編集しない」運用でしのいでいる）。raw×1.4 と実道路 snap の二重スケールも残存（書かれるが読まれない snap override コードが罠として死蔵）。対処案: routeData に version を持たせ、セーブに routeVersion を記録して不一致時の扱いを明示する（大改修につき計画的に）
+4. **[設計・高] 通過/ボーナス判定ロジックが GameContext 内に3重複製**: `ADD_STEPS` / `SYNC_FROM_GOOGLE_FIT` / `RECHECK_CROSSINGS` に首都+5/都市+3/IRL 追加のほぼ同一コードが3箇所（L156〜/L1141〜/L1296〜）。修正漏れが構造的に発生する（過去バグの温床）。GameContext 1,577行のモノリス化も同根。対処案: 通過検知+ボーナス付与を単一関数に抽出
+5. **[設計・中] waypoint 参照エラーの黙殺**: segmentMeta の `waypointCityIds` に typo があると `generateRoute` が黙って読み飛ばしてルート形状が静かに変わり、さらに1件でも解決失敗するとそのセグメントの `cityDistances` が丸ごと未設定になる（立寄ボーナス全滅）。機械検証が無い（第12は目視確認だった）。対処案: `scripts/_routestats.mts` に「未解決 waypoint 参照 = 0 件」チェックを追加し、ルート編集後の必須手順にする
+6. **[セキュリティ・中] 実生活の渡航歴・行動情報が public リポに恒久公開**: `realLifeVisited.ts`（実渡航都市の全リスト）、CLAUDE.md（訪問国×回数・故郷・ハワイ渡航等の行動記録）、HANDOVER.md（日々の位置/歩行状況）。ゲーム設計上の意図的公開だが、アカウント名と紐づく生活パターンの公開蓄積である点は認識しておくこと。対処案: 現状維持なら対応不要。避けるなら private 化（GitHub Pages は無料 private リポで使えないため有料化 or Cloudflare Pages 移行が必要）
+7. **[設計・中] マーカー位置計算の重複実装**: MapView の `markerOnBuiltPath`/`projectOntoPath` と playerPath の同型コピー（第14の位置化け修正で意図的に複製）。将来片方だけ修正すると地図と share がまた乖離する。対処案: 共有モジュールへ統合
+8. **[設計・中] テストが皆無**（src に *.test.* ゼロ）: ゾロ目判定バグや負け倍率のような純粋関数のバグはユニットテストで防げた類。対処案: `sicbo.ts`・`generateRoute` の km 計算・storage migration の3点だけでも vitest 導入
+9. **[セキュリティ・低] Android 周りの小粒な点**: `allowBackup="true"`（端末バックアップ経由の state 吸出し — 自分用途では実害小）／X OAuth のカスタムスキーム `com.kentarosource.sanpo://` は他アプリが名乗れる（PKCE で緩和済み）／debug APK は WebView を誰でも inspect 可（sideload 運用なら許容）。健全な点も確認済み: worker/ の client_secret は wrangler secret 管理でコード非含有、`.env.local` は `*.local` で ignore、`android/local.properties` は未追跡（CLAUDE.md の「commit 済」記載は誤りで、実際は追跡されていない = 良い方向のドキュメント乖離）
+10. **[設計・低] 死コード・未使用依存・巨大手編集ファイルの堆積**: `DiceResult.tsx`（import ゼロ）／Fit 系一式（GoogleFitButton・googleFit.ts・useGoogleFitConnection・worker/ — UI 無効のまま残置、「将来復活用」の判断記録あり）／`RETRY_LAST_MISSED_BORDER` handler（未呼出）／PlayerState の deprecated フィールド（currentSquareIndex/currentMultiplier/multiplierUntil/diceHistory）／package.json の leaflet・react-leaflet・@react-google-maps/api・@types/leaflet（import ゼロ）。cities.ts 11,378行・segmentMeta.ts 2,913行は手編集の単一巨大ファイルで座標の妥当性検証なし。対処案: 消せるものから順次削除（Fit 系を消すなら CLAUDE.md の該当記述も更新）。補足: `.claude/` が gitignore のため dev サーバ定義（launch.json）はクローンに含まれず、別PC では CLAUDE.md の記載から再作成が必要
+
 ### 絶対に破ってはいけない設計ルール（過去の重大事故から確定）
 - **distanceKm を起動時に自動で動かすロジックを書かない**（forward/backward とも。過去 cleanup v1〜v7 が全て事故化）
 - **km 判定は raw 統一**。snap override（`setStopKm` の値）を読む実装に戻さない
