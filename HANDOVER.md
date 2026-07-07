@@ -53,14 +53,14 @@
 - 一回限りマイグレーションフラグ: `sanpo-yuncheng-warp-undo-v1`（コード中に現存）。実機にはさらに過去の `sanpo-state-cleanup-v3..v7`・`sanpo-distance-restore-v1` 等が残存（コードからは削除済みの旧 cleanup の痕跡。**再利用禁止**）
 - Capacitor Preferences: `sanpo-x-token-v1`、`sanpo-x-pkce-v1`
 
-### ルートデータ（2026-07-06 に `scripts/_routestats.mts` で実測）
+### ルートデータ（2026-07-07 に `scripts/_routestats.mts` で実測）
 | 項目 | 値 |
 |---|---|
 | 首都（capitals.ts、ルート順） | **193** |
-| 都市（cities.ts） | **1,001**（うち 936 が route 上に km 解決。200km 圏外の 65 は立寄ボーナス対象外） |
+| 都市（cities.ts） | **1,012**（うち 947 が route 上に km 解決。200km 圏外の 65 は立寄ボーナス対象外） |
 | セグメント | 193（segmentMeta.ts で分類済み **192** + 最終首都→東京の wrap） |
-| 総距離 | **367,653 km**（great-circle×1.4 の raw スケール。ルート変更のたび変動） |
-| squares | 18,385（~20km 間隔。`positionAtKm` の補間精度を決める） |
+| 総距離 | **369,083 km**（great-circle×1.4 の raw スケール。ルート変更のたび変動） |
+| squares | 18,457（~20km 間隔。`positionAtKm` の補間精度を決める） |
 
 主要データファイル（すべて `src/data/`）:
 - `segmentMeta.ts` — 各セグメントの routeType（land/sea/mixed/fantasy）・waypointCityIds・**seaSegments（直線で描く leg の [i,i+1] ペア）**
@@ -124,7 +124,7 @@
    - ✅ **香港/マカオ越境（深圳→香港→マカオ→珠海）: 解決・実機確認済み**。Google は SAR 越境を全て ZERO_RESULTS（実機 DirectionsService で確認）→ 手動橋ポリライン（深圳湾大橋/港珠澳大橋/拱北）で実ルート描画（`581e3e3`+`b7e7855`）。2026-06-25 実機スクショで橋・道路を辿る描画を目視確認
    - 🟡 **高雄→マニラ→ボルネオ→ジャカルタの島伝い: コミット済み・実機未確認**。旧 890km 直線をバスコ/アパリ経由ルソン陸路に、PH→BN をサバ上陸（タワウ/コタキナバル）経由に、BN→ID をサラワク陸路に分割（`581e3e3`）。全陸路 leg が Google でルート可能なことは実機 DirectionsService で確認済み、stop 配線・道路追従は dev で確認済み。**ただしこの変更を含む APK は端末に未インストールの可能性が高い**（3回目ビルドは成功したが install の実行記録がセッションログに無い — 当時の「インストール完了」報告は誤りだった）。端末の PH 区間 stop リストにバスコ/アパリが出るかで新旧を判別できる
    - ❌ **実機の Directions キャッシュがほぼ蓄積されない問題（中国内陸等の一般陸路の直線化）: 未解決**。2026-06-25 時点でキャッシュ1件のみ（dev は多数）。チャンク上限縮小案（~8 legs）は未実装。手動橋・島伝いで目立つ区間は回避したが根本は残存
-   - ❌ **バリ→ディリ（ID→TL）/ ディリ→シンガポール（TL→SG）: 未着手**。島伝い化の次対象（ユーザー合意済み）
+   - 🟡 **バリ→ディリ / ディリ→シンガポール: コミット済み（2026-07-07 `2a851f8`）・実機未確認**。ヌサトゥンガラ島伝い（マタラム〜アタンブア8都市、seaSegments 不要 — 島間フェリー・ID→TL 国境含め全 leg が Google でルート可能なことを dev DirectionsService で確認）+ ディリ→マカッサル→パレパレ→バタム→SG（海3区間は実航路の直線）。stop 配線は dev で確認済み。次回 APK に含めて実機確認
 3. **韓国・北朝鮮内は Google が routing 拒否**（韓国の地図輸出規制・北朝鮮データ無し）→ 恒久的に直線。回避不能（既知の制約）
 4. **X 直接投稿は 402**（Free tier が POST /2/tweets を課金必須化）。OAuth/token 部分は動作。intent URL 運用が現状の正
 5. **アプリを task から swipe away すると歩数取得も通知も停止**（WebView 死亡）。WorkManager での常駐 polling は未実装（大改修）
@@ -143,7 +143,7 @@
 1. **最新 APK（島伝い入り）のインストール確認と実施（最優先）**: 端末には 2026-06-25 の2回目ビルド（位置化け修正+HK/マカオ橋）までしか入っていない可能性が高い（3回目=島伝い入りは**ビルド成功のみ確認、install の実行記録なし**）。判別: PH 区間の stop リストにバスコ/アパリが出るか、または `dumpsys package com.kentarosource.sanpo` の lastUpdateTime。古ければコミット済みソースから `npm run cap:sync` → gradle → `adb install -r` → `am force-stop` → 起動。なお現在地より手前の新経由地（バスコ等の通過済み分）は前進時のみ検知のため遡及加点されない（仕様通り、補正不要）
 2. **ShareToX 位置化け修正の実機確認**: 現在地が実際にフィリピンのため国名では判定不可。**地図マーカーの地点と share の現在地行が同一地点（同じ市/州）か**で確認（CDP で ☰→𝕏投稿→4.5s 待って textarea 読取り）。不一致なら `markerPositionAtKm(distanceKm)` の戻り値を CDP で直接ログして追う
 3. **香港/マカオ/台湾の入国審査が発火したかの確認**（第12から繰越）: ユーザー申告で通過済みのはず → `borderRollsWon` に HK/MO/TW が入り国数 **8/196** になっているか CDP で確認。抜けがあれば原因調査（勝手に補填しない — 鉄則参照）
-4. **バリ→ディリ / ディリ→シンガポールの島伝い化**（ユーザー合意済みの継続作業): ヌサトゥンガラ列島（ロンボク/スンバワ/フローレス/西ティモール=クパン等）を cities.ts + segmentMeta.ts に追加し、海 hop を短く分割。**先に実機 CDP の DirectionsService で各陸路 leg が OK を返すか確認してから**組むこと（ボルネオ方式。ZERO_RESULTS の越境があれば manualLegPaths 方式）
+4. ~~バリ→ディリ / ディリ→シンガポールの島伝い化~~ — **済（2026-07-07 `2a851f8` コミット・push 済み）**。実機反映は task 1 の APK インストールに含まれる。これで**プレイヤー前方の未整備直線はゼロ**（残る直線は実航路の海と恒久制約のみ）
 5. ~~未コミット変更の整理 commit~~ — **済（2026-07-07、7コミット + push 済み、GitHub Pages デプロイ success）**
 6. **WorkManager で完全 kill 時の background polling**（大改修・継続）
 7. **X 偽装ラベル状況の追跡**（継続観察）
