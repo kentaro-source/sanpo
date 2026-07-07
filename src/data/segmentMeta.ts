@@ -272,6 +272,13 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'ID',
     toCapitalId: 'TL',
     routeType: 'mixed',
+    // ジャワ→バリ→ヌサトゥンガラ列島を島伝いに東進→西ティモール→陸路国境で
+    // ディリ。0=Jakarta,1=Cirebon,…,8=Bali,9=Mataram(ロンボク),10=SumbawaBesar,
+    // 11=Bima,12=LabuanBajo(フローレス),13=Ende,14=Maumere,15=Kupang(西ティモール),
+    // 16=Atambua,17=Dili(dest)。旧 [8,9] バリ→ディリ直行 ~1,100km 直線を分割。
+    // 全 leg が Google DRIVING でルート可能なことを 2026-07-07 に dev の
+    // DirectionsService で確認済み(島間フェリー・ID→TL 国境 Atambua→Dili 含めて
+    // OK が返る) — seaSegments 不要。
     waypointCityIds: [
       'ID-CIREBON',
       'ID-PURWOKERTO',
@@ -281,17 +288,33 @@ export const segmentClassifications: SegmentClassification[] = [
       'ID-PROBOLINGGO',
       'ID-BANYUWANGI',
       'ID-BALI',
+      'ID-MATARAM',
+      'ID-SUMBAWABESAR',
+      'ID-BIMA',
+      'ID-LABUANBAJO',
+      'ID-ENDE',
+      'ID-MAUMERE',
+      'ID-KUPANG',
+      'ID-ATAMBUA',
     ],
-    // [origin=Jakarta, 1=Yogyakarta, 2=Surabaya, 3=Bali, 4=Dili]
-    // 3→4 spans the Lesser Sunda Islands ~1,100 km of ferries/island hops.
-    seaSegments: [[8, 9]],
-    notes: 'ジャワ→バリ→[ヌサトゥンガラ列島]→東ティモール',
+    notes:
+      'ジャワ→バリ→[フェリー]ロンボク→スンバワ→[サペ海峡]フローレス(ラブアンバジョ/エンデ/マウメレ)→[サブ海]クパン→アタンブア→[国境]ディリ',
   },
   {
     fromCapitalId: 'TL',
     toCapitalId: 'SG',
-    routeType: 'sea',
-    notes: 'ジャワ海西進、ヌサトゥンガラ→マレー半島先端',
+    routeType: 'mixed',
+    // ディリ→[バンダ海/フローレス海]→マカッサル(スラウェシ上陸)→パレパレ(陸路)
+    // →[ジャワ海/カリマタ海峡 PELNI航路]→バタム→[直行フェリー]→シンガポール。
+    // 0=Dili,1=Makassar,2=Parepare,3=Batam,4=Singapore(dest)。
+    // 海(直線)= [0,1] ディリ→マカッサル ~1,000km, [2,3] パレパレ→バタム ~1,500km,
+    // [3,4] バタム→SG(Google は OK を返すがジョホール大迂回 148km になるため
+    // 直行フェリー ~20km を直線で表現)。マカッサル→パレパレ(153km)は陸路で
+    // 道路追従(2026-07-07 dev DirectionsService で OK 確認済み)。
+    waypointCityIds: ['ID-MAKASSAR', 'ID-PAREPARE', 'ID-BATAM'],
+    seaSegments: [[0, 1], [2, 3], [3, 4]],
+    notes:
+      'ディリ→[バンダ海]→マカッサル→パレパレ→[PELNI航路でジャワ海西進]→バタム→[フェリー]→シンガポール',
   },
   {
     fromCapitalId: 'SG',
