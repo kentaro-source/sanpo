@@ -97,6 +97,15 @@ function markerOnBuiltPath(
   const a = anchors[lo];
   const b = anchors[hi];
   if (b.km <= a.km) return null;
+  // Nearest path point to an anchor, but ONLY if the path actually passes
+  // near it. Without this bound the function silently "matches" an anchor
+  // to the far end of a PARTIAL path: during the incremental build the first
+  // finished segment was Mongolia→Manila, so the Bali/Lombok anchors both
+  // resolved to the Manila end and the map centred on Manila while the
+  // player was on Bali. Stops are vertices of the real path, so a genuine
+  // match is within a fraction of a degree; 0.5° (~55 km) is a generous
+  // bound that still rejects a wrong-continent match.
+  const ANCHOR_TOLERANCE_DEG = 0.5;
   const nearest = (lat: number, lng: number): number => {
     let bi = -1;
     let bd = Infinity;
@@ -106,7 +115,7 @@ function markerOnBuiltPath(
       const d = dl * dl + dg * dg;
       if (d < bd) { bd = d; bi = i; }
     }
-    return bi;
+    return bd <= ANCHOR_TOLERANCE_DEG * ANCHOR_TOLERANCE_DEG ? bi : -1;
   };
   const ia = nearest(a.lat, a.lng);
   const ib = nearest(b.lat, b.lng);
@@ -126,6 +135,39 @@ function markerOnBuiltPath(
   }
   const last = allPoints[ib];
   return { idx: ib, lat: last.lat, lng: last.lng };
+}
+
+/**
+ * Where the player is on the built road path — the single answer used by the
+ * marker, the walked/future split, and the initial map centring.
+ *
+ * The path is assembled segment-by-segment, so early in a build it can cover
+ * a completely different part of the world than the player. Anchoring by stop
+ * arc length (markerOnBuiltPath) already returns null in that case, but the
+ * old `?? projectOntoPath(...)` fallback then snapped to whatever end of the
+ * partial path was nearest: with the player on Bali and only Mongolia→Manila
+ * built, the marker, the green "walked" line and the map centre all jumped to
+ * Manila. Three copies of that fallback existed and all three were wrong, so
+ * the decision lives here now.
+ *
+ * Returns null when neither method can place the player trustworthily; the
+ * caller should then use the raw route position, which is never in the wrong
+ * part of the world.
+ */
+function playerOnBuiltPath(
+  built: { allPoints: google.maps.LatLngLiteral[]; cumKm: number[] },
+  distanceKm: number,
+  anchors: { km: number; lat: number; lng: number }[],
+  rawPosition: google.maps.LatLngLiteral,
+): { idx: number; lat: number; lng: number } | null {
+  if (built.allPoints.length < 2) return null;
+  const anchored = markerOnBuiltPath(built, distanceKm, anchors);
+  if (anchored) return anchored;
+  const p = projectOntoPath(built.allPoints, rawPosition);
+  const nearRaw =
+    Math.abs(p.lat - rawPosition.lat) <= 1 &&
+    Math.abs(p.lng - rawPosition.lng) <= 1;
+  return nearRaw ? p : null;
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -383,20 +425,27 @@ export function MapView() {
       // Split walked/future at the continuous projection of the player's
       // position onto the road, so the green/blue boundary sits exactly
       // under the (also-continuous) marker instead of snapping to a vertex.
-      const proj =
-        markerOnBuiltPath(b, player.distanceKm, stopAnchors) ??
-        projectOntoPath(b.allPoints, position);
-      const splitIdx = Math.floor(proj.idx);
-      const splitPoint = { lat: proj.lat, lng: proj.lng };
+      // If the player can't be placed on this (possibly partial) path yet,
+      // draw it all as "future" rather than mis-colouring a whole continent
+      // as walked.
+      const proj = playerOnBuiltPath(b, player.distanceKm, stopAnchors, position);
       let walkedPath: google.maps.LatLngLiteral[] = [];
       let futurePath: google.maps.LatLngLiteral[] = [];
-      if (proj.idx <= 0) {
+      if (!proj) {
+        // Player not placeable on this (partial) path yet — show it all as
+        // future rather than colouring another continent as already walked.
         futurePath = b.allPoints;
-      } else if (splitIdx >= b.allPoints.length - 1) {
-        walkedPath = b.allPoints;
       } else {
-        walkedPath = [...b.allPoints.slice(0, splitIdx + 1), splitPoint];
-        futurePath = [splitPoint, ...b.allPoints.slice(splitIdx + 1)];
+        const splitIdx = Math.floor(proj.idx);
+        const splitPoint = { lat: proj.lat, lng: proj.lng };
+        if (proj.idx <= 0) {
+          futurePath = b.allPoints;
+        } else if (splitIdx >= b.allPoints.length - 1) {
+          walkedPath = b.allPoints;
+        } else {
+          walkedPath = [...b.allPoints.slice(0, splitIdx + 1), splitPoint];
+          futurePath = [splitPoint, ...b.allPoints.slice(splitIdx + 1)];
+        }
       }
 
       const ensureWalked = (path: google.maps.LatLngLiteral[]) => {
@@ -535,35 +584,25 @@ export function MapView() {
           if (idx >= 0) setStopKm('city', cityId, cumKm[idx]);
         }
         renderFromBuilt(snapshot);
-        // Pan to the player as soon as the partial path covers their km.
+        // Pan to the player as soon as the partial path reaches them.
+        //
+        // This used to compare player.distanceKm (GLOBAL route km, e.g.
+        // 29,508) against this window's cumKm — which is arc length starting
+        // at 0 for the built window. Two different scales: the range check
+        // failed, so no pan ever happened and the map sat on its default
+        // center (open ocean) until the user pressed 📍. Same dual-scale
+        // class of bug that caused the old marker/stop mismatches.
+        //
+        // Now it uses markerOnBuiltPath — the exact same all-stop arc-length
+        // anchoring the player marker uses — so the map centers on precisely
+        // where the marker is. It returns null until the stops bracketing the
+        // player are in the built window, which also gives us the "wait until
+        // the path covers the player" behaviour for free.
         if (!initialCenterDoneRef.current && mapRef.current) {
-          const km = player.distanceKm;
-          const lo = cumKm[0];
-          const hi = cumKm[cumKm.length - 1];
-          if (km >= lo - 0.001 && km <= hi + 0.001) {
-            let idx = -1;
-            for (let i = 0; i < cumKm.length; i++) {
-              if (cumKm[i] >= km) { idx = i; break; }
-            }
-            let snapped: google.maps.LatLngLiteral | null = null;
-            if (idx <= 0) snapped = allPoints[0];
-            else {
-              const a = allPoints[idx - 1];
-              const b = allPoints[idx];
-              const segKm = cumKm[idx] - cumKm[idx - 1];
-              const f =
-                segKm > 0
-                  ? Math.max(0, Math.min(1, (km - cumKm[idx - 1]) / segKm))
-                  : 0;
-              snapped = {
-                lat: a.lat + (b.lat - a.lat) * f,
-                lng: a.lng + (b.lng - a.lng) * f,
-              };
-            }
-            if (snapped) {
-              mapRef.current.panTo(snapped);
-              initialCenterDoneRef.current = true;
-            }
+          const proj = markerOnBuiltPath(snapshot, player.distanceKm, stopAnchors);
+          if (proj) {
+            mapRef.current.panTo({ lat: proj.lat, lng: proj.lng });
+            initialCenterDoneRef.current = true;
           }
         }
       };
@@ -714,30 +753,22 @@ export function MapView() {
       renderFromBuilt(builtPathRef.current);
 
       // First-render center alignment: now that the polyline is built we
-      // know the actual road position for the player's km. Pan the map
-      // there so launch doesn't sit ~5km off (great-circle artifact).
+      // know the actual road position for the player's km.
+      //
+      // This was a SECOND copy of the partial-build centering above, with the
+      // same dual-scale bug: player.distanceKm is global route km (29,508)
+      // while cumKm is arc length from the start of the built WINDOW (0-based).
+      // Searching one with the other centred the map on Manila while the
+      // player was on Bali. Both call sites now use markerOnBuiltPath, i.e.
+      // exactly where the player marker is drawn.
       if (!initialCenterDoneRef.current && mapRef.current) {
-        const km = player.distanceKm;
-        let snapped: google.maps.LatLngLiteral | null = null;
-        const lo = cumKm[0];
-        const hi = cumKm[cumKm.length - 1];
-        if (km >= lo - 0.001 && km <= hi + 0.001) {
-          let idx = -1;
-          for (let i = 0; i < cumKm.length; i++) {
-            if (cumKm[i] >= km) { idx = i; break; }
-          }
-          if (idx <= 0) snapped = allPoints[0];
-          else if (idx === -1) snapped = allPoints[allPoints.length - 1];
-          else {
-            const a = allPoints[idx - 1];
-            const b = allPoints[idx];
-            const segKm = cumKm[idx] - cumKm[idx - 1];
-            const f = segKm > 0 ? Math.max(0, Math.min(1, (km - cumKm[idx - 1]) / segKm)) : 0;
-            snapped = { lat: a.lat + (b.lat - a.lat) * f, lng: a.lng + (b.lng - a.lng) * f };
-          }
-        }
-        if (snapped) {
-          mapRef.current.panTo(snapped);
+        const proj = markerOnBuiltPath(
+          { allPoints, cumKm },
+          player.distanceKm,
+          stopAnchors,
+        );
+        if (proj) {
+          mapRef.current.panTo({ lat: proj.lat, lng: proj.lng });
           initialCenterDoneRef.current = true;
         }
       }
@@ -771,20 +802,22 @@ export function MapView() {
     realRoutePolylinesRef.current.forEach((p) => p.setMap(null));
     realRoutePolylinesRef.current = [];
 
-    const proj =
-      markerOnBuiltPath(b, player.distanceKm, stopAnchors) ??
-      projectOntoPath(b.allPoints, position);
-    const splitIdx = Math.floor(proj.idx);
-    const splitPoint = { lat: proj.lat, lng: proj.lng };
+    const proj = playerOnBuiltPath(b, player.distanceKm, stopAnchors, position);
     let walkedPath: google.maps.LatLngLiteral[] = [];
     let futurePath: google.maps.LatLngLiteral[] = [];
-    if (proj.idx <= 0) {
+    if (!proj) {
       futurePath = b.allPoints;
-    } else if (splitIdx >= b.allPoints.length - 1) {
-      walkedPath = b.allPoints;
     } else {
-      walkedPath = [...b.allPoints.slice(0, splitIdx + 1), splitPoint];
-      futurePath = [splitPoint, ...b.allPoints.slice(splitIdx + 1)];
+      const splitIdx = Math.floor(proj.idx);
+      const splitPoint = { lat: proj.lat, lng: proj.lng };
+      if (proj.idx <= 0) {
+        futurePath = b.allPoints;
+      } else if (splitIdx >= b.allPoints.length - 1) {
+        walkedPath = b.allPoints;
+      } else {
+        walkedPath = [...b.allPoints.slice(0, splitIdx + 1), splitPoint];
+        futurePath = [splitPoint, ...b.allPoints.slice(splitIdx + 1)];
+      }
     }
 
     if (walkedPath.length >= 2) {
@@ -1077,11 +1110,12 @@ export function MapView() {
     let targetPos: google.maps.LatLngLiteral = position;
     let targetIdx = -1;
     if (built && built.allPoints.length > 1) {
-      const proj =
-        markerOnBuiltPath(built, player.distanceKm, stopAnchors) ??
-        projectOntoPath(built.allPoints, position);
-      targetIdx = proj.idx;
-      targetPos = { lat: proj.lat, lng: proj.lng };
+      const proj = playerOnBuiltPath(built, player.distanceKm, stopAnchors, position);
+      if (proj) {
+        targetIdx = proj.idx;
+        targetPos = { lat: proj.lat, lng: proj.lng };
+      }
+      // else: keep the raw route position — never the wrong continent.
     }
 
     // First run: create the marker, no glide.

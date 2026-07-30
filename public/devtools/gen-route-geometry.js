@@ -85,13 +85,18 @@
     const playerKm = gs && gs.player ? gs.player.distanceKm % total : 0;
     const ordered = segmentClassifications
       .map((seg) => {
-        // Order by the segment's END km, not its start: the segment the
-        // player is currently INSIDE has its start behind them, and keying
-        // on the start pushed the one being rendered right now to the very
-        // end of the queue.
+        // Order by ROUTE PROXIMITY in either direction, not by "how soon
+        // will the player arrive". MapView renders a window of 3 segments
+        // BEHIND + 5 ahead, so recently-passed segments are still drawn —
+        // and if they are missing they cost live Directions calls on every
+        // cold start (observed on device: 10 calls for the 3 behind-window
+        // segments while the whole forward path was free).
+        // Forward is still preferred, so behind-distance is weighted 1.5×.
         const endKm = routeData.capitalDistances[seg.toCapitalId];
-        let delta = (endKm == null ? 0 : endKm) - playerKm;
-        if (delta < 0) delta += total; // wrap: already passed = last
+        let d = (endKm == null ? 0 : endKm) - playerKm;
+        if (d > total / 2) d -= total;
+        if (d < -total / 2) d += total;
+        const delta = d >= 0 ? d : -d * 1.5;
         return { seg, delta };
       })
       .sort((a, b) => a.delta - b.delta)

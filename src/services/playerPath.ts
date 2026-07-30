@@ -227,6 +227,15 @@ function getStopAnchors(): { km: number; lat: number; lng: number }[] {
   return list;
 }
 
+/**
+ * Nearest path point to an anchor, but only when the path really passes
+ * near it — an unbounded search "matches" an anchor to the far end of a
+ * partial path, which put the map on Manila while the player was on Bali
+ * (see the same guard in MapView's markerOnBuiltPath). Stops are vertices
+ * of the real path, so a genuine match is well inside 0.5° (~55 km).
+ */
+const ANCHOR_TOLERANCE_DEG = 0.5;
+
 function nearestIdx(pts: SnappedPosition[], lat: number, lng: number): number {
   let bi = -1;
   let bd = Infinity;
@@ -239,7 +248,7 @@ function nearestIdx(pts: SnappedPosition[], lat: number, lng: number): number {
       bi = i;
     }
   }
-  return bi;
+  return bd <= ANCHOR_TOLERANCE_DEG * ANCHOR_TOLERANCE_DEG ? bi : -1;
 }
 
 function markerOnBuilt(
