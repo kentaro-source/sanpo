@@ -304,17 +304,45 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'TL',
     toCapitalId: 'SG',
     routeType: 'mixed',
-    // ディリ→[バンダ海/フローレス海]→マカッサル(スラウェシ上陸)→パレパレ(陸路)
-    // →[ジャワ海/カリマタ海峡 PELNI航路]→バタム→[直行フェリー]→シンガポール。
-    // 0=Dili,1=Makassar,2=Parepare,3=Batam,4=Singapore(dest)。
-    // 海(直線)= [0,1] ディリ→マカッサル ~1,000km, [2,3] パレパレ→バタム ~1,500km,
-    // [3,4] バタム→SG(Google は OK を返すがジョホール大迂回 148km になるため
-    // 直行フェリー ~20km を直線で表現)。マカッサル→パレパレ(153km)は陸路で
-    // 道路追従(2026-07-07 dev DirectionsService で OK 確認済み)。
-    waypointCityIds: ['ID-MAKASSAR', 'ID-PAREPARE', 'ID-BATAM'],
-    seaSegments: [[0, 1], [2, 3], [3, 4]],
+    // 旧: ディリ→マカッサル 775km + パレパレ→バタム 1,823km の2区間が飛びすぎ
+    // (実測 scripts/_leggap.mts)。島伝いに分割し最大 443km に。
+    //
+    // 0=Dili, 1=Kalabahi(アロール), 2=BauBau(ブトン), 3=Benteng(スラヤル),
+    // 4=Makassar, 5=Parepare, 6=Balikpapan, 7=Banjarmasin, 8=Palangkaraya,
+    // 9=PangkalanBun, 10=TanjungPandan(ブリトゥン), 11=PangkalPinang(バンカ),
+    // 12=Palembang, 13=Jambi, 14=Batam, 15=Singapore(dest)。
+    //
+    // 陸路/海路は 2026-07-30 に dev の DirectionsService で全 leg 実測して決定。
+    // 判定基準: Google の返す距離が直線の ~1.6 倍を超える leg は海路(直線)にする
+    // — 超える場合は島を大きく迂回する経路が返り、描画が実距離とかけ離れるため。
+    //   海路: [0,1] ディリ→カラバヒ(667km/直線125km=5.3倍)、[1,2] カラバヒ→バウバウ
+    //   (1,261/370=3.4倍)、[2,3][3,4] は ZERO_RESULTS、[9,10] パンカランブン→
+    //   ブリトゥン(1,744/615=2.8倍のカリマタ海峡)、[10,11] 島間、[13,14] ジャンビ→
+    //   バタム(897/309=2.9倍)、[14,15] バタム→SG(Google はジョホール大迂回 148km を
+    //   返すため直行フェリー ~36km を直線で表現)。
+    //   陸路(道路追従): マカッサル→パレパレ 128km、パレパレ→バリクパパン 461km
+    //   (マカッサル海峡フェリー、直線比1.07)、バリクパパン→バンジャルマシン 476km、
+    //   →パランカラヤ 194km、→パンカランブン 456km、バンカ島内+フェリーの
+    //   パンカルピナン→パレンバン 272km、パレンバン→ジャンビ 269km。
+    waypointCityIds: [
+      'ID-KALABAHI',
+      'ID-BAUBAU',
+      'ID-BENTENG',
+      'ID-MAKASSAR',
+      'ID-PAREPARE',
+      'ID-BALIKPAPAN',
+      'ID-BANJARMASIN',
+      'ID-PALANGKARAYA',
+      'ID-PANGKALANBUN',
+      'ID-TANJUNGPANDAN',
+      'ID-PANGKALPINANG',
+      'ID-PALEMBANG',
+      'ID-JAMBI',
+      'ID-BATAM',
+    ],
+    seaSegments: [[0, 1], [1, 2], [2, 3], [3, 4], [9, 10], [10, 11], [13, 14], [14, 15]],
     notes:
-      'ディリ→[バンダ海]→マカッサル→パレパレ→[PELNI航路でジャワ海西進]→バタム→[フェリー]→シンガポール',
+      'ディリ→[バンダ海]アロール→ブトン→スラヤル→マカッサル→パレパレ→[マカッサル海峡]バリクパパン→バンジャルマシン→パランカラヤ→パンカランブン(カリマンタン縦断)→[カリマタ海峡]ブリトゥン→バンカ→パレンバン→ジャンビ(スマトラ)→[海]バタム→[フェリー]シンガポール',
   },
   {
     fromCapitalId: 'SG',
