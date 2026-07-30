@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { ShareToX } from './ShareToX';
 import { useGame } from '../../hooks/useGame';
 import { cities } from '../../data/cities';
+import { exportSaveText, importSaveText } from '../../utils/storage';
 
 interface Props {
   onForceReload: () => void;
@@ -24,7 +25,14 @@ function formatDay(ts: number): string {
 export function HamburgerMenu({ onForceReload }: Props) {
   const { player, routeData, distanceKm, setDistanceKm } = useGame();
   const [open, setOpen] = useState(false);
-  const [view, setView] = useState<'menu' | 'history' | 'correct'>('menu');
+  const [view, setView] = useState<
+    'menu' | 'history' | 'correct' | 'backup'
+  >('menu');
+  const [backupText, setBackupText] = useState('');
+  const [backupMsg, setBackupMsg] = useState<{
+    kind: 'ok' | 'err';
+    text: string;
+  } | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [targetKm, setTargetKm] = useState(0);
 
@@ -198,6 +206,15 @@ export function HamburgerMenu({ onForceReload }: Props) {
                 <button
                   type="button"
                   className="menu-item"
+                  onClick={() => setView('backup')}
+                >
+                  💾 バックアップ
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  className="menu-item"
                   onClick={() => {
                     setOpen(false);
                     onForceReload();
@@ -342,6 +359,89 @@ export function HamburgerMenu({ onForceReload }: Props) {
                   この位置に補正
                 </button>
               </div>
+            </div>
+          )}
+
+          {view === 'backup' && (
+            <div className="menu-correct">
+              <button
+                type="button"
+                className="menu-back"
+                onClick={() => {
+                  setView('menu');
+                  setBackupMsg(null);
+                }}
+              >
+                ← 戻る
+              </button>
+
+              <p className="correct-note">
+                進行データはこの端末の中だけにあります。端末の故障・紛失・
+                データ消去で歩いた記録は失われます。下の文字列をコピーして
+                メモ等に保存しておけば、あとから元に戻せます。
+              </p>
+
+              <button
+                type="button"
+                className="correct-suggest"
+                onClick={async () => {
+                  const text = exportSaveText();
+                  setBackupText(text);
+                  try {
+                    await navigator.clipboard.writeText(text);
+                    setBackupMsg({
+                      kind: 'ok',
+                      text: `コピーしました（${text.length.toLocaleString()}文字）`,
+                    });
+                  } catch {
+                    setBackupMsg({
+                      kind: 'ok',
+                      text: '下の欄に出しました。長押しでコピーしてください',
+                    });
+                  }
+                }}
+              >
+                💾 バックアップを作る（クリップボードにコピー）
+              </button>
+
+              <textarea
+                className="share-comment share-comment-tall"
+                value={backupText}
+                onChange={(e) => setBackupText(e.target.value)}
+                placeholder="ここにバックアップ文字列が出ます。復元するときは保存しておいた文字列を貼り付けてください。"
+                rows={8}
+              />
+
+              <button
+                type="button"
+                className="correct-apply"
+                disabled={backupText.trim().length === 0}
+                onClick={() => {
+                  const r = importSaveText(backupText);
+                  if (r.ok) {
+                    setBackupMsg({
+                      kind: 'ok',
+                      text: `復元しました（${formatKm(r.distanceKm)}）。反映のため再読み込みします`,
+                    });
+                    window.setTimeout(() => window.location.reload(), 1200);
+                  } else {
+                    setBackupMsg({ kind: 'err', text: r.error });
+                  }
+                }}
+              >
+                ⬆ この文字列から復元する
+              </button>
+
+              {backupMsg && (
+                <p
+                  className="correct-note"
+                  style={{
+                    color: backupMsg.kind === 'err' ? '#dc2626' : '#059669',
+                  }}
+                >
+                  {backupMsg.text}
+                </p>
+              )}
             </div>
           )}
         </div>

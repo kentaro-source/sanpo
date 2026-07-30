@@ -31,6 +31,22 @@ function routeGeometryWriter() {
         ) => void
       }
     }) {
+      // Serve the generator script itself (dev only). It used to live in
+      // public/, which meant this development-only tool was bundled into the
+      // production PWA and the APK.
+      server.middlewares.use('/__route-geometry-script', (_req, res, next) => {
+        try {
+          const src = readFileSync(
+            resolve(__dirname, 'scripts', 'gen-route-geometry.js'),
+            'utf8',
+          )
+          res.setHeader('Content-Type', 'application/javascript')
+          res.end(src)
+        } catch {
+          next()
+        }
+      })
+
       server.middlewares.use('/__route-geometry', (req, res, next) => {
         if (req.method === 'GET') {
           const done = existsSync(outDir)
@@ -112,5 +128,13 @@ export default defineConfig({
   },
   server: {
     host: true,
+    watch: {
+      // The geometry generator writes into public/route-geometry while it
+      // runs. Vite treats any public/ change as a full-reload trigger, which
+      // reloaded the page and killed the generator mid-run (it died after
+      // ~16 segments every time). Ignore that directory so generation can
+      // complete; the files are only read at app start anyway.
+      ignored: ['**/public/route-geometry/**'],
+    },
   },
 })

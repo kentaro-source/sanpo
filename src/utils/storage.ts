@@ -223,6 +223,81 @@ export function saveGameState(state: GameState): void {
   if (state.player) writeWatchdog(state.player);
 }
 
+/**
+ * Export the whole save as text the user can copy somewhere safe.
+ *
+ * Progress lives only in this device's localStorage: hundreds of days of
+ * walking would be lost to a broken/lost phone, a factory reset, or the
+ * WebView's data being cleared. The watchdog only protects against schema
+ * bumps on the SAME device, so it is no help there.
+ *
+ * Includes the watchdog alongside the state so an import can restore both.
+ */
+export function exportSaveText(): string {
+  let state: unknown = null;
+  let watchdog: unknown = null;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    state = raw ? JSON.parse(raw) : null;
+  } catch {
+    state = null;
+  }
+  try {
+    const raw = localStorage.getItem(WATCHDOG_KEY);
+    watchdog = raw ? JSON.parse(raw) : null;
+  } catch {
+    watchdog = null;
+  }
+  return JSON.stringify(
+    { kind: 'sanpo-save', exportedAt: Date.now(), state, watchdog },
+    null,
+    2,
+  );
+}
+
+/**
+ * Restore a save produced by exportSaveText.
+ *
+ * Deliberately strict: a malformed paste must NOT wipe a working save, so
+ * everything is validated before anything is written. Returns a message for
+ * the UI rather than throwing.
+ */
+export function importSaveText(
+  text: string,
+): { ok: true; distanceKm: number } | { ok: false; error: string } {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text.trim());
+  } catch {
+    return { ok: false, error: 'JSON として読めません' };
+  }
+  if (!parsed || typeof parsed !== 'object') {
+    return { ok: false, error: '中身が空です' };
+  }
+  const box = parsed as {
+    kind?: unknown;
+    state?: { player?: { distanceKm?: unknown }; version?: unknown } | null;
+    watchdog?: unknown;
+  };
+  if (box.kind !== 'sanpo-save') {
+    return { ok: false, error: 'せかいさんぽのバックアップではありません' };
+  }
+  const st = box.state;
+  const km = st?.player?.distanceKm;
+  if (!st || typeof km !== 'number' || !Number.isFinite(km) || km < 0) {
+    return { ok: false, error: '距離データが壊れています' };
+  }
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(st));
+    if (box.watchdog && typeof box.watchdog === 'object') {
+      localStorage.setItem(WATCHDOG_KEY, JSON.stringify(box.watchdog));
+    }
+  } catch (e) {
+    return { ok: false, error: `保存に失敗: ${String(e)}` };
+  }
+  return { ok: true, distanceKm: km };
+}
+
 export function clearGameState(): void {
   localStorage.removeItem(STORAGE_KEY);
   localStorage.removeItem(WATCHDOG_KEY);
