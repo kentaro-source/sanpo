@@ -52,10 +52,55 @@ function loadCache(): Cache {
   try {
     const raw = localStorage.getItem(CACHE_KEY);
     memCache = raw ? (JSON.parse(raw) as Cache) : {};
+    purgeLegacyEntriesOnce(memCache);
   } catch {
     memCache = {};
   }
   return memCache;
+}
+
+/**
+ * One-time cleanup of entries written by the pre-fix cache logic.
+ *
+ * Two kinds of garbage were found on the device (2026-07-30):
+ *  - 103 negative entries. The old code negative-cached ANY failure for 7
+ *    days, including transient ones (OVER_QUERY_LIMIT during a launch
+ *    burst), which freezes perfectly routable legs into straight lines for
+ *    a week. New code only negative-caches permanent statuses, but the
+ *    already-written ones would still suppress fetches — so drop them.
+ *  - One 2.25 MB unsimplified path (pre-simplification format), which alone
+ *    ate a third of the localStorage quota.
+ *
+ * Valid, reasonably-sized road paths are KEPT: they are correct and
+ * re-fetching them would spend quota for nothing. Uses its own flag key
+ * (never reuse an old cleanup key) and only touches derived cache data —
+ * no game progress is involved.
+ */
+const PURGE_FLAG_KEY = 'sanpo-dircache-purge-v1';
+const LEGACY_OVERSIZE_POINTS = 25000;
+
+function purgeLegacyEntriesOnce(cache: Cache): void {
+  try {
+    if (localStorage.getItem(PURGE_FLAG_KEY)) return;
+  } catch {
+    return;
+  }
+  let dropped = 0;
+  for (const [k, v] of Object.entries(cache)) {
+    if (!v || !v.path || v.path.length > LEGACY_OVERSIZE_POINTS) {
+      delete cache[k];
+      dropped += 1;
+    }
+  }
+  try {
+    localStorage.setItem(PURGE_FLAG_KEY, '1');
+    if (dropped > 0) {
+      localStorage.setItem(CACHE_KEY, JSON.stringify(cache));
+      console.info(`[directions] purged ${dropped} legacy cache entries`);
+    }
+  } catch {
+    // Flag write failed — worst case the purge runs again next launch.
+  }
 }
 
 function saveCache(cache: Cache): void {
@@ -97,7 +142,7 @@ function saveCache(cache: Cache): void {
  */
 const SIMPLIFY_EPS_DEG = 0.0001;
 
-function simplifyForCache(
+export function simplifyForCache(
   pts: google.maps.LatLngLiteral[],
 ): google.maps.LatLngLiteral[] {
   if (pts.length < 3) return pts;

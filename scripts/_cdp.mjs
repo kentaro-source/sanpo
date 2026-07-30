@@ -20,7 +20,7 @@ const fail = (m) => {
   console.error('ERR', m);
   process.exit(1);
 };
-setTimeout(() => fail('timeout'), 20000);
+setTimeout(() => fail('timeout'), 45000);
 
 ws.addEventListener('open', () => {
   ws.send(JSON.stringify({ id: 1, method: 'Runtime.enable' }));
