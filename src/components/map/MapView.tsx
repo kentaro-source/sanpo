@@ -4,6 +4,8 @@ import { useGame } from '../../hooks/useGame';
 import { cities, segmentClassifications } from '../../data';
 import { getRoadPolyline } from '../../services/directions';
 import { getManualLegPath } from '../../data/manualLegPaths';
+import { chunkRanges, seaSetFor } from '../../services/routeChunks';
+import { preloadSegmentGeometry } from '../../services/routeGeometry';
 import { isRealLifeVisitedCapital } from '../../data/realLifeVisited';
 import { setBuiltPath, setStopKm } from '../../services/playerPath';
 
@@ -592,14 +594,16 @@ export function MapView() {
           // rendering (→ straight-line fallback the whole time). Chunking
           // cuts that to ~2-3 calls per segment: roads render, fast.
           const points = [origin, ...waypoints, destination];
-          const seaSet = new Set(
-            (seg.seaSegments ?? []).map(([a, b]) => `${a}-${b}`),
-          );
+          const seaSet = seaSetFor(seg);
+          // Pre-generated geometry for this segment (if shipped) — makes the
+          // getRoadPolyline calls below cache hits instead of API requests.
+          await preloadSegmentGeometry(seg.fromCapitalId, seg.toCapitalId);
+          if (cancelled) return;
           const built: google.maps.LatLngLiteral[] = [];
-          let i = 0;
-          while (i < points.length - 1) {
+          for (const range of chunkRanges(points.length, seaSet)) {
+            const i = range.i;
             if (cancelled) return;
-            if (seaSet.has(`${i}-${i + 1}`)) {
+            if (range.kind === 'sea') {
               // Sea/ferry/border leg → straight line, UNLESS we have a
               // hand-traced real route. The HK/Macau SAR crossings all return
               // ZERO_RESULTS from Directions (verified on-device), so they're
@@ -611,19 +615,13 @@ export function MapView() {
                 for (const p of manual) built.push(p);
               }
               built.push(points[i + 1]);
-              i += 1;
               continue;
             }
-            // Extend a run of consecutive land legs, ≤24 legs (= ≤23
-            // intermediate waypoints + origin + dest = ≤25 stops) per call.
-            let j = i;
-            while (
-              j < points.length - 1 &&
-              !seaSet.has(`${j}-${j + 1}`) &&
-              j - i < 24
-            ) {
-              j += 1;
-            }
+            // Road run: ≤24 legs (= ≤23 intermediate waypoints + origin +
+            // dest = ≤25 stops) per Directions call. Boundaries come from the
+            // shared chunkRanges so the offline generator produces identical
+            // cache keys.
+            const j = range.j;
             const road = await getRoadPolyline(
               points[i],
               points[j],
@@ -658,7 +656,6 @@ export function MapView() {
             for (let k = start; k < pathSeg.length; k++) {
               built.push(pathSeg[k]);
             }
-            i = j;
           }
           segPath = simplifyPath(built);
         } else {

@@ -10,6 +10,8 @@
 // Cache version bumped to v2 because we switched from DRIVING to WALKING-
 // preferred routing — previous cached paths are driving routes and shouldn't
 // be reused.
+import { decodePath } from '../utils/polyline';
+
 const CACHE_KEY = 'sanpo-directions-cache-v2';
 const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 // Failures are ALSO cached (path: null), with a shorter TTL. Without
@@ -153,7 +155,7 @@ function simplifyForCache(
   return out;
 }
 
-function makeCacheKey(
+export function makeCacheKey(
   origin: google.maps.LatLngLiteral,
   destination: google.maps.LatLngLiteral,
   waypoints: google.maps.LatLngLiteral[],
@@ -163,6 +165,44 @@ function makeCacheKey(
     .map((p) => `${round(p.lat)},${round(p.lng)}`)
     .join('|');
   return parts;
+}
+
+/**
+ * Road geometry generated ahead of time and shipped as static data
+ * (public/route-geometry/<FROM>-<TO>.json), keyed by the SAME cache key
+ * as live requests and stored as an encoded polyline.
+ *
+ * Purpose: the route is static, so every device re-deriving it from the
+ * Directions API is pure waste — it cost real money (each launch
+ * re-fetching burned the monthly free quota) and it was the reason routes
+ * rendered as straight lines while loading. A hit here means no API call
+ * at all.
+ *
+ * Staleness is impossible by construction: the key contains every stop
+ * coordinate, so editing a route changes the key, misses the store, and
+ * falls through to a live request.
+ */
+const precomputed = new Map<string, string>();
+
+export function registerPrecomputedPaths(entries: Record<string, string>): void {
+  for (const [k, v] of Object.entries(entries)) {
+    if (typeof v === 'string' && v.length > 0) precomputed.set(k, v);
+  }
+}
+
+/** Decode a precomputed hit into the in-memory cache (never localStorage). */
+function takePrecomputed(cacheKey: string): google.maps.LatLngLiteral[] | null {
+  const enc = precomputed.get(cacheKey);
+  if (!enc) return null;
+  const path = decodePath(enc);
+  if (path.length < 2) return null;
+  // Mirror into memCache so repeat lookups skip the decode. Deliberately
+  // NOT written to localStorage: the bundled copy is already durable, and
+  // keeping it out avoids re-introducing quota pressure.
+  const cache = loadCache();
+  cache[cacheKey] = { path, timestamp: Date.now() };
+  memCache = cache;
+  return path;
 }
 
 let directionsService: google.maps.DirectionsService | null = null;
@@ -191,7 +231,7 @@ export function getCachedPolyline(
   if (cached && cached.path && Date.now() - cached.timestamp < CACHE_TTL_MS) {
     return cached.path;
   }
-  return null;
+  return takePrecomputed(cacheKey);
 }
 
 /**
@@ -227,6 +267,10 @@ export function getRoadPolyline(
     // the caller falls back to a straight line, same as last time.
     if (!cached.path && age < FAIL_TTL_MS) return Promise.resolve(null);
   }
+
+  // Shipped geometry — no network, no quota.
+  const pre = takePrecomputed(cacheKey);
+  if (pre) return Promise.resolve(pre);
 
   const existing = inFlight.get(cacheKey);
   if (existing) return existing;
