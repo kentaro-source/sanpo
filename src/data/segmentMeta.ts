@@ -348,20 +348,25 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'SG',
     toCapitalId: 'MY',
     routeType: 'land',
+    // 南→北の順。セレンバンはマラッカとKLの間(2.72N)なのでここに置く。
+    // 以前は MY→TH 側にマラッカとセレンバンがあり、KL(3.14N)から南へ
+    // 逆走してから北上する経路になっていた(実測 scripts/_ordercheck.mts で
+    // 「マラッカがKLの後」を検出)。
     waypointCityIds: [
       'MY-JOHORBAHRU',
       'MY-MALACCA',
+      'MY-SEREMBAN',
     ],
-    notes: 'ジョホール海峡→クアラルンプール',
+    notes: 'ジョホール海峡→マラッカ→セレンバン→クアラルンプール',
   },
   // === Mainland SE Asia ===
   {
     fromCapitalId: 'MY',
     toCapitalId: 'TH',
     routeType: 'land',
+    // マラッカ(2.19N)とセレンバン(2.72N)は KL(3.14N)の南なので、ここに置くと
+    // 北上開始前に逆走する。両方とも SG→MY 側へ移動した。
     waypointCityIds: [
-      'MY-MALACCA',
-      'MY-SEREMBAN',
       'MY-TAPAH',
       'MY-IPOH',
       'MY-PENANG',
@@ -372,7 +377,7 @@ export const segmentClassifications: SegmentClassification[] = [
       'TH-PRACHUAP',
       'TH-HUAHIN',
     ],
-    notes: 'KL→マラッカ→ペナン→ハジャイ→スラート→ホアヒン→バンコク',
+    notes: 'KL→タパ→イポー→ペナン→ハジャイ→スラート→ホアヒン→バンコク',
   },
   {
     fromCapitalId: 'TH',
@@ -411,10 +416,10 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'VN',
     toCapitalId: 'LA',
     routeType: 'land',
+    // ニンビン/タインホア/ヴィンは KH→VN で北上時に通過済み。ここに再掲すると
+    // 同じ都市IDに後勝ちのkmが入り、KH→VN側の順序が逆転する(実測で検出)。
+    // 削除しても Directions は実道路(ルート8経由)を辿るので描画は変わらない。
     waypointCityIds: [
-      'VN-NINHBINH',
-      'VN-THANHHOA',
-      'VN-VINH',
       'LA-LAKSAO',
       'LA-PAKSAN',
     ],
@@ -446,9 +451,9 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'MM',
     toCapitalId: 'BD',
     routeType: 'mixed',
+    // タウングー/バゴーは LA→MM で通過済みのため削除(重複するとkmが後勝ちで
+    // LA→MM 側の順序が壊れる)。ネピドー→ヤンゴンは実道路がこの2都市を通る。
     waypointCityIds: [
-      'MM-TAUNGOO',
-      'MM-BAGO',
       'MM-YANGON',
       'MM-HINTHADA',
       'MM-PYAY',
@@ -456,8 +461,11 @@ export const segmentClassifications: SegmentClassification[] = [
       'MM-ANN',
       'MM-SITTWE',
     ],
-    // [origin=Naypyidaw, 1=Yangon, 2=Sittwe, 3=Dhaka]
-    seaSegments: [[2, 3]],
+    // points = [0=ネピドー, 1=ヤンゴン, 2=ヒンターダ, 3=ピイ, 4=マグウェ,
+    //           5=アン, 6=シットウェ, 7=ダッカ]。海はベンガル湾横断の [6,7] のみ。
+    // 旧 [[2,3]] はコメント側の古い添字([origin,1=Yangon,2=Sittwe,3=Dhaka])を
+    // そのまま書いたもので、実際にはバゴー→ヤンゴンの陸路を海として直線描画していた。
+    seaSegments: [[6, 7]],
     notes: 'ネピドー→ヤンゴン→シットウェー→[ベンガル湾]→ダッカ',
   },
   // === South Asia ===
@@ -478,9 +486,10 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'BT',
     toCapitalId: 'NP',
     routeType: 'land',
+    // プンツォリン/シリグリは BD→BT でブータンへ上がる際に通過済み。ブータンは
+    // 行き止まりで同じ道を戻るが、同一都市IDを再掲すると km が後勝ちになり
+    // BD→BT 側の順序が壊れる。削除しても実道路は同じ経路を辿る。
     waypointCityIds: [
-      'BT-PHUENTSHOLING',
-      'IN-SILIGURI',
       'IN-PURNIA',
       'IN-DARBHANGA',
       'IN-MUZAFFARPUR',
@@ -510,8 +519,9 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'IN',
     toCapitalId: 'LK',
     routeType: 'mixed',
+    // アーグラは NP→IN(カトマンズ→…→アーグラ→デリー)で通過済み。再掲すると
+    // km が後勝ちになり NP→IN 側の順序が壊れる(実測で検出)。
     waypointCityIds: [
-      'IN-AGRA',
       'IN-DAUSA',
       'IN-JAIPUR',
       'IN-AJMER',
@@ -533,9 +543,13 @@ export const segmentClassifications: SegmentClassification[] = [
       'IN-VELLORE',
       'IN-CHENNAI',
     ],
-    // [origin=Delhi, 1=Agra, 2=Mumbai, 3=Hyderabad, 4=Bangalore, 5=Chennai, 6=Colombo]
-    seaSegments: [[5, 6]],
-    notes: 'デリー→アーグラ→ムンバイ→ハイデラバード→バンガロール→チェンナイ→[ポーク海峡]→コロンボ',
+    // points = [0=デリー, 1=ダウサ … 20=チェンナイ, 21=コロンボ](経由地20)。
+    // 海はポーク海峡の [20,21] のみ。旧 [[5,6]] は経由地を密化する前の古い添字
+    // ([origin,1=Agra,2=Mumbai,3=Hyderabad,4=Bangalore,5=Chennai,6=Colombo])が
+    // 残ったもので、実際にはビルワーラ→ウダイプル(内陸の陸路)を海として直線に
+    // していた。
+    seaSegments: [[20, 21]],
+    notes: 'デリー→ジャイプル→ムンバイ→ハイデラバード→バンガロール→チェンナイ→[ポーク海峡]→コロンボ',
   },
   {
     fromCapitalId: 'LK',
