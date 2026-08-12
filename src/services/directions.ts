@@ -235,18 +235,28 @@ export function registerPrecomputedPaths(entries: Record<string, string>): void 
   }
 }
 
-/** Decode a precomputed hit into the in-memory cache (never localStorage). */
+/**
+ * Decoded precomputed paths, kept in a SEPARATE map from the localStorage
+ * cache.
+ *
+ * The first version put them into memCache, which looked harmless but
+ * memCache is exactly what saveCache() persists — so one unrelated live
+ * fetch would write the whole 2.1 MB of bundled geometry into localStorage,
+ * re-creating the quota pressure the simplification fix removed. It also
+ * made "localStorage stayed empty" useless as evidence that no API call
+ * happened (observed on device: 9 entries / 1 MB after a cold start that
+ * should have been fully served from the bundle).
+ */
+const decodedPrecomputed = new Map<string, google.maps.LatLngLiteral[]>();
+
 function takePrecomputed(cacheKey: string): google.maps.LatLngLiteral[] | null {
+  const already = decodedPrecomputed.get(cacheKey);
+  if (already) return already;
   const enc = precomputed.get(cacheKey);
   if (!enc) return null;
   const path = decodePath(enc);
   if (path.length < 2) return null;
-  // Mirror into memCache so repeat lookups skip the decode. Deliberately
-  // NOT written to localStorage: the bundled copy is already durable, and
-  // keeping it out avoids re-introducing quota pressure.
-  const cache = loadCache();
-  cache[cacheKey] = { path, timestamp: Date.now() };
-  memCache = cache;
+  decodedPrecomputed.set(cacheKey, path);
   return path;
 }
 
