@@ -641,7 +641,6 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'UZ',
     routeType: 'land',
     waypointCityIds: [
-      'KZ-KARAGANDA',
       'KZ-KARAZHAL',
       'KZ-ZHEZKAZGAN',
       'KZ-KYZYLORDA',
@@ -707,7 +706,6 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'KW',
     routeType: 'land',
     waypointCityIds: [
-      'IQ-KUT',
       'IQ-NASIRIYAH',
       'IQ-BASRA',
     ],
@@ -781,7 +779,6 @@ export const segmentClassifications: SegmentClassification[] = [
       'SA-TAIF',
       'SA-MECCA',
       'SA-JEDDAH',
-      'SA-TAIF',
       'SA-KHURMAH',
       'SA-RANYAH',
       'SA-AFIF',
@@ -892,16 +889,17 @@ export const segmentClassifications: SegmentClassification[] = [
     seaSegments: [[1, 2]], // TABRIZ → Cairo: 3,000 km, fantasy
     notes: 'バクー→タブリーズ→[~3,000km 中東上空]→カイロ',
   },
-  // West Africa → Russia: ST→CV-MINDELO (~600 km Atlantic) → Moscow.
-  // Anchor on Cape Verde so at least the first leg has continental
-  // context; the last hop is unavoidable.
+  // West Africa → Russia: pure ocean/continent overflight, no real route.
+  // Used to anchor on CV-MINDELO, but that city is CV→ST's own waypoint
+  // (Cape Verde, already visited earlier in the route) — reusing it here
+  // overwrote its km and made CV→ST's own chain look reversed. Removed;
+  // this leg was already explicitly a fantasy overflight either way.
   {
     fromCapitalId: 'ST',
     toCapitalId: 'RU',
     routeType: 'mixed',
-    waypointCityIds: ['CV-MINDELO'],
-    seaSegments: [[0, 1], [1, 2]], // Both legs are over water.
-    notes: 'サントメ→[600km 大西洋]→ミンデロ(カーボベルデ)→[~5,000km 大西洋・欧州上空]→モスクワ',
+    seaSegments: [[0, 1]], // Direct — the whole leg is over water/air.
+    notes: 'サントメ→[~5,600km 大西洋・欧州上空]→モスクワ(直行)',
   },
 
   // ===== Batch 4: Eastern + Southern Europe (RU → GR), 10 segments =====
@@ -1060,9 +1058,6 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'MK',
     routeType: 'mixed',
     waypointCityIds: [
-      'GR-LAMIA',        // ~210 km from Athens (Driving fallback)
-      'GR-LARISSA',      // ~145 km
-      'GR-THESSALONIKI', // ~155 km
       // Thessaloniki → Bitola ~190 km, GR-MK border
       'MK-BITOLA',       // ~190 km
       'MK-PRILEP',       // ~45 km
@@ -1199,7 +1194,6 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'DE',
     routeType: 'land',
     waypointCityIds: [
-      'PL-LODZ',        // ~135 km from Warsaw
       'PL-KONIN',       // ~120 km
       'PL-POZNAN',      // ~95 km
       'PL-SWIEBODZIN',  // ~96 km — A2 沿い
@@ -1255,10 +1249,12 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'SE',
     toCapitalId: 'IS',
     routeType: 'mixed',
+    // Örebro/Karlstad already walked on NO→SE (Oslo→Karlstad→Örebro→
+    // Stockholm); re-listing them here overwrote their km and broke that
+    // segment's order. Directions still draws the real E18 through them
+    // on the way back out toward Drammen.
     waypointCityIds: [
       'SE-VASTERAS',  // ~92 km from Stockholm (E18)
-      'SE-OREBRO',    // ~84 km
-      'SE-KARLSTAD',  // ~97 km
       'NO-DRAMMEN',   // ~190 km, SE-NO border (drive past Oslo)
       'NO-HONEFOSS',  // ~47 km
       'NO-GOL',       // ~93 km — Hallingdal valley
@@ -1269,10 +1265,9 @@ export const segmentClassifications: SegmentClassification[] = [
       'IS-BORGARNES', // ~219 km drive across north/west Iceland
       // Borgarnes → Reykjavik ~44 km
     ],
-    // [0=Stockholm, 1=Västerås, 2=Örebro, 3=Karlstad, 4=Drammen,
-    //  5=Hønefoss, 6=Gol, 7=Voss, 8=Bergen, 9=Tórshavn, 10=Akureyri,
-    //  11=Borgarnes, 12=Reykjavik]
-    seaSegments: [[8, 9], [9, 10]], // Bergen → Tórshavn → Akureyri are sea
+    // [0=Stockholm, 1=Västerås, 2=Drammen, 3=Hønefoss, 4=Gol, 5=Voss,
+    //  6=Bergen, 7=Tórshavn, 8=Akureyri, 9=Borgarnes, 10=Reykjavik]
+    seaSegments: [[6, 7], [7, 8]], // Bergen → Tórshavn → Akureyri are sea
     notes:
       'ストックホルム→ヴェステロース→エレブルー→カールスタード→[国境]→ドラメン→ホーネフォス→ゴール→ヴォス→ベルゲン→[北大西洋]→トースハウン(フェロー)→[北大西洋]→アークレイリ→ボルガルネス→レイキャビク',
   },
@@ -1373,8 +1368,6 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'AD',
     routeType: 'land',
     waypointCityIds: [
-      'FR-NICE',         // ~20 km from Monaco
-      'FR-MARSEILLE',    // ~205 km (Driving fallback)
       'FR-MONTPELLIER',  // ~165 km
       'FR-TOULOUSE',     // ~245 km (Driving fallback)
       // Toulouse → Andorra la Vella ~190 km, FR-AD border via Pyrenees
@@ -1429,14 +1422,9 @@ export const segmentClassifications: SegmentClassification[] = [
       'ES-LEON',         // ~84 km
       'ES-BURGOS',       // ~156 km
       'ES-LOGRONO',      // ~104 km — Rioja
-      'ES-ZARAGOZA',     // ~157 km
-      'ES-LLEIDA',       // ~125 km
       'ES-BARCELONA',    // ~132 km
       'ES-GIRONA',       // ~85 km
       'FR-PERPIGNAN',    // ~80 km, ES-FR border
-      'FR-MONTPELLIER',  // ~129 km
-      'FR-AVIGNON',      // ~83 km
-      'FR-LYON',         // ~202 km
       'CH-GENEVA',       // ~112 km, FR-CH border
       // Geneva → Bern ~130 km
     ],
@@ -1508,9 +1496,10 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'SM',
     toCapitalId: 'MT',
     routeType: 'mixed',
+    // Bologna/Florence already walked on AT→IT (Vienna→...→Bologna→
+    // Florence→...→Rome); re-listing them here pulled San Marino
+    // backward north before heading south, and overwrote their km.
     waypointCityIds: [
-      'IT-BOLOGNA',       // ~108 km from San Marino
-      'IT-FLORENCE',      // ~81 km
       'IT-SIENA',         // ~50 km
       'IT-PISA',          // ~87 km
       'IT-GROSSETO',      // ~122 km — Tyrrhenian coast
@@ -1521,10 +1510,9 @@ export const segmentClassifications: SegmentClassification[] = [
       'IT-PALERMO',       // ~314 km incl. Strait of Messina ferry
       // Palermo → Valletta ~267 km Mediterranean
     ],
-    // [0=SanMarino, 1=Bologna, 2=Florence, 3=Siena, 4=Pisa, 5=Grosseto,
-    //  6=Civitavecchia, 7=Latina, 8=Caserta, 9=Naples, 10=Palermo,
-    //  11=Valletta]
-    seaSegments: [[9, 10], [10, 11]], // Naples→Palermo + Palermo→Valletta sea
+    // [0=SanMarino, 1=Siena, 2=Pisa, 3=Grosseto, 4=Civitavecchia, 5=Latina,
+    //  6=Caserta, 7=Naples, 8=Palermo, 9=Valletta]
+    seaSegments: [[7, 8], [8, 9]], // Naples→Palermo + Palermo→Valletta sea
     notes:
       'サンマリノ→ボローニャ→フィレンツェ→シエナ→ピサ→グロッセート→チヴィタヴェッキア→ラティーナ→カゼルタ→ナポリ→[メッシーナ海峡]→パレルモ→[地中海]→バレッタ',
   },
@@ -1555,7 +1543,6 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'US',
     routeType: 'land',
     waypointCityIds: [
-      'CA-MONTREAL',     // ~200 km from Ottawa
       'US-PLATTSBURGH',  // ~90 km, CA-US border (Champlain valley)
       'US-GLENSFALLS',   // ~155 km
       'US-ALBANY',       // ~74 km
@@ -1868,17 +1855,17 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'CO',
     toCapitalId: 'VE',
     routeType: 'land',
+    // Cúcuta/Valencia already walked on KN→CO (arriving into Bogotá via
+    // the same Andean corridor); re-listing them here overwrote their km.
     waypointCityIds: [
       'CO-TUNJA',       // ~120 km from Bogotá (Boyacá highlands)
       'CO-BUCARAMANGA', // ~178 km
-      'CO-CUCUTA',      // ~200 km
       'VE-MERIDA',      // ~330 km, CO-VE border (Driving fallback through Andes)
       'VE-BARINAS',     // ~104 km — Andean foothills / Llanos
       'VE-ACARIGUA',    // ~152 km
-      'VE-VALENCIA',    // ~147 km
       // Valencia → Caracas ~150 km
     ],
-    notes: 'ボゴタ→トゥンハ→ブカラマンガ→ククータ→[国境]→メリダ→バリナス→アカリグア→バレンシア→カラカス',
+    notes: 'ボゴタ→トゥンハ→ブカラマンガ→[国境]→メリダ→バリナス→アカリグア→カラカス',
   },
 
   // Caracas → Georgetown via Maturín → Ciudad Guayana then the Essequibo
@@ -2005,7 +1992,6 @@ export const segmentClassifications: SegmentClassification[] = [
     routeType: 'land',
     waypointCityIds: [
       'AR-SANNICOLAS',  // ~220 km from Buenos Aires (Paraná river)
-      'AR-ROSARIO',     // ~59 km
       'AR-BELLVILLE',   // ~194 km
       'AR-VILLAMARIA',  // ~57 km
       'AR-CORDOBA',     // ~142 km
@@ -2440,7 +2426,6 @@ export const segmentClassifications: SegmentClassification[] = [
     routeType: 'land',
     waypointCityIds: [
       'SD-KOSTI',    // ~260 km — 白ナイルの河港
-      'SD-ELOBEID',  // ~265 km W (off-river detour)
       'SS-RENK',     // ~360 km, SD-SS border (白ナイル沿い)
       'SS-MELUT',    // ~150 km — 油田地帯
       'SS-MALAKAL',  // ~130 km S on the White Nile
@@ -2480,7 +2465,6 @@ export const segmentClassifications: SegmentClassification[] = [
     toCapitalId: 'DJ',
     routeType: 'land',
     waypointCityIds: [
-      'ER-MASSAWA',  // ~65 km — 紅海の港
       'ER-TIO',      // ~190 km — ダナキル海岸
       'ER-ASSAB',    // ~270 km — ダナキル砂漠海岸 (砂漠 leg)
       // Assab → Djibouti ~165 km, ER-DJ border
@@ -2507,10 +2491,10 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'ET',
     toCapitalId: 'SO',
     routeType: 'land',
+    // Adama/Dire Dawa already walked on DJ→ET (arriving Addis Ababa via
+    // Aysha→Dire Dawa→Awash→Adama); re-listing them here overwrote their km.
     waypointCityIds: [
-      'ET-ADAMA',      // ~80 km from Addis Ababa
-      'ET-MIESO',      // ~185 km — アワッシュ渓谷東縁
-      'ET-DIREDAWA',   // ~125 km — 東部の商都
+      'ET-MIESO',      // ~185 km from Addis Ababa — アワッシュ渓谷東縁
       'ET-HARAR',      // ~45 km — 世界遺産の城壁都市
       'ET-JIJIGA',     // ~75 km — ソマリ州都
       'ET-DEGEHABUR',  // ~150 km — オガデン
@@ -3006,13 +2990,11 @@ export const segmentClassifications: SegmentClassification[] = [
     fromCapitalId: 'BF',
     toCapitalId: 'LR',
     routeType: 'land',
+    // Koudougou/Boromo/Houndé/Bobo-Dioulasso/Banfora/Ferkessédougou already
+    // walked on CI→BF (arriving Ouagadougou via the same corridor);
+    // re-listing them here overwrote their km. Directions still draws the
+    // real road back down that corridor toward Boundiali.
     waypointCityIds: [
-      'BF-KOUDOUGOU',       // ~90 km
-      'BF-BOROMO',          // ~85 km
-      'BF-HOUNDE',          // ~70 km
-      'BF-BOBODIOULASSO',   // ~90 km
-      'BF-BANFORA',         // ~80 km
-      'CI-FERKESSEDOUGOU',  // ~125 km, BF-CI border
       'CI-BOUNDIALI',       // ~140 km
       'CI-ODIENNE',         // ~120 km — 北西部
       'CI-TOUBA',           // ~135 km
