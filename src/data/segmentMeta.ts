@@ -498,9 +498,17 @@ export const segmentClassifications: SegmentClassification[] = [
     // 意図的な往復。総距離362,491kmの0.0002%。挿入時、プレイヤーはまだ
     // プルニア未到達(km45,146台、プルニア手前)だったため、通過済み区間には
     // 一切触れていない。
+    // コルカタ往復チェーンの密度を他区間水準(100〜250km)に統一(2026-08-01)。
+    // 全 leg を dev DirectionsService で実測: マルダ163/クリシュナナガル218/
+    // コルカタ123/バハランプル208/ライガンジ206/キシャンガンジ78/ダルバンガ245km。
     waypointCityIds: [
       'IN-PURNIA',
+      'IN-MALDA',
+      'IN-KRISHNANAGAR',
       'IN-KOLKATA',
+      'IN-BAHARAMPUR',
+      'IN-RAIGANJ',
+      'IN-KISHANGANJ',
       'IN-DARBHANGA',
       'IN-MUZAFFARPUR',
       'NP-BIRGUNJ',
